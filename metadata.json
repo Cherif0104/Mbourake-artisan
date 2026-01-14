@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Mbourake MVP",
+  "description": "Mbourake: A digital marketplace connecting verified professionals and artisans with customers in Senegal. Like the beloved local snack, we bring together the best ingredients for a perfect result.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
