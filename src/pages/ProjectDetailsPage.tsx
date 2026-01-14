@@ -106,7 +106,7 @@ export function ProjectDetailsPage() {
       // Fetch project with relations
       const { data: pData, error: pError } = await supabase
         .from('projects')
-        .select('*, profiles(*), categories(*)')
+        .select('*, profiles!projects_client_id_fkey(*), categories(*)')
         .eq('id', id)
         .single();
 
