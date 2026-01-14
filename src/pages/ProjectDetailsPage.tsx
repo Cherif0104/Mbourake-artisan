@@ -31,6 +31,8 @@ const PROJECT_STATUS_LABELS: Record<string, { label: string; color: string }> = 
   completion_requested: { label: 'Clôture demandée', color: 'bg-orange-100 text-orange-600' },
   disputed: { label: 'En litige', color: 'bg-red-100 text-red-600' },
   completed: { label: 'Terminé', color: 'bg-green-100 text-green-700' },
+  expired: { label: 'Expiré', color: 'bg-gray-100 text-gray-500' },
+  cancelled: { label: 'Annulé', color: 'bg-gray-100 text-gray-500' },
 };
 
 const QUOTE_STATUS_LABELS: Record<string, { label: string; color: string; icon: any }> = {
@@ -85,6 +87,7 @@ export function ProjectDetailsPage() {
   const [quotes, setQuotes] = useState<any[]>([]);
   const [escrow, setEscrow] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // UI States
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -97,32 +100,74 @@ export function ProjectDetailsPage() {
   const fetchDetails = async () => {
     if (!id) return;
     setLoading(true);
+    setError(null);
     
-    // Fetch project with relations
-    const { data: pData } = await supabase
-      .from('projects')
-      .select('*, profiles(*), categories(*)')
-      .eq('id', id)
-      .single();
-    setProject(pData);
+    try {
+      // Fetch project with relations
+      const { data: pData, error: pError } = await supabase
+        .from('projects')
+        .select('*, profiles(*), categories(*)')
+        .eq('id', id)
+        .single();
 
-    // Fetch quotes with artisan profiles
-    const { data: qData } = await supabase
-      .from('quotes')
-      .select('*, profiles(*)')
-      .eq('project_id', id)
-      .order('created_at', { ascending: false });
-    setQuotes(qData || []);
+      if (pError) {
+        console.error('Error fetching project:', pError);
+        console.error('Project ID:', id);
+        console.error('Error details:', JSON.stringify(pError, null, 2));
+        
+        // Set appropriate error message
+        if (pError.code === 'PGRST116' || pError.message?.includes('No rows')) {
+          setError('Projet introuvable. Il se peut que ce projet n\'existe pas ou ait été supprimé.');
+        } else if (pError.code === '42501' || pError.message?.includes('permission denied')) {
+          setError('Vous n\'avez pas la permission d\'accéder à ce projet. Cela peut être dû aux règles de sécurité.');
+        } else {
+          setError(`Erreur lors du chargement du projet: ${pError.message || 'Erreur inconnue'}`);
+        }
+        setProject(null);
+        setLoading(false);
+        return;
+      }
 
-    // Fetch escrow
-    const { data: eData } = await supabase
-      .from('escrows')
-      .select('*')
-      .eq('project_id', id)
-      .maybeSingle();
-    setEscrow(eData);
+      if (!pData) {
+        setError('Projet introuvable.');
+        setProject(null);
+        setLoading(false);
+        return;
+      }
 
-    setLoading(false);
+      setProject(pData);
+      setError(null);
+
+      // Fetch quotes with artisan profiles
+      const { data: qData, error: qError } = await supabase
+        .from('quotes')
+        .select('*, profiles(*)')
+        .eq('project_id', id)
+        .order('created_at', { ascending: false });
+
+      if (qError) {
+        console.error('Error fetching quotes:', qError);
+      }
+      setQuotes(qData || []);
+
+      // Fetch escrow
+      const { data: eData, error: eError } = await supabase
+        .from('escrows')
+        .select('*')
+        .eq('project_id', id)
+        .maybeSingle();
+
+      if (eError) {
+        console.error('Error fetching escrow:', eError);
+      }
+      setEscrow(eData || null);
+    } catch (err: any) {
+      console.error('Unexpected error in fetchDetails:', err);
+      setError(`Erreur inattendue: ${err.message || 'Erreur inconnue'}`);
+      setProject(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -189,22 +234,33 @@ export function ProjectDetailsPage() {
   };
 
   const handleCompleteProject = async () => {
-    if (!id) return;
+    if (!id || !auth.user?.id) return;
     try {
+      // Mettre à jour le statut du projet
       await supabase
         .from('projects')
         .update({ status: 'completed' })
         .eq('id', id);
       
+      // Créer une demande de remboursement (au lieu de rembourser directement)
       if (escrow) {
         await supabase
           .from('escrows')
-          .update({ status: 'released' })
+          .update({ 
+            refund_requested_at: new Date().toISOString(),
+            refund_status: 'pending',
+            refund_requested_by: auth.user.id,
+            status: 'held' // Garder en "held" jusqu'à validation admin
+          })
           .eq('id', escrow.id);
       }
       
+      // Notifier l'admin qu'un remboursement est demandé
+      // (cette notification sera gérée dans AdminEscrows)
+      
       setShowRatingModal(true);
     } catch (err) {
+      console.error('Error completing project:', err);
       alert("Erreur lors de la clôture");
     }
   };
@@ -276,10 +332,30 @@ export function ProjectDetailsPage() {
     );
   }
   
-  if (!project) {
+  if (!project || error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Projet introuvable</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl p-6 shadow-sm border border-gray-100 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle size={32} className="text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Projet introuvable</h2>
+          <p className="text-gray-500 mb-6">{error || 'Ce projet n\'existe pas ou n\'est plus disponible.'}</p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="w-full bg-brand-500 text-white font-bold py-3 rounded-xl hover:bg-brand-600 transition-colors"
+            >
+              Retour au tableau de bord
+            </button>
+            <button
+              onClick={() => fetchDetails()}
+              className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors"
+            >
+              Réessayer
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -324,6 +400,17 @@ export function ProjectDetailsPage() {
             <div>
               <p className="font-bold text-red-700 text-sm">Projet en litige</p>
               <p className="text-xs text-red-600 mt-0.5">L'escrow est gelé. Notre équipe va intervenir.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Expired Banner */}
+        {project.status === 'expired' && (
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+            <Clock size={20} className="text-gray-500 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-gray-700 text-sm">Projet expiré</p>
+              <p className="text-xs text-gray-600 mt-0.5">Ce projet a expiré après 72h sans devis accepté.</p>
             </div>
           </div>
         )}
@@ -416,7 +503,12 @@ export function ProjectDetailsPage() {
               {project.preferred_date && (
                 <div className="flex items-center gap-1">
                   <Clock size={14} />
-                  <span>Souhaité: {new Date(project.preferred_date).toLocaleDateString('fr-FR')}</span>
+                  <span>
+                    Souhaité: {new Date(project.preferred_date).toLocaleDateString('fr-FR')}
+                    {project.preferred_time_start && project.preferred_time_end && 
+                      ` de ${project.preferred_time_start.slice(0, 5)} à ${project.preferred_time_end.slice(0, 5)}`
+                    }
+                  </span>
                 </div>
               )}
             </div>
@@ -491,7 +583,10 @@ export function ProjectDetailsPage() {
             {project.property_details?.type && (
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-gray-400 font-bold uppercase mb-1">Logement</p>
-                <p className="text-sm text-gray-700 capitalize">{project.property_details.type}</p>
+                <p className="text-sm text-gray-700 capitalize">
+                  {project.property_details.type}
+                  {project.property_details.floor && ` - Étage ${project.property_details.floor}`}
+                </p>
                 {project.property_details.accessNotes && (
                   <p className="text-xs text-gray-500 mt-1">{project.property_details.accessNotes}</p>
                 )}
@@ -543,20 +638,20 @@ export function ProjectDetailsPage() {
           {revisionQuoteId && (() => {
             const revisionQuote = quotes.find(q => q.id === revisionQuoteId);
             return revisionQuote ? (
-              <div className="mb-4">
-                <RevisionRequest
-                  quoteId={revisionQuoteId}
+            <div className="mb-4">
+              <RevisionRequest
+                quoteId={revisionQuoteId}
                   currentAmount={revisionQuote.amount || 0}
                   projectId={id!}
                   artisanId={revisionQuote.artisan_id!}
                   projectTitle={project?.title || ''}
-                  onSuccess={() => {
-                    setRevisionQuoteId(null);
-                    fetchDetails();
-                  }}
-                  onCancel={() => setRevisionQuoteId(null)}
-                />
-              </div>
+                onSuccess={() => {
+                  setRevisionQuoteId(null);
+                  fetchDetails();
+                }}
+                onCancel={() => setRevisionQuoteId(null)}
+              />
+            </div>
             ) : null;
           })()}
 
