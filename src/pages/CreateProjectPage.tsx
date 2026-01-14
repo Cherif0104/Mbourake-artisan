@@ -233,7 +233,7 @@ export function CreateProjectPage() {
           is_urgent: isUrgent,
           property_details: propertyDetails.type ? propertyDetails : null,
           status: 'open',
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+          expires_at: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(), // 6 days
         })
         .select()
         .single();
