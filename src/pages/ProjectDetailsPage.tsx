@@ -96,6 +96,7 @@ export function ProjectDetailsPage() {
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const fetchDetails = async () => {
     if (!id) return;
@@ -224,15 +225,44 @@ export function ProjectDetailsPage() {
   }, [id]);
 
   const handleAcceptQuote = async (quote: any) => {
-    if (!id || !auth.user?.id) return;
+    // Validation préalable complète
+    if (!id || !auth.user?.id) {
+      alert('Erreur : informations manquantes');
+      return;
+    }
+    
+    // Vérifier que le projet appartient bien au client
+    if (project?.client_id !== auth.user.id) {
+      alert('Vous n\'êtes pas autorisé à accepter ce devis.');
+      return;
+    }
+    
+    // Vérifier que le devis est en statut 'pending'
+    if (quote.status !== 'pending' && quote.status !== 'viewed') {
+      alert('Ce devis ne peut plus être accepté (statut: ' + quote.status + ')');
+      return;
+    }
+    
+    // Vérifier qu'il n'y a pas déjà un devis accepté
+    const hasAcceptedQuote = quotes.some(q => q.status === 'accepted' && q.id !== quote.id);
+    if (hasAcceptedQuote) {
+      alert('Un devis a déjà été accepté pour ce projet.');
+      return;
+    }
+    
     try {
+      setActionLoading(true);
       const oldStatus = quote.status;
       
-      // Update quote status
-      await supabase
+      // Update quote status avec vérification d'erreur
+      const { error: quoteUpdateError } = await supabase
         .from('quotes')
         .update({ status: 'accepted' })
         .eq('id', quote.id);
+      
+      if (quoteUpdateError) {
+        throw new Error(`Erreur mise à jour devis: ${quoteUpdateError.message}`);
+      }
       
       // Log action acceptation devis
       try {
@@ -248,22 +278,27 @@ export function ProjectDetailsPage() {
         console.error('Error logging quote acceptance:', logErr);
       }
       
-      // Reject other quotes
-      const { data: rejectedQuotes } = await supabase
+      // Reject other quotes avec meilleure gestion
+      const { data: rejectedQuotes, error: rejectError } = await supabase
         .from('quotes')
         .select('id')
         .eq('project_id', id)
         .neq('id', quote.id)
-        .eq('status', 'pending');
+        .in('status', ['pending', 'viewed']);
       
-      await supabase
-        .from('quotes')
-        .update({ status: 'rejected' })
-        .eq('project_id', id)
-        .neq('id', quote.id);
-      
-      // Log rejections des autres devis
-      if (rejectedQuotes) {
+      if (rejectError) {
+        console.error('Error fetching quotes to reject:', rejectError);
+      } else if (rejectedQuotes && rejectedQuotes.length > 0) {
+        const { error: updateRejectError } = await supabase
+          .from('quotes')
+          .update({ status: 'rejected' })
+          .in('id', rejectedQuotes.map(q => q.id));
+        
+        if (updateRejectError) {
+          console.error('Error rejecting other quotes:', updateRejectError);
+        }
+        
+        // Log rejections des autres devis
         for (const rejectedQuote of rejectedQuotes) {
           try {
             await supabase.rpc('log_quote_action', {
@@ -283,11 +318,15 @@ export function ProjectDetailsPage() {
       
       const oldProjectStatus = project?.status;
       
-      // Update project status
-      await supabase
+      // Update project status avec vérification
+      const { error: projectUpdateError } = await supabase
         .from('projects')
         .update({ status: 'quote_accepted' })
         .eq('id', id);
+      
+      if (projectUpdateError) {
+        throw new Error(`Erreur mise à jour projet: ${projectUpdateError.message}`);
+      }
 
       // Log changement statut projet
       try {
@@ -303,15 +342,19 @@ export function ProjectDetailsPage() {
         console.error('Error logging project status change:', logErr);
       }
 
-      // Initiate escrow
-      const escrowResult = await initiateEscrow({
-        project_id: id,
-        total_amount: quote.amount,
-        artisan_is_verified: quote.profiles?.is_verified ?? false,
-      });
-
-      // Log création escrow
-      if (escrowResult?.id) {
+      // Initiate escrow avec vérification
+      try {
+        const escrowResult = await initiateEscrow({
+          project_id: id,
+          total_amount: quote.amount,
+          artisan_is_verified: quote.profiles?.is_verified ?? false,
+        });
+        
+        if (!escrowResult?.id) {
+          throw new Error('Échec de la création de l\'escrow');
+        }
+        
+        // Log création escrow
         try {
           await supabase.rpc('log_escrow_action', {
             p_escrow_id: escrowResult.id,
@@ -322,56 +365,108 @@ export function ProjectDetailsPage() {
         } catch (logErr) {
           console.error('Error logging escrow creation:', logErr);
         }
+      } catch (escrowErr: any) {
+        console.error('Error creating escrow:', escrowErr);
+        throw new Error(`Erreur création escrow: ${escrowErr.message}`);
       }
 
       // Notifier l'artisan
       if (quote.artisan_id && project?.title) {
-        await notifyArtisanQuoteAccepted(id, quote.artisan_id, project.title);
+        try {
+          await notifyArtisanQuoteAccepted(id, quote.artisan_id, project.title);
+        } catch (notifErr) {
+          console.error('Error notifying artisan:', notifErr);
+        }
       }
       
-      fetchDetails();
-    } catch (err) {
+      // Message de succès
+      alert('Devis accepté avec succès !');
+      
+      // Rafraîchir les données
+      await fetchDetails();
+      
+    } catch (err: any) {
       console.error('Error accepting quote:', err);
-      alert("Erreur lors de l'acceptation");
+      alert(`Erreur lors de l'acceptation: ${err.message || 'Erreur inconnue'}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleRejectQuote = async (quoteId: string) => {
-    if (!auth.user?.id) return;
+    // Validation préalable
+    if (!auth.user?.id || !id) {
+      alert('Erreur : informations manquantes');
+      return;
+    }
+    
+    // Vérifier que le projet appartient bien au client
+    if (project?.client_id !== auth.user.id) {
+      alert('Vous n\'êtes pas autorisé à refuser ce devis.');
+      return;
+    }
+    
+    const quote = quotes.find(q => q.id === quoteId);
+    if (!quote) {
+      alert('Devis introuvable');
+      return;
+    }
+    
+    // Vérifier que le devis peut être refusé
+    if (quote.status === 'accepted') {
+      alert('Ce devis a déjà été accepté et ne peut plus être refusé.');
+      return;
+    }
+    
+    if (quote.status === 'rejected') {
+      alert('Ce devis a déjà été refusé.');
+      return;
+    }
+    
     try {
-      const quote = quotes.find(q => q.id === quoteId);
-      const oldStatus = quote?.status;
+      setActionLoading(true);
+      const oldStatus = quote.status;
       
-      await supabase
+      // Update quote status avec vérification d'erreur
+      const { error: updateError } = await supabase
         .from('quotes')
         .update({ status: 'rejected' })
         .eq('id', quoteId);
       
+      if (updateError) {
+        throw new Error(`Erreur mise à jour: ${updateError.message}`);
+      }
+      
       // Log action rejection
-      if (quote) {
-        try {
-          await supabase.rpc('log_quote_action', {
-            p_quote_id: quoteId,
-            p_project_id: id || quote.project_id,
-            p_user_id: auth.user.id,
-            p_action: 'rejected',
-            p_old_value: { status: oldStatus },
-            p_new_value: { status: 'rejected' }
-          });
-        } catch (logErr) {
-          console.error('Error logging quote rejection:', logErr);
-        }
+      try {
+        await supabase.rpc('log_quote_action', {
+          p_quote_id: quoteId,
+          p_project_id: id || quote.project_id,
+          p_user_id: auth.user.id,
+          p_action: 'rejected',
+          p_old_value: { status: oldStatus },
+          p_new_value: { status: 'rejected' }
+        });
+      } catch (logErr) {
+        console.error('Error logging quote rejection:', logErr);
       }
       
       // Notifier l'artisan
-      if (quote?.artisan_id && project?.title) {
-        await notifyArtisanQuoteRejected(id!, quote.artisan_id, project.title);
+      if (quote.artisan_id && project?.title) {
+        try {
+          await notifyArtisanQuoteRejected(id, quote.artisan_id, project.title);
+        } catch (notifErr) {
+          console.error('Error notifying artisan:', notifErr);
+        }
       }
       
-      fetchDetails();
-    } catch (err) {
+      alert('Devis refusé avec succès');
+      await fetchDetails();
+    } catch (err: any) {
       console.error('Error rejecting quote:', err);
-      alert("Erreur lors du refus");
+      alert(`Erreur lors du refus: ${err.message || 'Erreur inconnue'}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -503,6 +598,100 @@ export function ProjectDetailsPage() {
     } catch (err) {
       console.error('Error submitting rating:', err);
       alert("Erreur lors de l'envoi de l'avis");
+    }
+  };
+
+  const handleCancelProject = async () => {
+    if (!id || !auth.user?.id || project?.client_id !== auth.user.id) {
+      alert('Action non autorisée');
+      return;
+    }
+    
+    // Vérifier si projet peut être annulé (pas de devis accepté, pas de paiement)
+    if (escrow && escrow.status !== 'pending') {
+      alert('Impossible d\'annuler : paiement déjà effectué. Veuillez demander un remboursement.');
+      return;
+    }
+    
+    const hasAcceptedQuote = quotes.some(q => q.status === 'accepted');
+    if (hasAcceptedQuote) {
+      alert('Impossible d\'annuler : un devis a déjà été accepté.');
+      return;
+    }
+    
+    const confirmed = window.confirm(
+      'Êtes-vous sûr de vouloir annuler ce projet ? Cette action est irréversible.'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      setActionLoading(true);
+      
+      // Mettre à jour le statut du projet
+      const { error: projectError } = await supabase
+        .from('projects')
+        .update({ status: 'cancelled' })
+        .eq('id', id);
+      
+      if (projectError) {
+        throw new Error(`Erreur: ${projectError.message}`);
+      }
+      
+      // Rejeter tous les devis en attente
+      const { data: pendingQuotes } = await supabase
+        .from('quotes')
+        .select('id, artisan_id')
+        .eq('project_id', id)
+        .in('status', ['pending', 'viewed']);
+      
+      if (pendingQuotes && pendingQuotes.length > 0) {
+        await supabase
+          .from('quotes')
+          .update({ status: 'rejected' })
+          .in('id', pendingQuotes.map(q => q.id));
+      }
+      
+      // Log action
+      try {
+        await supabase.rpc('log_project_action', {
+          p_project_id: id,
+          p_user_id: auth.user.id,
+          p_action: 'cancelled',
+          p_old_value: { status: project?.status },
+          p_new_value: { status: 'cancelled' }
+        });
+      } catch (logErr) {
+        console.error('Error logging project cancellation:', logErr);
+      }
+      
+      // Notifier les artisans ayant soumis un devis
+      if (pendingQuotes && pendingQuotes.length > 0) {
+        for (const quote of pendingQuotes) {
+          if (quote.artisan_id) {
+            try {
+              await supabase.from('notifications').insert({
+                user_id: quote.artisan_id,
+                type: 'project_cancelled',
+                title: 'Projet annulé',
+                message: `Le projet "${project?.title}" a été annulé par le client.`,
+                data: { project_id: id }
+              });
+            } catch (notifErr) {
+              console.error('Error notifying artisan:', notifErr);
+            }
+          }
+        }
+      }
+      
+      alert('Projet annulé avec succès');
+      await fetchDetails();
+      
+    } catch (err: any) {
+      console.error('Error cancelling project:', err);
+      alert(`Erreur: ${err.message || 'Erreur inconnue'}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1096,22 +1285,31 @@ export function ProjectDetailsPage() {
                       <div className="p-4 border-t border-gray-50 space-y-2">
                         <button 
                           onClick={() => handleAcceptQuote(quote)}
-                          className="w-full bg-green-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"
+                          disabled={actionLoading}
+                          className="w-full bg-green-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <CheckCircle size={18} />
-                          Accepter ce devis
+                          {actionLoading ? (
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle size={18} />
+                              Accepter ce devis
+                            </>
+                          )}
                         </button>
                         <div className="flex gap-2">
                           <button 
                             onClick={() => setRevisionQuoteId(quote.id)}
-                            className="flex-1 bg-yellow-50 text-yellow-700 font-bold py-3 rounded-xl border border-yellow-200 flex items-center justify-center gap-2"
+                            disabled={actionLoading}
+                            className="flex-1 bg-yellow-50 text-yellow-700 font-bold py-3 rounded-xl border border-yellow-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <RotateCcw size={16} />
                             Révision
                           </button>
                           <button 
                             onClick={() => handleRejectQuote(quote.id)}
-                            className="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-200 flex items-center justify-center gap-2"
+                            disabled={actionLoading}
+                            className="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <X size={16} />
                             Refuser
@@ -1144,6 +1342,29 @@ export function ProjectDetailsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Client Action: Annuler le projet */}
+          {isClient && ['open', 'quote_received'].includes(project.status) && !quotes.some(q => q.status === 'accepted') && (
+            <div className="bg-white rounded-2xl border border-red-200 p-4 mt-4">
+              <button
+                onClick={handleCancelProject}
+                disabled={actionLoading}
+                className="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-100 transition-colors"
+              >
+                {actionLoading ? (
+                  <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <X size={18} />
+                    Annuler le projet
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Vous pourrez annuler tant qu'aucun devis n'a été accepté
+              </p>
             </div>
           )}
         </section>

@@ -1,11 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, MapPin, ShieldCheck, Phone, Globe, ChevronRight } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { useProfile } from '../hooks/useProfile';
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const auth = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   const [step, setStep] = useState(1);
   const [lang, setLang] = useState('fr');
+
+  // Vérifier si utilisateur connecté et profil complet - éviter les boucles
+  useEffect(() => {
+    if (auth.loading || profileLoading) return;
+    
+    // Si utilisateur connecté avec profil complet -> rediriger vers dashboard
+    if (auth.user && profile) {
+      const isProfileComplete = profile.role && profile.full_name && profile.location && 
+        (profile.role !== 'artisan' || profile.category_id);
+      
+      if (isProfileComplete) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+    }
+    
+    // Si utilisateur connecté mais profil incomplet -> rediriger vers profile-setup
+    if (auth.user && !profileLoading && (!profile || !profile.role)) {
+      navigate('/profile-setup', { replace: true });
+      return;
+    }
+  }, [auth.user, auth.loading, profile, profileLoading, navigate]);
 
   const chambresMetiers = [
     { region: 'Dakar', adresse: 'Avenue Malick Sy x Rue 6, Dakar', tel: '+221 33 822 28 40' },

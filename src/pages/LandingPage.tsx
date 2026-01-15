@@ -17,12 +17,13 @@ import { useProfile } from '../hooks/useProfile';
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { profile } = useProfile();
+  const auth = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   const { categories: dbCategories, loading } = useDiscovery();
   const [searchQuery, setSearchQuery] = useState('');
   
-  const isLoggedIn = !!user && !!profile;
+  // Attendre que les deux hooks aient fini de charger pour éviter le flickering
+  const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
   
   // Map icon names to Lucide components
   const iconMap: Record<string, React.ReactNode> = {
