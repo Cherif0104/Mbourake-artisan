@@ -16,5 +16,22 @@ export default defineConfig(({ mode }) => {
         },
         dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom'],
       },
+      build: {
+        outDir: 'dist',
+        assetsDir: 'assets',
+        sourcemap: false,
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+              'supabase-vendor': ['@supabase/supabase-js'],
+            },
+          },
+        },
+      },
+      preview: {
+        port: 3002,
+        host: '0.0.0.0',
+      },
     };
 });
