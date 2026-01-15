@@ -240,8 +240,33 @@ export function CreateProjectPage() {
 
       if (projectError) throw projectError;
 
-      // 5. Notifier les artisans (en arrière-plan, ne pas bloquer)
+      // 5. Log création projet (traçabilité)
       if (newProject) {
+        try {
+          await supabase.rpc('log_project_action', {
+            p_project_id: newProject.id,
+            p_user_id: auth.user.id,
+            p_action: 'created',
+            p_new_value: {
+              title: newProject.title,
+              category_id: categoryId,
+              status: 'open',
+              is_open: isOpen,
+              location: location || null
+            },
+            p_metadata: {
+              has_audio: !!audioUrl,
+              has_video: !!videoUrl,
+              photos_count: photoUrls.length,
+              is_urgent: isUrgent
+            }
+          });
+        } catch (logErr) {
+          console.error('Error logging project creation:', logErr);
+          // Ne pas bloquer si le log échoue
+        }
+
+        // Notifier les artisans (en arrière-plan, ne pas bloquer)
         notifyArtisansNewProject({
           id: newProject.id,
           title: newProject.title || "Projet sans titre",
@@ -252,6 +277,19 @@ export function CreateProjectPage() {
           max_distance_km: isOpen ? maxDistanceKm || undefined : undefined,
           min_rating: isOpen ? minRating || undefined : undefined,
         }).catch(err => console.error('Error notifying artisans:', err));
+
+        // Notifier le client de la création réussie
+        try {
+          await supabase.from('notifications').insert({
+            user_id: auth.user.id,
+            type: 'system',
+            title: 'Projet créé avec succès',
+            message: `Votre projet "${newProject.title || 'Projet sans titre'}" a été publié. Les artisans seront notifiés.`,
+            data: { project_id: newProject.id }
+          });
+        } catch (notifErr) {
+          console.error('Error notifying client:', notifErr);
+        }
       }
 
       // Naviguer vers le dashboard

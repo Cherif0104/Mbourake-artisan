@@ -203,20 +203,64 @@ export function ProjectDetailsPage() {
   }, [id]);
 
   const handleAcceptQuote = async (quote: any) => {
-    if (!id) return;
+    if (!id || !auth.user?.id) return;
     try {
+      const oldStatus = quote.status;
+      
       // Update quote status
       await supabase
         .from('quotes')
         .update({ status: 'accepted' })
         .eq('id', quote.id);
       
+      // Log action acceptation devis
+      try {
+        await supabase.rpc('log_quote_action', {
+          p_quote_id: quote.id,
+          p_project_id: id,
+          p_user_id: auth.user.id,
+          p_action: 'accepted',
+          p_old_value: { status: oldStatus },
+          p_new_value: { status: 'accepted', amount: quote.amount }
+        });
+      } catch (logErr) {
+        console.error('Error logging quote acceptance:', logErr);
+      }
+      
       // Reject other quotes
+      const { data: rejectedQuotes } = await supabase
+        .from('quotes')
+        .select('id')
+        .eq('project_id', id)
+        .neq('id', quote.id)
+        .eq('status', 'pending');
+      
       await supabase
         .from('quotes')
         .update({ status: 'rejected' })
         .eq('project_id', id)
         .neq('id', quote.id);
+      
+      // Log rejections des autres devis
+      if (rejectedQuotes) {
+        for (const rejectedQuote of rejectedQuotes) {
+          try {
+            await supabase.rpc('log_quote_action', {
+              p_quote_id: rejectedQuote.id,
+              p_project_id: id,
+              p_user_id: auth.user.id,
+              p_action: 'rejected',
+              p_old_value: { status: 'pending' },
+              p_new_value: { status: 'rejected' },
+              p_metadata: { reason: 'other_quote_accepted' }
+            });
+          } catch (logErr) {
+            console.error('Error logging quote rejection:', logErr);
+          }
+        }
+      }
+      
+      const oldProjectStatus = project?.status;
       
       // Update project status
       await supabase
@@ -224,12 +268,40 @@ export function ProjectDetailsPage() {
         .update({ status: 'quote_accepted' })
         .eq('id', id);
 
+      // Log changement statut projet
+      try {
+        await supabase.rpc('log_project_action', {
+          p_project_id: id,
+          p_user_id: auth.user.id,
+          p_action: 'status_changed',
+          p_old_value: { status: oldProjectStatus },
+          p_new_value: { status: 'quote_accepted' },
+          p_metadata: { quote_id: quote.id }
+        });
+      } catch (logErr) {
+        console.error('Error logging project status change:', logErr);
+      }
+
       // Initiate escrow
-      await initiateEscrow({
+      const escrowResult = await initiateEscrow({
         project_id: id,
         total_amount: quote.amount,
         artisan_is_verified: quote.profiles?.is_verified ?? false,
       });
+
+      // Log création escrow
+      if (escrowResult?.id) {
+        try {
+          await supabase.rpc('log_escrow_action', {
+            p_escrow_id: escrowResult.id,
+            p_user_id: auth.user.id,
+            p_action: 'created',
+            p_new_value: { total_amount: quote.amount, status: 'pending' }
+          });
+        } catch (logErr) {
+          console.error('Error logging escrow creation:', logErr);
+        }
+      }
 
       // Notifier l'artisan
       if (quote.artisan_id && project?.title) {
@@ -238,17 +310,37 @@ export function ProjectDetailsPage() {
       
       fetchDetails();
     } catch (err) {
+      console.error('Error accepting quote:', err);
       alert("Erreur lors de l'acceptation");
     }
   };
 
   const handleRejectQuote = async (quoteId: string) => {
+    if (!auth.user?.id) return;
     try {
       const quote = quotes.find(q => q.id === quoteId);
+      const oldStatus = quote?.status;
+      
       await supabase
         .from('quotes')
         .update({ status: 'rejected' })
         .eq('id', quoteId);
+      
+      // Log action rejection
+      if (quote) {
+        try {
+          await supabase.rpc('log_quote_action', {
+            p_quote_id: quoteId,
+            p_project_id: id || quote.project_id,
+            p_user_id: auth.user.id,
+            p_action: 'rejected',
+            p_old_value: { status: oldStatus },
+            p_new_value: { status: 'rejected' }
+          });
+        } catch (logErr) {
+          console.error('Error logging quote rejection:', logErr);
+        }
+      }
       
       // Notifier l'artisan
       if (quote?.artisan_id && project?.title) {
@@ -257,6 +349,7 @@ export function ProjectDetailsPage() {
       
       fetchDetails();
     } catch (err) {
+      console.error('Error rejecting quote:', err);
       alert("Erreur lors du refus");
     }
   };
@@ -264,14 +357,32 @@ export function ProjectDetailsPage() {
   const handleCompleteProject = async () => {
     if (!id || !auth.user?.id) return;
     try {
+      const oldStatus = project?.status;
+      
       // Mettre à jour le statut du projet
       await supabase
         .from('projects')
         .update({ status: 'completed' })
         .eq('id', id);
+
+      // Log changement statut projet
+      try {
+        await supabase.rpc('log_project_action', {
+          p_project_id: id,
+          p_user_id: auth.user.id,
+          p_action: 'status_changed',
+          p_old_value: { status: oldStatus },
+          p_new_value: { status: 'completed' }
+        });
+      } catch (logErr) {
+        console.error('Error logging project completion:', logErr);
+      }
       
       // Créer une demande de remboursement (au lieu de rembourser directement)
       if (escrow) {
+        const oldEscrowStatus = escrow.status;
+        const oldRefundStatus = escrow.refund_status;
+        
         await supabase
           .from('escrows')
           .update({ 
@@ -281,10 +392,42 @@ export function ProjectDetailsPage() {
             status: 'held' // Garder en "held" jusqu'à validation admin
           })
           .eq('id', escrow.id);
+
+        // Log demande remboursement
+        try {
+          await supabase.rpc('log_escrow_action', {
+            p_escrow_id: escrow.id,
+            p_user_id: auth.user.id,
+            p_action: 'refund_requested',
+            p_old_value: { status: oldEscrowStatus, refund_status: oldRefundStatus },
+            p_new_value: { status: 'held', refund_status: 'pending' }
+          });
+        } catch (logErr) {
+          console.error('Error logging refund request:', logErr);
+        }
+
+        // Notifier l'admin qu'un remboursement est demandé
+        try {
+          const { data: admins } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('role', 'admin');
+
+          if (admins && admins.length > 0) {
+            for (const admin of admins) {
+              await supabase.from('notifications').insert({
+                user_id: admin.id,
+                type: 'system',
+                title: 'Demande de remboursement',
+                message: `Un client demande le remboursement pour le projet "${project?.title || id}". Validation requise.`,
+                data: { project_id: id, escrow_id: escrow.id, action: 'review_refund' }
+              });
+            }
+          }
+        } catch (notifErr) {
+          console.error('Error notifying admin:', notifErr);
+        }
       }
-      
-      // Notifier l'admin qu'un remboursement est demandé
-      // (cette notification sera gérée dans AdminEscrows)
       
       setShowRatingModal(true);
     } catch (err) {
@@ -294,21 +437,50 @@ export function ProjectDetailsPage() {
   };
 
   const handleSubmitRating = async () => {
-    if (!id || !project) return;
+    if (!id || !project || !auth.user?.id) return;
     try {
       const acceptedQuote = quotes.find(q => q.status === 'accepted');
       if (acceptedQuote) {
-        await supabase.from('reviews').insert({
+        const { data: newReview, error: reviewError } = await supabase.from('reviews').insert({
           project_id: id,
-          client_id: auth.user?.id,
+          client_id: auth.user.id,
           artisan_id: acceptedQuote.artisan_id,
           rating,
-          comment: review,
-        });
+          comment: review || null,
+        }).select().single();
+
+        if (reviewError) throw reviewError;
+
+        // Log action notation (le trigger SQL va générer la facture automatiquement)
+        try {
+          await supabase.rpc('log_project_action', {
+            p_project_id: id,
+            p_user_id: auth.user.id,
+            p_action: 'review_submitted',
+            p_new_value: { rating, has_comment: !!review },
+            p_metadata: { review_id: newReview?.id, artisan_id: acceptedQuote.artisan_id }
+          });
+        } catch (logErr) {
+          console.error('Error logging review submission:', logErr);
+        }
+
+        // Notifier l'artisan qu'il a reçu une note
+        try {
+          await supabase.from('notifications').insert({
+            user_id: acceptedQuote.artisan_id,
+            type: 'system',
+            title: 'Nouvelle note reçue',
+            message: `Vous avez reçu une note de ${rating}/5 pour le projet "${project.title}".${review ? ' Commentaire: ' + review.substring(0, 100) : ''}`,
+            data: { project_id: id, review_id: newReview?.id, rating }
+          });
+        } catch (notifErr) {
+          console.error('Error notifying artisan of review:', notifErr);
+        }
       }
       setShowRatingModal(false);
       navigate('/dashboard');
     } catch (err) {
+      console.error('Error submitting rating:', err);
       alert("Erreur lors de l'envoi de l'avis");
     }
   };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Search, DollarSign, Clock, CheckCircle, AlertCircle, ArrowUpRight, Shield } from 'lucide-react';
+import { Search, DollarSign, Clock, CheckCircle, AlertCircle, ArrowUpRight, Shield, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface Escrow {
@@ -10,10 +10,15 @@ interface Escrow {
   artisan_payout: number;
   advance_paid: number;
   status: string;
+  refund_status?: 'pending' | 'approved' | 'rejected' | null;
+  refund_requested_at?: string;
+  refund_requested_by?: string;
+  refund_notes?: string;
   created_at: string;
   projects: { 
     title: string;
-    profiles: { full_name: string; email: string } | null;
+    project_number?: string;
+    profiles: { full_name: string; email: string; phone?: string } | null;
   } | null;
 }
 
@@ -41,12 +46,103 @@ export function AdminEscrows() {
     setLoading(false);
   };
 
+  const pendingRefunds = escrows.filter(e => e.refund_status === 'pending');
+  
   const filteredEscrows = escrows.filter(escrow => {
     const matchesSearch = 
-      escrow.projects?.title?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || escrow.status === statusFilter;
+      escrow.projects?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      escrow.projects?.project_number?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || escrow.status === statusFilter || 
+      (statusFilter === 'refund_pending' && escrow.refund_status === 'pending');
     return matchesSearch && matchesStatus;
   });
+
+  const handleApproveRefund = async (escrowId: string, notes?: string) => {
+    if (!confirm('Confirmez-vous l\'approbation de ce remboursement ?')) return;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    await supabase
+      .from('escrows')
+      .update({ 
+        refund_status: 'approved',
+        refund_approved_by: user?.id,
+        refund_notes: notes || null,
+        status: 'refunded'
+      })
+      .eq('id', escrowId);
+    
+    // Log action
+    try {
+      await supabase.rpc('log_escrow_action', {
+        p_escrow_id: escrowId,
+        p_user_id: user?.id,
+        p_action: 'refund_approved',
+        p_new_value: { refund_status: 'approved', status: 'refunded' },
+        p_metadata: { notes: notes || null }
+      });
+    } catch (logErr) {
+      console.error('Error logging refund approval:', logErr);
+    }
+    
+    fetchEscrows();
+    setSelectedEscrow(null);
+    
+    // Notification client
+    const escrow = escrows.find(e => e.id === escrowId);
+    if (escrow?.refund_requested_by) {
+      await supabase.from('notifications').insert({
+        user_id: escrow.refund_requested_by,
+        type: 'system',
+        title: 'Remboursement approuvé',
+        message: `Votre demande de remboursement pour le projet "${escrow.projects?.title}" a été approuvée.`,
+        data: { project_id: escrow.project_id, escrow_id: escrowId }
+      });
+    }
+  };
+
+  const handleRejectRefund = async (escrowId: string, reason: string) => {
+    if (!confirm('Confirmez-vous le rejet de ce remboursement ?')) return;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    await supabase
+      .from('escrows')
+      .update({ 
+        refund_status: 'rejected',
+        refund_approved_by: user?.id,
+        refund_notes: reason
+      })
+      .eq('id', escrowId);
+    
+    // Log action
+    try {
+      await supabase.rpc('log_escrow_action', {
+        p_escrow_id: escrowId,
+        p_user_id: user?.id,
+        p_action: 'refund_rejected',
+        p_new_value: { refund_status: 'rejected' },
+        p_metadata: { reason }
+      });
+    } catch (logErr) {
+      console.error('Error logging refund rejection:', logErr);
+    }
+    
+    fetchEscrows();
+    setSelectedEscrow(null);
+    
+    // Notification client
+    const escrow = escrows.find(e => e.id === escrowId);
+    if (escrow?.refund_requested_by) {
+      await supabase.from('notifications').insert({
+        user_id: escrow.refund_requested_by,
+        type: 'system',
+        title: 'Remboursement refusé',
+        message: `Votre demande de remboursement a été refusée. Raison: ${reason}`,
+        data: { project_id: escrow.project_id, escrow_id: escrowId }
+      });
+    }
+  };
 
   const totalHeld = escrows
     .filter(e => e.status === 'held')
@@ -164,6 +260,7 @@ export function AdminEscrows() {
           <option value="advance_paid">Avance versée</option>
           <option value="released">Libéré</option>
           <option value="refunded">Remboursé</option>
+          <option value="refund_pending">Remboursements en attente ({pendingRefunds.length})</option>
         </select>
       </div>
 
@@ -217,9 +314,16 @@ export function AdminEscrows() {
                     </p>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${getStatusBadge(escrow.status)}`}>
-                      {getStatusLabel(escrow.status)}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${getStatusBadge(escrow.status)}`}>
+                        {getStatusLabel(escrow.status)}
+                      </span>
+                      {escrow.refund_status === 'pending' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                          Remboursement demandé
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-sm text-gray-500">
@@ -306,7 +410,27 @@ export function AdminEscrows() {
               </div>
             )}
 
-            {selectedEscrow.status === 'released' && (
+            {selectedEscrow.refund_status === 'approved' && (
+              <div className="p-4 bg-green-50 rounded-xl mb-6 flex items-center gap-3">
+                <CheckCircle className="text-green-500" size={24} />
+                <div>
+                  <p className="font-bold text-green-700">Remboursement approuvé</p>
+                  <p className="text-sm text-green-600">Le remboursement a été traité</p>
+                </div>
+              </div>
+            )}
+
+            {selectedEscrow.refund_status === 'rejected' && selectedEscrow.refund_notes && (
+              <div className="p-4 bg-red-50 rounded-xl mb-6 flex items-start gap-3">
+                <X className="text-red-500 mt-0.5" size={24} />
+                <div>
+                  <p className="font-bold text-red-700">Remboursement refusé</p>
+                  <p className="text-sm text-red-600 mt-1">Raison: {selectedEscrow.refund_notes}</p>
+                </div>
+              </div>
+            )}
+
+            {selectedEscrow.status === 'released' && !selectedEscrow.refund_status && (
               <div className="p-4 bg-green-50 rounded-xl mb-6 flex items-center gap-3">
                 <CheckCircle className="text-green-500" size={24} />
                 <div>

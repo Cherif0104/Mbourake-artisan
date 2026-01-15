@@ -105,11 +105,88 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
 
       if (quoteError) throw quoteError;
 
+      // Récupérer l'ID du devis créé
+      const { data: createdQuote } = await supabase
+        .from('quotes')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('artisan_id', artisanId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // CRÉER CHAT AUTOMATIQUEMENT après soumission devis
+      try {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('client_id, title')
+          .eq('id', projectId)
+          .single();
+
+        if (project?.client_id) {
+          // Vérifier si un chat existe déjà
+          const { data: existingChat } = await supabase
+            .from('messages')
+            .select('id')
+            .eq('project_id', projectId)
+            .eq('sender_id', artisanId)
+            .eq('receiver_id', project.client_id)
+            .limit(1)
+            .maybeSingle();
+
+          // Si pas de chat, créer un message de bienvenue
+          if (!existingChat) {
+            const { data: artisan } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', artisanId)
+              .single();
+
+            await supabase.from('messages').insert({
+              project_id: projectId,
+              sender_id: artisanId,
+              receiver_id: project.client_id,
+              content: `Bonjour, j'ai soumis un devis pour votre projet "${project.title || 'votre projet'}". N'hésitez pas à me contacter pour discuter des détails.`,
+              is_system_message: false,
+            });
+
+            // Log l'action de création du chat
+            if (createdQuote?.id) {
+              await supabase.rpc('log_quote_action', {
+                p_quote_id: createdQuote.id,
+                p_project_id: projectId,
+                p_user_id: artisanId,
+                p_action: 'chat_created',
+                p_metadata: { auto_created: true }
+              });
+            }
+          }
+        }
+      } catch (chatErr) {
+        console.error('Error creating chat:', chatErr);
+        // Ne pas bloquer si le chat échoue
+      }
+
       // Update project status
       await supabase
         .from('projects')
         .update({ status: 'quote_received' })
         .eq('id', projectId);
+
+      // Log l'action de soumission du devis
+      if (createdQuote?.id) {
+        try {
+          await supabase.rpc('log_quote_action', {
+            p_quote_id: createdQuote.id,
+            p_project_id: projectId,
+            p_user_id: artisanId,
+            p_action: 'submitted',
+            p_new_value: { amount: totalAmount, status: 'pending' }
+          });
+        } catch (logErr) {
+          console.error('Error logging quote action:', logErr);
+        }
+      }
 
       // Notifier le client (en arrière-plan)
       try {
