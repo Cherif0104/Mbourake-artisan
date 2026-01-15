@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import type { Database } from '../types/database.types';
 
 export type ProfileRow = Database['public']['Tables']['profiles']['Row'];
-export type ProfileRole = 'client' | 'artisan' | 'admin';
+export type ProfileRole = 'client' | 'artisan' | 'admin' | 'partner' | 'chambre_metier';
 
 type ProfileState = {
   profile: ProfileRow | null;

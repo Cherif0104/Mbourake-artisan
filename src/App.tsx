@@ -14,6 +14,8 @@ import { ChatPage } from './pages/ChatPage';
 import { Dashboard } from './pages/Dashboard';
 import { VerificationPage } from './pages/VerificationPage';
 import { EditProfilePage } from './pages/EditProfilePage';
+import { ExpensesPage } from './pages/ExpensesPage';
+import { InvoicesPage } from './pages/InvoicesPage';
 import { ArtisanPublicProfilePage } from './pages/ArtisanPublicProfilePage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -43,6 +45,8 @@ export default function App() {
       <Route path="/chat/:projectId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
       <Route path="/verification" element={<PrivateRoute><VerificationPage /></PrivateRoute>} />
       <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
+      <Route path="/expenses" element={<PrivateRoute><ExpensesPage /></PrivateRoute>} />
+      <Route path="/invoices" element={<PrivateRoute><InvoicesPage /></PrivateRoute>} />
       
       {/* Admin Routes */}
       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />

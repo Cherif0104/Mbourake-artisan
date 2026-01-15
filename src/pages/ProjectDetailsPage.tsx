@@ -103,59 +103,87 @@ export function ProjectDetailsPage() {
     setError(null);
     
     try {
-      // Fetch project with relations
+    // Fetch project with relations - Permettre l'accès même aux projets expirés/annulés
       const { data: pData, error: pError } = await supabase
-        .from('projects')
+      .from('projects')
         .select('*, profiles!projects_client_id_fkey(*), categories(*)')
-        .eq('id', id)
-        .single();
+      .eq('id', id)
+      .single();
 
       if (pError) {
         console.error('Error fetching project:', pError);
         console.error('Project ID:', id);
         console.error('Error details:', JSON.stringify(pError, null, 2));
         
-        // Set appropriate error message
+        // Set appropriate error message avec instructions
         if (pError.code === 'PGRST116' || pError.message?.includes('No rows')) {
           setError('Projet introuvable. Il se peut que ce projet n\'existe pas ou ait été supprimé.');
         } else if (pError.code === '42501' || pError.message?.includes('permission denied')) {
-          setError('Vous n\'avez pas la permission d\'accéder à ce projet. Cela peut être dû aux règles de sécurité.');
+          setError('Vous n\'avez pas la permission d\'accéder à ce projet. Veuillez vérifier que vous êtes bien connecté et que ce projet vous appartient ou que vous y avez accès.');
+        } else if (pError.code === 'PGRST201') {
+          // Ambiguïté de relation - réessayer avec relation explicite
+          console.warn('Ambiguity error, retrying with explicit relationship...');
+          const { data: retryData, error: retryError } = await supabase
+            .from('projects')
+            .select('*, profiles!projects_client_id_fkey(*), categories(*)')
+            .eq('id', id)
+            .single();
+          
+          if (retryError) {
+            setError(`Erreur lors du chargement du projet: ${retryError.message || 'Erreur inconnue'}`);
+            setProject(null);
+            setLoading(false);
+            return;
+          }
+          
+          setProject(retryData);
+          setError(null);
+          // Continuer avec le reste du fetch
         } else {
           setError(`Erreur lors du chargement du projet: ${pError.message || 'Erreur inconnue'}`);
         }
-        setProject(null);
-        setLoading(false);
-        return;
+        
+        if (pError.code !== 'PGRST201') {
+          setProject(null);
+          setLoading(false);
+          return;
+        }
       }
 
-      if (!pData) {
+      if (!pData && !pError) {
         setError('Projet introuvable.');
         setProject(null);
         setLoading(false);
         return;
       }
+      
+      // Si on a récupéré les données, continuer
+      if (!pData) {
+        setLoading(false);
+        return;
+      }
 
-      setProject(pData);
+    setProject(pData);
       setError(null);
 
-      // Fetch quotes with artisan profiles
+    // Fetch quotes with artisan profiles
       const { data: qData, error: qError } = await supabase
-        .from('quotes')
-        .select('*, profiles(*)')
-        .eq('project_id', id)
-        .order('created_at', { ascending: false });
+      .from('quotes')
+      .select('*, profiles(*)')
+      .eq('project_id', id)
+      .order('created_at', { ascending: false });
 
       if (qError) {
         console.error('Error fetching quotes:', qError);
       }
-      setQuotes(qData || []);
+    setQuotes(qData || []);
 
-      // Fetch escrow
+    // Fetch escrow
       const { data: eData, error: eError } = await supabase
-        .from('escrows')
-        .select('*')
-        .eq('project_id', id)
-        .maybeSingle();
+      .from('escrows')
+      .select('*')
+      .eq('project_id', id)
+      .maybeSingle();
 
       if (eError) {
         console.error('Error fetching escrow:', eError);
@@ -166,7 +194,7 @@ export function ProjectDetailsPage() {
       setError(`Erreur inattendue: ${err.message || 'Erreur inconnue'}`);
       setProject(null);
     } finally {
-      setLoading(false);
+    setLoading(false);
     }
   };
 
@@ -410,7 +438,18 @@ export function ProjectDetailsPage() {
             <Clock size={20} className="text-gray-500 flex-shrink-0" />
             <div>
               <p className="font-bold text-gray-700 text-sm">Projet expiré</p>
-              <p className="text-xs text-gray-600 mt-0.5">Ce projet a expiré après 72h sans devis accepté.</p>
+              <p className="text-xs text-gray-600 mt-0.5">Ce projet a expiré après 6 jours sans devis accepté. Consultation en lecture seule.</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Cancelled Banner */}
+        {project.status === 'cancelled' && (
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+            <X size={20} className="text-gray-500 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-gray-700 text-sm">Projet annulé</p>
+              <p className="text-xs text-gray-600 mt-0.5">Ce projet a été annulé. Consultation en lecture seule.</p>
             </div>
           </div>
         )}
@@ -624,13 +663,25 @@ export function ProjectDetailsPage() {
             </h3>
             
             {/* Add Quote Button for Artisans */}
-            {isArtisan && !isClient && !hasSubmittedQuote && project.status === 'open' && !showQuoteForm && (
+            {isArtisan && !isClient && !hasSubmittedQuote && 
+             ['open', 'quote_received'].includes(project.status || '') && 
+             project.status !== 'expired' && 
+             project.status !== 'cancelled' && 
+             !showQuoteForm && (
               <button
                 onClick={() => setShowQuoteForm(true)}
                 className="px-4 py-2 bg-brand-500 text-white text-sm font-bold rounded-xl"
               >
                 Proposer un devis
               </button>
+            )}
+            
+            {/* Message pour projets expirés/annulés */}
+            {isArtisan && !isClient && !hasSubmittedQuote && 
+             ['expired', 'cancelled'].includes(project.status || '') && (
+              <p className="text-xs text-gray-500 italic">
+                Ce projet n'accepte plus de nouveaux devis
+              </p>
             )}
           </div>
 
@@ -984,11 +1035,12 @@ export function ProjectDetailsPage() {
         </div>
       )}
 
-      {/* Floating Chat Button */}
-      {['quote_accepted', 'in_progress', 'completion_requested'].includes(project.status) && (
+      {/* Floating Chat Button - Disponible si devis accepté, même pour projets expirés */}
+      {acceptedQuote && ['quote_accepted', 'in_progress', 'completion_requested', 'completed', 'expired', 'cancelled'].includes(project.status || '') && (
         <button 
           onClick={() => navigate(`/chat/${id}`)}
-          className="fixed bottom-28 right-4 w-14 h-14 bg-brand-500 text-white rounded-full shadow-lg flex items-center justify-center z-30"
+          className="fixed bottom-28 right-4 w-14 h-14 bg-brand-500 text-white rounded-full shadow-lg flex items-center justify-center z-30 hover:bg-brand-600 transition-colors"
+          title="Ouvrir le chat du projet"
         >
           <MessageCircle size={24} fill="currentColor" />
         </button>

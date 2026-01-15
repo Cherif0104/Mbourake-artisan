@@ -5,7 +5,7 @@ import {
   Briefcase, Home, Settings, LogOut, CheckCircle, FileText,
   Send, RotateCcw, Star, Search, Menu, X, Image, Video,
   MessageSquare, CreditCard, AlertCircle, Check, Eye,
-  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Heart
+  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Heart, Receipt
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -24,6 +24,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   revision_requested: { label: 'Révision', color: 'bg-yellow-100 text-yellow-700', icon: <RotateCcw size={14} /> },
   pending: { label: 'En attente', color: 'bg-blue-100 text-blue-700', icon: <Clock size={14} /> },
   accepted: { label: 'Accepté', color: 'bg-green-100 text-green-700', icon: <Check size={14} /> },
+  expired: { label: 'Expiré', color: 'bg-gray-100 text-gray-500', icon: <Clock size={14} /> },
+  cancelled: { label: 'Annulé', color: 'bg-gray-100 text-gray-500', icon: <X size={14} /> },
 };
 
 // Salutations selon l'heure
@@ -49,6 +51,7 @@ export function Dashboard() {
   const [showMenu, setShowMenu] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
   const [togglingAvailability, setTogglingAvailability] = useState(false);
+  const [quoteFilter, setQuoteFilter] = useState<string>('Tous'); // Pour filtrer les devis
 
   // Fetch data
   useEffect(() => {
@@ -58,18 +61,21 @@ export function Dashboard() {
       setLoading(true);
       
       if (profile.role === 'artisan') {
+        // Récupérer tous les projets disponibles pour l'artisan (pas seulement 'open')
+        // Cela inclut les projets où il peut soumettre un devis
         const { data: openProjects } = await supabase
           .from('projects')
-          .select('*, categories(*), profiles(*)')
-          .eq('status', 'open')
+          .select('*, categories(*), profiles!projects_client_id_fkey(*)')
+          .in('status', ['open', 'quote_received'])
           .order('created_at', { ascending: false })
           .limit(10);
         
         setProjects(openProjects || []);
         
+        // Récupérer TOUS les devis de l'artisan (historique complet)
         const { data: quotes } = await supabase
           .from('quotes')
-          .select('*, projects(*, categories(*))')
+          .select('*, projects(*, categories(*), profiles!projects_client_id_fkey(*))')
           .eq('artisan_id', profile.id)
           .order('created_at', { ascending: false });
         
@@ -479,9 +485,28 @@ export function Dashboard() {
         {/* ============== ACTIVITY TAB ============== */}
         {activeTab === 'activity' && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            <h1 className="text-xl font-bold text-gray-900">
-              {isArtisan ? 'Mes devis' : 'Mes projets'}
-            </h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-bold text-gray-900">
+                {isArtisan ? 'Mes devis' : 'Mes projets'}
+              </h1>
+              
+              {/* Filtres par statut pour les artisans */}
+              {isArtisan && myQuotes.length > 0 && (
+                <div className="flex gap-2">
+                  {['Tous', 'En attente', 'Acceptés', 'Refusés', 'Expirés'].map((filter) => (
+                    <button
+                      key={filter}
+                      className="px-3 py-1 text-xs font-bold rounded-lg bg-gray-100 text-gray-600 hover:bg-brand-100 hover:text-brand-600 transition-colors"
+                      onClick={() => {
+                        // TODO: Implémenter le filtrage
+                      }}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {isArtisan ? (
               /* Artisan: Liste des devis */
@@ -494,8 +519,41 @@ export function Dashboard() {
                   <p className="text-sm text-gray-400 mt-1">Consultez les projets disponibles</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {myQuotes.map((quote) => {
+                <>
+                  {/* Filtres */}
+                  <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+                    {[
+                      { key: 'Tous', label: 'Tous' },
+                      { key: 'pending', label: 'En attente' },
+                      { key: 'accepted', label: 'Acceptés' },
+                      { key: 'rejected', label: 'Refusés' },
+                      { key: 'revision_requested', label: 'Révision' },
+                      { key: 'expired', label: 'Expirés' },
+                    ].map((filter) => (
+                      <button
+                        key={filter.key}
+                        onClick={() => setQuoteFilter(filter.key)}
+                        className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
+                          quoteFilter === filter.key
+                            ? 'bg-brand-500 text-white shadow-lg'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {filter.label}
+                        {filter.key !== 'Tous' && (
+                          <span className="ml-2 px-1.5 py-0.5 bg-white/20 rounded-full">
+                            {myQuotes.filter(q => q.status === filter.key).length}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Liste des devis filtrés */}
+                  <div className="space-y-3">
+                    {myQuotes
+                      .filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter)
+                      .map((quote) => {
                     const status = STATUS_CONFIG[quote.status] || STATUS_CONFIG.pending;
                     return (
                       <button
@@ -524,7 +582,13 @@ export function Dashboard() {
                       </button>
                     );
                   })}
+                    {myQuotes.filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter).length === 0 && (
+                      <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+                        <p className="text-gray-400 text-sm">Aucun devis pour ce filtre</p>
+                      </div>
+                    )}
                 </div>
+                </>
               )
             ) : (
               /* Client: Liste des projets */
@@ -537,8 +601,41 @@ export function Dashboard() {
                   <p className="text-sm text-gray-400 mt-1">Créez votre premier projet</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {projects.map((project) => {
+                <>
+                  {/* Filtres pour client */}
+                  <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+                    {[
+                      { key: 'Tous', label: 'Tous' },
+                      { key: 'open', label: 'Ouverts' },
+                      { key: 'in_progress', label: 'En cours' },
+                      { key: 'completed', label: 'Terminés' },
+                      { key: 'expired', label: 'Expirés' },
+                      { key: 'cancelled', label: 'Annulés' },
+                    ].map((filter) => (
+                      <button
+                        key={filter.key}
+                        onClick={() => setQuoteFilter(filter.key)}
+                        className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
+                          quoteFilter === filter.key
+                            ? 'bg-brand-500 text-white shadow-lg'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {filter.label}
+                        {filter.key !== 'Tous' && (
+                          <span className="ml-2 px-1.5 py-0.5 bg-white/20 rounded-full">
+                            {projects.filter(p => p.status === filter.key).length}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Liste des projets filtrés */}
+                  <div className="space-y-3">
+                    {projects
+                      .filter(project => quoteFilter === 'Tous' || project.status === quoteFilter)
+                      .map((project) => {
                     const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.open;
                     return (
                       <button
@@ -568,9 +665,15 @@ export function Dashboard() {
                           )}
                         </div>
                       </button>
-                    );
-                  })}
+                      );
+                    })}
+                    {projects.filter(project => quoteFilter === 'Tous' || project.status === quoteFilter).length === 0 && (
+                      <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+                        <p className="text-gray-400 text-sm">Aucun projet pour ce filtre</p>
+                      </div>
+                    )}
                 </div>
+                </>
               )
             )}
           </div>
@@ -718,6 +821,34 @@ export function Dashboard() {
                   <ChevronRight size={20} className="text-gray-400" />
                 </button>
               )}
+              
+              <button 
+                onClick={() => navigate('/expenses')}
+                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
+              >
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <Receipt size={22} className="text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900">Suivi des dépenses</p>
+                  <p className="text-xs text-gray-400">Enregistrer et suivre vos dépenses</p>
+                </div>
+                <ChevronRight size={20} className="text-gray-400" />
+              </button>
+              
+              <button 
+                onClick={() => navigate('/invoices')}
+                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
+              >
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                  <FileText size={22} className="text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900">Mes factures</p>
+                  <p className="text-xs text-gray-400">Factures automatiques générées</p>
+                </div>
+                <ChevronRight size={20} className="text-gray-400" />
+              </button>
               
               <button 
                 onClick={() => navigate('/landing')}

@@ -46,6 +46,26 @@ export function LoginPage() {
     }
   }, [searchParams]);
 
+  // Fonction pour vérifier si le profil est complet (tous les champs requis)
+  const isProfileComplete = (profile: any): boolean => {
+    if (!profile) return false;
+    
+    // Champs absolument requis pour tous les rôles
+    const requiredFields = ['role', 'full_name', 'location'];
+    const hasRequiredFields = requiredFields.every(
+      field => profile[field] && profile[field].toString().trim().length > 0
+    );
+    
+    if (!hasRequiredFields) return false;
+    
+    // Pour les artisans, vérifier aussi category_id
+    if (profile.role === 'artisan' && !profile.category_id) {
+      return false;
+    }
+    
+    return true;
+  };
+
   // Vérification initiale de l'authentification - redirige si déjà connecté
   useEffect(() => {
     // Attendre que auth ait fini de charger
@@ -63,24 +83,22 @@ export function LoginPage() {
     // Récupérer le mode depuis l'URL
     const urlMode = searchParams.get('mode');
     
+    // Vérifier si le profil est complet
+    const profileComplete = isProfileComplete(profile);
+    
     if (urlMode === 'login') {
       // Mode CONNEXION : l'utilisateur veut se connecter à un compte existant
-      if (profile && profile.role) {
+      if (profileComplete) {
         // Profil complet -> Dashboard
         navigate('/dashboard', { replace: true });
       } else {
         // Pas de profil complet -> L'utilisateur existe dans Supabase mais n'a pas terminé son inscription
-        // Au lieu de déconnecter, on le redirige vers la configuration du profil
-        setSuccess('Votre compte existe mais n\'est pas encore configuré. Complétons votre inscription !');
-        
-        // Redirection automatique vers la page de configuration après 2 secondes
-        setTimeout(() => {
-          navigate(`/profile-setup${wantsArtisan ? '?role=artisan' : ''}`, { replace: true });
-        }, 2000);
+        // Rediriger immédiatement vers la configuration du profil (pas de timeout pour éviter les boucles)
+        navigate(`/profile-setup${wantsArtisan ? '?role=artisan' : ''}`, { replace: true });
       }
     } else {
       // Mode INSCRIPTION : l'utilisateur veut créer un compte
-      if (profile && profile.role) {
+      if (profileComplete) {
         // Déjà un profil complet -> Dashboard (compte existant)
         navigate('/dashboard', { replace: true });
       } else {

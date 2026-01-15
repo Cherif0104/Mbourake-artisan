@@ -123,6 +123,7 @@ Dans Supabase Dashboard → Settings → API :
 - [ ] Politiques RLS vérifiées
 - [ ] Triggers database actifs
 - [ ] CORS configuré dans Supabase
+- [ ] **OAuth Google configuré (voir OAUTH_GOOGLE_SETUP.md)**
 - [ ] Tests de fonctionnalités critiques
 - [ ] Notifications en temps réel fonctionnelles
 

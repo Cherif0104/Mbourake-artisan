@@ -115,14 +115,15 @@ export async function notifyArtisansNewProject(project: {
 
 /**
  * Notifie le client quand un devis est soumis
+ * Déclenche également l'accès au chat pour discuter avec l'artisan
  */
 export async function notifyClientNewQuote(projectId: string, clientId: string, artisanName: string) {
   await createNotification({
     userId: clientId,
     type: 'new_quote',
     title: 'Nouveau devis reçu',
-    message: `${artisanName} a soumis un devis pour votre projet.`,
-    data: { project_id: projectId },
+    message: `${artisanName} a soumis un devis pour votre projet. Vous pouvez maintenant discuter avec lui via le chat.`,
+    data: { project_id: projectId, chat_enabled: true },
   });
 }
 

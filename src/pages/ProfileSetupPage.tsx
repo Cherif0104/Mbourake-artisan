@@ -10,9 +10,9 @@ import { useProfile, type ProfileRole } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { supabase } from '../lib/supabase';
 
-// Total steps: Client = 3, Artisan = 5
+// Total steps: Client = 3, Artisan = 6 (ajout de l'affiliation chambre de métier)
 const CLIENT_STEPS = 3;
-const ARTISAN_STEPS = 5;
+const ARTISAN_STEPS = 6;
 
 // Searchable Category Select Component
 interface Category {
@@ -156,6 +156,14 @@ export function ProfileSetupPage() {
   const [bio, setBio] = useState('');
   const [specialty, setSpecialty] = useState('');
   
+  // Affiliation data (chambre de métier, incubateur, SAE)
+  const [hasAffiliation, setHasAffiliation] = useState<boolean | null>(null); // null = pas encore répondu
+  const [affiliationType, setAffiliationType] = useState<'chambre' | 'incubateur' | 'sae' | 'autre' | null>(null);
+  const [chambreId, setChambreId] = useState<string | null>(null);
+  const [affiliationName, setAffiliationName] = useState('');
+  const [affiliationNumber, setAffiliationNumber] = useState('');
+  const [chambresMetier, setChambresMetier] = useState<any[]>([]);
+  
   // Geolocation states
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -185,10 +193,32 @@ export function ProfileSetupPage() {
     }
   }, [auth.loading, auth.user, navigate]);
 
+  // Fonction pour vérifier si le profil est complet
+  const isProfileComplete = (profile: any): boolean => {
+    if (!profile) return false;
+    
+    // Champs absolument requis pour tous les rôles
+    const requiredFields = ['role', 'full_name', 'location'];
+    const hasRequiredFields = requiredFields.every(
+      field => profile[field] && profile[field].toString().trim().length > 0
+    );
+    
+    if (!hasRequiredFields) return false;
+    
+    // Pour les artisans, vérifier aussi category_id
+    if (profile.role === 'artisan' && !profile.category_id) {
+      return false;
+    }
+    
+    return true;
+  };
+
   useEffect(() => {
     if (!auth.user) return;
     if (profileLoading) return;
-    if (profile) {
+    
+    // Vérifier que le profil est vraiment complet avant de rediriger
+    if (profile && isProfileComplete(profile)) {
       navigate('/dashboard', { replace: true });
     }
   }, [auth.user, profile, profileLoading, navigate]);
@@ -290,7 +320,7 @@ export function ProfileSetupPage() {
       const newImages: string[] = [];
       
       for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) continue;
+        if (!(file instanceof File) || !file.type.startsWith('image/')) continue;
         
         const fileExt = file.name.split('.').pop();
         const fileName = `${auth.user?.id}/portfolio/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
@@ -299,7 +329,7 @@ export function ProfileSetupPage() {
           .from('photos')
           .upload(fileName, file);
         
-        if (error) continue;
+        if (error) continue;Le minimum
         
         const { data: urlData } = supabase.storage
           .from('photos')
@@ -342,8 +372,19 @@ export function ProfileSetupPage() {
       case 1: return !!role;
       case 2: return fullName.trim().length > 0 && phone.trim().length > 0;
       case 3: return location.length > 0;
-      case 4: return role === 'client' || (categoryId !== undefined);
-      case 5: return true; // Portfolio is optional
+      case 4: 
+        // Step 4 pour artisan: Affiliation (optionnelle mais doit répondre)
+        if (role === 'client') return true;
+        if (hasAffiliation === null) return false; // Doit avoir répondu
+        // Si oui, vérifier qu'un type est sélectionné
+        if (hasAffiliation === true) {
+          if (!affiliationType) return false;
+          if (affiliationType === 'chambre' && !chambreId) return false;
+          if (affiliationType !== 'chambre' && !affiliationName.trim()) return false;
+        }
+        return true;
+      case 5: return role === 'client' || (categoryId !== undefined);
+      case 6: return true; // Portfolio is optional
       default: return false;
     }
   };
@@ -364,6 +405,34 @@ export function ProfileSetupPage() {
         specialty: role === 'artisan' ? specialty.trim() : undefined,
         portfolio_urls: role === 'artisan' ? portfolioImages : undefined,
       });
+      
+      // Si artisan avec affiliation, créer l'affiliation
+      if (role === 'artisan' && hasAffiliation && affiliationType && auth.user) {
+        const affiliationData: any = {
+          artisan_id: auth.user.id,
+          affiliation_type: affiliationType,
+          status: 'pending',
+        };
+        
+        if (affiliationType === 'chambre' && chambreId) {
+          affiliationData.chambre_id = chambreId;
+        } else {
+          affiliationData.affiliation_name = affiliationName.trim() || null;
+          affiliationData.affiliation_number = affiliationNumber.trim() || null;
+        }
+        
+        // Note: artisan_affiliations table exists but types not regenerated yet
+        // Using type assertion temporarily
+        const { error: affiliationError } = await (supabase as any)
+          .from('artisan_affiliations')
+          .insert(affiliationData);
+        
+        if (affiliationError) {
+          console.error('Erreur lors de la création de l\'affiliation:', affiliationError);
+          // Ne pas bloquer l'inscription si l'affiliation échoue
+        }
+      }
+      
       navigate('/dashboard', { replace: true });
     } catch (e: any) {
       setError(e?.message ?? 'Erreur lors de la création du profil');
@@ -378,8 +447,9 @@ export function ProfileSetupPage() {
         1: { title: 'Vous êtes...', subtitle: 'Choisissez votre profil' },
         2: { title: 'Enchanté ! 👋', subtitle: 'Comment vous appelez-vous ?' },
         3: { title: 'Votre zone', subtitle: 'Où exercez-vous votre métier ?' },
-        4: { title: 'Votre expertise', subtitle: 'Parlez-nous de votre savoir-faire' },
-        5: { title: 'Votre portfolio', subtitle: 'Montrez vos plus belles réalisations' },
+        4: { title: 'Votre affiliation', subtitle: 'Êtes-vous affilié à une chambre de métiers ?' },
+        5: { title: 'Votre expertise', subtitle: 'Parlez-nous de votre savoir-faire' },
+        6: { title: 'Votre portfolio', subtitle: 'Montrez vos plus belles réalisations' },
       };
     }
     return {
@@ -667,8 +737,149 @@ export function ProfileSetupPage() {
             </div>
           )}
 
-          {/* Step 4: Profession (Artisan only) */}
+          {/* Step 4: Affiliation (Artisan only) */}
           {currentStep === 4 && role === 'artisan' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="text-center mb-6">
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  L'affiliation à une chambre de métiers, un incubateur ou un SAE n'est pas obligatoire mais permet une vérification accélérée de votre compte.
+                </p>
+              </div>
+              
+              {/* Question principale */}
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
+                  Êtes-vous affilié ?
+                </label>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasAffiliation(true);
+                      setAffiliationType(null);
+                      setChambreId(null);
+                      setAffiliationName('');
+                      setAffiliationNumber('');
+                    }}
+                    className={`w-full rounded-2xl border-2 p-4 text-left transition-all ${
+                      hasAffiliation === true
+                        ? 'border-brand-500 bg-brand-50 ring-4 ring-brand-100'
+                        : 'border-gray-100 hover:border-brand-200'
+                    }`}
+                  >
+                    <div className="font-bold text-gray-900">Oui, je suis affilié</div>
+                    <div className="text-sm text-gray-500 mt-1">Chambre de métiers, incubateur ou SAE</div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasAffiliation(false);
+                      setAffiliationType(null);
+                      setChambreId(null);
+                      setAffiliationName('');
+                      setAffiliationNumber('');
+                    }}
+                    className={`w-full rounded-2xl border-2 p-4 text-left transition-all ${
+                      hasAffiliation === false
+                        ? 'border-brand-500 bg-brand-50 ring-4 ring-brand-100'
+                        : 'border-gray-100 hover:border-brand-200'
+                    }`}
+                  >
+                    <div className="font-bold text-gray-900">Non, je ne suis pas affilié</div>
+                    <div className="text-sm text-gray-500 mt-1">Je continuerai sans affiliation</div>
+                  </button>
+                </div>
+              </div>
+              
+              {/* Formulaire d'affiliation si oui */}
+              {hasAffiliation === true && (
+                <div className="space-y-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-4">
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">
+                      Type d'affiliation
+                    </label>
+                    <select
+                      value={affiliationType || ''}
+                      onChange={(e) => {
+                        const type = e.target.value as 'chambre' | 'incubateur' | 'sae' | 'autre' | '';
+                        setAffiliationType(type || null);
+                        setChambreId(null);
+                        setAffiliationName('');
+                        setAffiliationNumber('');
+                      }}
+                      className="w-full rounded-2xl border-2 border-gray-100 px-5 py-4 text-base font-medium focus:border-brand-500 focus:outline-none transition-all bg-white"
+                    >
+                      <option value="">Sélectionnez...</option>
+                      <option value="chambre">Chambre de Métiers</option>
+                      <option value="incubateur">Incubateur</option>
+                      <option value="sae">SAE (Structure d'Appui à l'Entrepreneuriat)</option>
+                      <option value="autre">Autre</option>
+                    </select>
+                  </div>
+                  
+                  {/* Si chambre de métiers */}
+                  {affiliationType === 'chambre' && (
+                    <div>
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">
+                        Chambre de Métiers
+                      </label>
+                      <select
+                        value={chambreId || ''}
+                        onChange={(e) => setChambreId(e.target.value || null)}
+                        className="w-full rounded-2xl border-2 border-gray-100 px-5 py-4 text-base font-medium focus:border-brand-500 focus:outline-none transition-all bg-white"
+                      >
+                        <option value="">Sélectionnez votre région...</option>
+                        {chambresMetier.map((chambre) => (
+                          <option key={chambre.id} value={chambre.id}>
+                            {chambre.name} - {chambre.region}
+                          </option>
+                        ))}
+                      </select>
+                      {chambreId && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          {chambresMetier.find(c => c.id === chambreId)?.phone && (
+                            <p>Tél: {chambresMetier.find(c => c.id === chambreId)?.phone}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Si incubateur, SAE ou autre */}
+                  {(affiliationType === 'incubateur' || affiliationType === 'sae' || affiliationType === 'autre') && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">
+                          Nom de la structure
+                        </label>
+                        <input
+                          value={affiliationName}
+                          onChange={(e) => setAffiliationName(e.target.value)}
+                          className="w-full rounded-2xl border-2 border-gray-100 px-5 py-4 text-base font-medium focus:border-brand-500 focus:outline-none transition-all bg-white"
+                          placeholder={`Nom de votre ${affiliationType === 'incubateur' ? 'incubateur' : affiliationType === 'sae' ? 'SAE' : 'structure'}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">
+                          Numéro d'affiliation / Certificat (optionnel)
+                        </label>
+                        <input
+                          value={affiliationNumber}
+                          onChange={(e) => setAffiliationNumber(e.target.value)}
+                          className="w-full rounded-2xl border-2 border-gray-100 px-5 py-4 text-base font-medium focus:border-brand-500 focus:outline-none transition-all bg-white"
+                          placeholder="Numéro d'affiliation si vous en avez un"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 5: Profession (Artisan only) */}
+          {currentStep === 5 && role === 'artisan' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               {/* Searchable Category Selector */}
               <div>
@@ -708,8 +919,8 @@ export function ProfileSetupPage() {
             </div>
           )}
 
-          {/* Step 5: Portfolio (Artisan only) */}
-          {currentStep === 5 && role === 'artisan' && (
+          {/* Step 6: Portfolio (Artisan only) */}
+          {currentStep === 6 && role === 'artisan' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="text-center mb-4">
                 <div className="w-20 h-20 bg-brand-100 rounded-full mx-auto mb-4 flex items-center justify-center">
