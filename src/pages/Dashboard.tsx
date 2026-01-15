@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { NotificationBell } from '../components/NotificationBell';
+import { SkeletonScreen } from '../components/SkeletonScreen';
 import { supabase } from '../lib/supabase';
 
 type TabId = 'home' | 'activity' | 'profile';
@@ -135,8 +136,12 @@ export function Dashboard() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-gray-50">
+        <SkeletonScreen type="header" className="sticky top-0 z-30" />
+        <div className="max-w-lg mx-auto px-5 py-6 space-y-4">
+          <SkeletonScreen type="card" />
+          <SkeletonScreen type="list" />
+        </div>
       </div>
     );
   }
@@ -162,6 +167,19 @@ export function Dashboard() {
   const recentActivity = isArtisan
     ? myQuotes.slice(0, 5)
     : projects.slice(0, 5);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <SkeletonScreen type="header" className="sticky top-0 z-30" />
+        <div className="max-w-lg mx-auto px-5 py-6 space-y-4">
+          <SkeletonScreen type="card" />
+          <SkeletonScreen type="list" />
+          <SkeletonScreen type="card" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -764,7 +782,7 @@ export function Dashboard() {
                         className="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-50 text-yellow-700 rounded-xl text-sm font-bold hover:bg-yellow-100 transition-colors"
                       >
                         <Shield size={16} />
-                        Se faire certifier
+                        Demander la vérification
                       </button>
                     )}
                   </div>

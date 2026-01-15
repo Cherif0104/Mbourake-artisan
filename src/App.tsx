@@ -1,5 +1,7 @@
 import React from 'react';
 import { Route, Routes, useNavigate } from 'react-router-dom';
+import { ToastContainer } from './components/Toast';
+import { useToastContext } from './contexts/ToastContext';
 import { PrivateRoute } from './components/PrivateRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { LoginPage } from './pages/LoginPage';
@@ -65,9 +67,12 @@ function NotFoundPage() {
   );
 }
 
-export default function App() {
+function AppContent() {
+  const { toasts, removeToast } = useToastContext();
+  
   return (
-    <Routes>
+    <>
+      <Routes>
       {/* Public Routes */}
       <Route path="/" element={<OnboardingPage />} />
       <Route path="/landing" element={<LandingPage />} />
@@ -98,6 +103,12 @@ export default function App() {
       
       {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+      </Routes>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </>
   );
+}
+
+export default function App() {
+  return <AppContent />;
 }

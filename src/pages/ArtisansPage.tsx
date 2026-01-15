@@ -153,7 +153,7 @@ export function ArtisansPage() {
               onClick={() => navigate('/dashboard')}
               className="bg-brand-500 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-brand-600 transition-all"
             >
-              Mon espace
+              Tableau de bord
             </button>
           ) : (
             <button 

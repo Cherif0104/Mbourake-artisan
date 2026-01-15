@@ -5,6 +5,7 @@ import {
   TrendingUp, AlertCircle, CheckCircle, Clock, LogOut,
   ChevronRight, Settings, Bell, AlertTriangle
 } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
 import { supabase } from '../../lib/supabase';
@@ -38,6 +39,8 @@ export function AdminDashboard() {
     disputedProjects: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [projectTrends, setProjectTrends] = useState<ProjectTrend[]>([]);
+  const [statusDistribution, setStatusDistribution] = useState<ProjectStatusDistribution[]>([]);
 
   useEffect(() => {
     // Check admin access
@@ -99,6 +102,50 @@ export function AdminDashboard() {
         .from('projects')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'disputed');
+      
+      // Fetch project trends (derniers 30 jours)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data: recentProjects } = await supabase
+        .from('projects')
+        .select('created_at')
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: true });
+      
+      // Grouper par jour
+      const trendsMap = new Map<string, number>();
+      recentProjects?.forEach((project) => {
+        const date = new Date(project.created_at).toLocaleDateString('fr-FR', { 
+          day: '2-digit', 
+          month: '2-digit' 
+        });
+        trendsMap.set(date, (trendsMap.get(date) || 0) + 1);
+      });
+      
+      const trends = Array.from(trendsMap.entries())
+        .map(([date, count]) => ({ date, count }))
+        .slice(-14); // Derniers 14 jours
+      
+      setProjectTrends(trends);
+      
+      // Fetch status distribution
+      const { data: allProjects } = await supabase
+        .from('projects')
+        .select('status');
+      
+      const statusMap = new Map<string, number>();
+      allProjects?.forEach((project) => {
+        const status = project.status || 'unknown';
+        statusMap.set(status, (statusMap.get(status) || 0) + 1);
+      });
+      
+      const distribution = Array.from(statusMap.entries()).map(([status, count]) => ({
+        status: status.charAt(0).toUpperCase() + status.slice(1),
+        count
+      }));
+      
+      setStatusDistribution(distribution);
       
       setStats({
         totalUsers: totalUsers || 0,

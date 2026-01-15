@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown, MapPin, ShieldCheck, Phone, Globe, ChevronRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
+import { supabase } from '../lib/supabase';
 
 export function OnboardingPage() {
   const navigate = useNavigate();
@@ -10,6 +11,13 @@ export function OnboardingPage() {
   const { profile, loading: profileLoading } = useProfile();
   const [step, setStep] = useState(1);
   const [lang, setLang] = useState('fr');
+
+  // Charger la langue depuis le profil si disponible
+  useEffect(() => {
+    if (profile?.preferred_language) {
+      setLang(profile.preferred_language);
+    }
+  }, [profile]);
 
   // Vérifier si utilisateur connecté et profil complet - éviter les boucles
   useEffect(() => {
@@ -79,19 +87,35 @@ export function OnboardingPage() {
             <p className="text-gray-500 mb-10 leading-relaxed font-medium">{t.langSub}</p>
 
             <div className="flex flex-col gap-3 mb-12">
-              {['Wolof', 'Français', 'English'].map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setLang(l.toLowerCase().slice(0,2) === 'wo' ? 'wo' : l.toLowerCase().slice(0,2) === 'en' ? 'en' : 'fr')}
-                  className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest border-2 transition-all ${
-                    (l === 'Wolof' && lang === 'wo') || (l === 'Français' && lang === 'fr') || (l === 'English' && lang === 'en')
-                    ? 'border-brand-500 bg-brand-50 text-brand-600 ring-4 ring-brand-100'
-                    : 'border-gray-50 bg-gray-50 text-gray-400 hover:border-brand-200'
-                  }`}
-                >
-                  {l}
-                </button>
-              ))}
+              {['Wolof', 'Français', 'English'].map((l) => {
+                const langCode = l.toLowerCase().slice(0,2) === 'wo' ? 'wo' : l.toLowerCase().slice(0,2) === 'en' ? 'en' : 'fr';
+                return (
+                  <button
+                    key={l}
+                    onClick={async () => {
+                      setLang(langCode);
+                      // Sauvegarder la langue si utilisateur connecté
+                      if (auth.user) {
+                        try {
+                          await supabase
+                            .from('profiles')
+                            .update({ preferred_language: langCode })
+                            .eq('id', auth.user.id);
+                        } catch (err) {
+                          console.error('Error saving language preference:', err);
+                        }
+                      }
+                    }}
+                    className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest border-2 transition-all ${
+                      (l === 'Wolof' && lang === 'wo') || (l === 'Français' && lang === 'fr') || (l === 'English' && lang === 'en')
+                      ? 'border-brand-500 bg-brand-50 text-brand-600 ring-4 ring-brand-100'
+                      : 'border-gray-50 bg-gray-50 text-gray-400 hover:border-brand-200'
+                    }`}
+                  >
+                    {l}
+                  </button>
+                );
+              })}
             </div>
 
             <button 

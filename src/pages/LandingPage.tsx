@@ -24,6 +24,22 @@ export function LandingPage() {
   
   // Attendre que les deux hooks aient fini de charger pour éviter le flickering
   const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
+
+  // Afficher skeleton pendant chargement
+  if (auth.loading || profileLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="h-16 bg-gray-200 rounded-xl mb-6 animate-pulse" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-48 bg-gray-200 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   // Map icon names to Lucide components
   const iconMap: Record<string, React.ReactNode> = {
@@ -158,15 +174,16 @@ export function LandingPage() {
                 onClick={() => navigate('/dashboard')}
                 className="bg-white text-gray-700 border-2 border-gray-200 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:border-brand-300 hover:text-brand-600 active:scale-[0.98] transition-all flex items-center gap-2"
               >
-                <User size={16} />
-                Mon espace
+                <User size={16} aria-hidden="true" />
+                Tableau de bord
               </button>
               {profile?.role === 'client' && (
                 <button 
                   onClick={() => navigate('/create-project')}
                   className="bg-brand-500 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-brand-100 hover:bg-brand-600 active:scale-[0.98] transition-all"
+                  aria-label="Publier un nouveau projet"
                 >
-                  + Nouveau projet
+                  + Publier un projet
                 </button>
               )}
             </>

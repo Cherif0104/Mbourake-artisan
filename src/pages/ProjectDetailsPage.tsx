@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useEscrow } from '../hooks/useEscrow';
+import { useToastContext } from '../contexts/ToastContext';
 import { EscrowBanner } from '../components/EscrowBanner';
 import { QuoteForm } from '../components/QuoteForm';
 import { RevisionRequest } from '../components/RevisionRequest';
@@ -20,6 +21,7 @@ import {
   notifyClientProjectCompleted 
 } from '../lib/notificationService';
 import { generateQuotePDF } from '../lib/quotePdfGenerator';
+import { SkeletonScreen, LoadingSpinner } from '../components/SkeletonScreen';
 
 const PROJECT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: 'Brouillon', color: 'bg-gray-100 text-gray-600' },
@@ -82,6 +84,7 @@ export function ProjectDetailsPage() {
   const auth = useAuth();
   const { profile } = useProfile();
   const { initiateEscrow } = useEscrow();
+  const { success, error: showError, warning, info } = useToastContext();
   
   const [project, setProject] = useState<any>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
@@ -227,26 +230,26 @@ export function ProjectDetailsPage() {
   const handleAcceptQuote = async (quote: any) => {
     // Validation préalable complète
     if (!id || !auth.user?.id) {
-      alert('Erreur : informations manquantes');
+      showError('Erreur : informations manquantes');
       return;
     }
     
     // Vérifier que le projet appartient bien au client
     if (project?.client_id !== auth.user.id) {
-      alert('Vous n\'êtes pas autorisé à accepter ce devis.');
+      showError('Vous n\'êtes pas autorisé à accepter ce devis.');
       return;
     }
     
     // Vérifier que le devis est en statut 'pending'
     if (quote.status !== 'pending' && quote.status !== 'viewed') {
-      alert('Ce devis ne peut plus être accepté (statut: ' + quote.status + ')');
+      showError('Ce devis ne peut plus être accepté (statut: ' + quote.status + ')');
       return;
     }
     
     // Vérifier qu'il n'y a pas déjà un devis accepté
     const hasAcceptedQuote = quotes.some(q => q.status === 'accepted' && q.id !== quote.id);
     if (hasAcceptedQuote) {
-      alert('Un devis a déjà été accepté pour ce projet.');
+      showError('Un devis a déjà été accepté pour ce projet.');
       return;
     }
     
@@ -323,7 +326,7 @@ export function ProjectDetailsPage() {
         .from('projects')
         .update({ status: 'quote_accepted' })
         .eq('id', id);
-      
+
       if (projectUpdateError) {
         throw new Error(`Erreur mise à jour projet: ${projectUpdateError.message}`);
       }
@@ -345,11 +348,11 @@ export function ProjectDetailsPage() {
       // Initiate escrow avec vérification
       try {
         const escrowResult = await initiateEscrow({
-          project_id: id,
-          total_amount: quote.amount,
-          artisan_is_verified: quote.profiles?.is_verified ?? false,
-        });
-        
+        project_id: id,
+        total_amount: quote.amount,
+        artisan_is_verified: quote.profiles?.is_verified ?? false,
+      });
+      
         if (!escrowResult?.id) {
           throw new Error('Échec de la création de l\'escrow');
         }
@@ -380,14 +383,14 @@ export function ProjectDetailsPage() {
       }
       
       // Message de succès
-      alert('Devis accepté avec succès !');
+      success('Devis accepté avec succès !');
       
       // Rafraîchir les données
       await fetchDetails();
       
     } catch (err: any) {
       console.error('Error accepting quote:', err);
-      alert(`Erreur lors de l'acceptation: ${err.message || 'Erreur inconnue'}`);
+      showError(`Erreur lors de l'acceptation: ${err.message || 'Erreur inconnue'}`);
     } finally {
       setActionLoading(false);
     }
@@ -396,30 +399,30 @@ export function ProjectDetailsPage() {
   const handleRejectQuote = async (quoteId: string) => {
     // Validation préalable
     if (!auth.user?.id || !id) {
-      alert('Erreur : informations manquantes');
+      showError('Erreur : informations manquantes');
       return;
     }
     
     // Vérifier que le projet appartient bien au client
     if (project?.client_id !== auth.user.id) {
-      alert('Vous n\'êtes pas autorisé à refuser ce devis.');
+      showError('Vous n\'êtes pas autorisé à refuser ce devis.');
       return;
     }
     
     const quote = quotes.find(q => q.id === quoteId);
     if (!quote) {
-      alert('Devis introuvable');
+      showError('Devis introuvable');
       return;
     }
     
     // Vérifier que le devis peut être refusé
     if (quote.status === 'accepted') {
-      alert('Ce devis a déjà été accepté et ne peut plus être refusé.');
+      showError('Ce devis a déjà été accepté et ne peut plus être refusé.');
       return;
     }
     
     if (quote.status === 'rejected') {
-      alert('Ce devis a déjà été refusé.');
+      showError('Ce devis a déjà été refusé.');
       return;
     }
     
@@ -460,11 +463,11 @@ export function ProjectDetailsPage() {
         }
       }
       
-      alert('Devis refusé avec succès');
+      success('Devis refusé avec succès');
       await fetchDetails();
     } catch (err: any) {
       console.error('Error rejecting quote:', err);
-      alert(`Erreur lors du refus: ${err.message || 'Erreur inconnue'}`);
+      showError(`Erreur lors du refus: ${err.message || 'Erreur inconnue'}`);
     } finally {
       setActionLoading(false);
     }
@@ -480,7 +483,7 @@ export function ProjectDetailsPage() {
         .from('projects')
         .update({ status: 'completed' })
         .eq('id', id);
-
+      
       // Log changement statut projet
       try {
         await supabase.rpc('log_project_action', {
@@ -548,7 +551,7 @@ export function ProjectDetailsPage() {
       setShowRatingModal(true);
     } catch (err) {
       console.error('Error completing project:', err);
-      alert("Erreur lors de la clôture");
+      showError("Erreur lors de la clôture");
     }
   };
 
@@ -597,25 +600,25 @@ export function ProjectDetailsPage() {
       navigate('/dashboard');
     } catch (err) {
       console.error('Error submitting rating:', err);
-      alert("Erreur lors de l'envoi de l'avis");
+      showError("Erreur lors de l'envoi de l'avis");
     }
   };
 
   const handleCancelProject = async () => {
     if (!id || !auth.user?.id || project?.client_id !== auth.user.id) {
-      alert('Action non autorisée');
+      showError('Action non autorisée');
       return;
     }
     
     // Vérifier si projet peut être annulé (pas de devis accepté, pas de paiement)
     if (escrow && escrow.status !== 'pending') {
-      alert('Impossible d\'annuler : paiement déjà effectué. Veuillez demander un remboursement.');
+      showError('Impossible d\'annuler : paiement déjà effectué. Veuillez demander un remboursement.');
       return;
     }
     
     const hasAcceptedQuote = quotes.some(q => q.status === 'accepted');
     if (hasAcceptedQuote) {
-      alert('Impossible d\'annuler : un devis a déjà été accepté.');
+      showError('Impossible d\'annuler : un devis a déjà été accepté.');
       return;
     }
     
@@ -684,12 +687,12 @@ export function ProjectDetailsPage() {
         }
       }
       
-      alert('Projet annulé avec succès');
+      success('Projet annulé avec succès');
       await fetchDetails();
       
     } catch (err: any) {
       console.error('Error cancelling project:', err);
-      alert(`Erreur: ${err.message || 'Erreur inconnue'}`);
+      showError(`Erreur: ${err.message || 'Erreur inconnue'}`);
     } finally {
       setActionLoading(false);
     }
@@ -709,9 +712,9 @@ export function ProjectDetailsPage() {
         .eq('id', escrow.id);
       
       fetchDetails();
-      alert("Un litige a été signalé. Notre équipe vous contactera.");
+      success("Un litige a été signalé. Notre équipe vous contactera.");
     } catch (err) {
-      alert("Erreur lors du signalement");
+      showError("Erreur lors du signalement");
     }
   };
 
@@ -728,9 +731,9 @@ export function ProjectDetailsPage() {
       await notifyClientProjectCompleted(id, project.client_id, project.title);
       
       fetchDetails();
-      alert("Demande de clôture envoyée au client !");
+      success("Demande de clôture envoyée au client !");
     } catch (err) {
-      alert("Erreur lors de la demande");
+      showError("Erreur lors de la demande");
     }
   };
 
@@ -1232,29 +1235,31 @@ export function ProjectDetailsPage() {
                         {/* Download PDF Quote */}
                         <button
                           onClick={() => {
-                            const quoteData = {
-                              quote_number: quote.quote_number || 'N/A',
-                              artisan_name: quote.profiles?.full_name || 'Artisan',
-                              artisan_phone: quote.profiles?.phone || undefined,
-                              artisan_email: quote.profiles?.email || undefined,
-                              project_title: project?.title || 'Projet',
-                              client_name: project?.profiles?.full_name || undefined,
-                              amount: Number(quote.amount || 0),
-                              labor_cost: quote.labor_cost ? Number(quote.labor_cost) : undefined,
-                              materials_cost: quote.materials_cost ? Number(quote.materials_cost) : undefined,
-                              urgent_surcharge_percent: quote.urgent_surcharge_percent || undefined,
-                              urgent_surcharge: quote.urgent_surcharge_percent && quote.amount 
-                                ? Number(quote.amount) * (quote.urgent_surcharge_percent / 100) 
-                                : undefined,
-                              message: quote.message || undefined,
-                              estimated_duration: quote.estimated_duration || undefined,
-                              proposed_date: quote.proposed_date || undefined,
-                              proposed_time_start: quote.proposed_time_start || undefined,
-                              proposed_time_end: quote.proposed_time_end || undefined,
-                              validity_hours: quote.validity_hours || 48,
-                              created_at: quote.created_at || new Date().toISOString(),
-                            };
-                            generateQuotePDF(quoteData);
+                            import('../lib/quotePdfGenerator').then(({ downloadQuotePDF }) => {
+                              const quoteData = {
+                                quote_number: quote.quote_number || 'N/A',
+                                artisan_name: quote.profiles?.full_name || 'Artisan',
+                                artisan_phone: quote.profiles?.phone || undefined,
+                                artisan_email: quote.profiles?.email || undefined,
+                                project_title: project?.title || 'Projet',
+                                client_name: project?.profiles?.full_name || undefined,
+                                amount: Number(quote.amount || 0),
+                                labor_cost: quote.labor_cost ? Number(quote.labor_cost) : undefined,
+                                materials_cost: quote.materials_cost ? Number(quote.materials_cost) : undefined,
+                                urgent_surcharge_percent: quote.urgent_surcharge_percent || undefined,
+                                urgent_surcharge: quote.urgent_surcharge_percent && quote.amount 
+                                  ? Number(quote.amount) * (quote.urgent_surcharge_percent / 100) 
+                                  : undefined,
+                                message: quote.message || undefined,
+                                estimated_duration: quote.estimated_duration || undefined,
+                                proposed_date: quote.proposed_date || undefined,
+                                proposed_time_start: quote.proposed_time_start || undefined,
+                                proposed_time_end: quote.proposed_time_end || undefined,
+                                validity_hours: quote.validity_hours || 48,
+                                created_at: quote.created_at || new Date().toISOString(),
+                              };
+                              downloadQuotePDF(quoteData);
+                            });
                           }}
                           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 transition-colors font-bold"
                         >
@@ -1292,8 +1297,8 @@ export function ProjectDetailsPage() {
                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                           ) : (
                             <>
-                              <CheckCircle size={18} />
-                              Accepter ce devis
+                          <CheckCircle size={18} aria-hidden="true" />
+                          Accepter le devis
                             </>
                           )}
                         </button>
@@ -1302,17 +1307,19 @@ export function ProjectDetailsPage() {
                             onClick={() => setRevisionQuoteId(quote.id)}
                             disabled={actionLoading}
                             className="flex-1 bg-yellow-50 text-yellow-700 font-bold py-3 rounded-xl border border-yellow-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Demander une révision de ce devis"
                           >
-                            <RotateCcw size={16} />
-                            Révision
+                            <RotateCcw size={16} aria-hidden="true" />
+                            Demander une révision
                           </button>
                           <button 
                             onClick={() => handleRejectQuote(quote.id)}
                             disabled={actionLoading}
                             className="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Refuser ce devis"
                           >
-                            <X size={16} />
-                            Refuser
+                            <X size={16} aria-hidden="true" />
+                            Refuser le devis
                           </button>
                         </div>
                       </div>
@@ -1385,7 +1392,7 @@ export function ProjectDetailsPage() {
             className="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 border border-red-200"
           >
             <AlertTriangle size={18} />
-            Signaler un litige
+            Signaler un problème
           </button>
         </div>
       )}
@@ -1430,7 +1437,7 @@ export function ProjectDetailsPage() {
             className="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 border border-red-200"
           >
             <AlertTriangle size={18} />
-            Signaler un litige
+            Signaler un problème
           </button>
         </div>
       )}

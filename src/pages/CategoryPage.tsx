@@ -274,7 +274,7 @@ export function CategoryPage() {
                     className="hidden md:flex items-center gap-2 bg-brand-500 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-brand-600 transition-all"
                   >
                     <PlusCircle size={16} />
-                    Nouveau projet
+                    Publier un projet
                   </button>
                 )}
                 <button 
@@ -282,7 +282,7 @@ export function CategoryPage() {
                   className="flex items-center gap-2 bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all"
                 >
                   <User size={16} />
-                  Mon espace
+                  Tableau de bord
                 </button>
               </>
             ) : (

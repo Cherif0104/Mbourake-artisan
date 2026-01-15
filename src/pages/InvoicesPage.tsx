@@ -72,9 +72,37 @@ export function InvoicesPage() {
       return;
     }
     
-    // TODO: Générer le PDF si pas encore généré
-    // Utiliser jspdf ou une autre bibliothèque
-    alert('Génération PDF à implémenter');
+    // Générer le PDF avec jspdf
+    const { downloadInvoicePDF } = await import('../lib/invoicePdfGenerator');
+    
+    const invoiceData = {
+      invoice_number: invoice.invoice_number || `INV-${invoice.id.slice(0, 8).toUpperCase()}`,
+      issue_date: invoice.issue_date || invoice.created_at,
+      due_date: invoice.due_date || null,
+      client_name: profile?.role === 'client' 
+        ? profile.full_name 
+        : invoice.profiles?.full_name,
+      client_address: null,
+      client_phone: profile?.role === 'client' ? profile.phone : null,
+      client_email: user?.email || null,
+      artisan_name: profile?.role === 'artisan'
+        ? profile.full_name
+        : invoice.profiles?.full_name,
+      artisan_address: null,
+      artisan_phone: profile?.role === 'artisan' ? profile.phone : null,
+      artisan_email: null,
+      project_title: invoice.projects?.title || 'Projet',
+      project_number: invoice.projects?.project_number || null,
+      items: null, // Peut être étendu plus tard
+      subtotal: parseFloat(invoice.subtotal_amount || invoice.total_amount || 0),
+      tax_amount: parseFloat(invoice.tax_amount || 0),
+      tax_percent: invoice.tax_percent || null,
+      total_amount: parseFloat(invoice.total_amount || 0),
+      status: invoice.status || 'sent',
+      notes: invoice.notes || null,
+    };
+    
+    downloadInvoicePDF(invoiceData);
   };
 
   const handleSendInvoice = async (invoice: any) => {
