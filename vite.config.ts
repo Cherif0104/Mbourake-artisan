@@ -9,25 +9,30 @@ const spaFallbackPlugin = (): Plugin => {
     name: 'spa-fallback',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        // Ignorer les assets statiques (js, css, images, fonts, etc.)
+        const url = req.url || '';
+        
+        // Ignorer les assets statiques et les routes Vite internes (CRITIQUE)
         if (
-          req.url &&
-          (
-            req.url.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webp|mp4|webm)$/) ||
-            req.url.startsWith('/src/') ||
-            req.url.startsWith('/@vite/') ||
-            req.url.startsWith('/node_modules/') ||
-            req.url.startsWith('/api/')
-          )
+          // Fichiers avec extensions
+          url.match(/\.(js|mjs|cjs|ts|tsx|jsx|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webp|mp4|webm|wasm)$/) ||
+          // Routes Vite internes - NE PAS REDIRIGER CES ROUTES
+          url.startsWith('/@vite/') ||
+          url.startsWith('/@react-refresh') ||
+          url.startsWith('/@id/') ||
+          url.startsWith('/@fs/') ||
+          url.startsWith('/node_modules/') ||
+          url.startsWith('/src/') ||
+          url.startsWith('/api/') ||
+          // Autres routes spéciales
+          url.startsWith('/_') ||
+          url.startsWith('/__')
         ) {
           return next();
         }
         
-        // Pour toutes les autres routes, servir index.html (routing SPA)
+        // Pour toutes les autres routes (routes de l'app React), servir index.html (routing SPA)
         // Cela permet à React Router de gérer la route
-        if (req.url && !req.url.startsWith('/_')) {
-          req.url = '/index.html';
-        }
+        req.url = '/index.html';
         next();
       });
     },
