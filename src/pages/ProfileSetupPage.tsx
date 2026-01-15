@@ -325,13 +325,13 @@ export function ProfileSetupPage() {
         const fileExt = file.name.split('.').pop();
         const fileName = `${auth.user?.id}/portfolio/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
         
-        const { error } = await supabase.storage
-          .from('photos')
-          .upload(fileName, file);
-        
-        if (error) continue;Le minimum
-        
-        const { data: urlData } = supabase.storage
+          const { error } = await supabase.storage
+            .from('photos')
+            .upload(fileName, file);
+          
+          if (error) continue;
+          
+          const { data: urlData } = supabase.storage
           .from('photos')
           .getPublicUrl(fileName);
         
