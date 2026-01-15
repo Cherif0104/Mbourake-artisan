@@ -166,6 +166,27 @@ export function ProjectDetailsPage() {
     setProject(pData);
       setError(null);
 
+    // VÉRIFICATION SÉCURITÉ : Si artisan, vérifier que le projet est de sa catégorie
+    if (profile?.role === 'artisan' && pData) {
+      // Récupérer la catégorie de l'artisan
+      const { data: artisanData } = await supabase
+        .from('artisans')
+        .select('category_id')
+        .eq('id', profile.id)
+        .single();
+
+      // Si l'artisan a une catégorie et que le projet n'est pas de cette catégorie
+      // ET que ce n'est pas un projet ciblé spécifiquement pour lui
+      if (artisanData?.category_id && 
+          pData.category_id !== artisanData.category_id && 
+          pData.target_artisan_id !== profile.id) {
+        setError('Vous n\'avez pas accès à ce projet. Ce projet n\'est pas dans votre catégorie.');
+        setProject(null);
+        setLoading(false);
+        return;
+      }
+    }
+
     // Fetch quotes with artisan profiles
       const { data: qData, error: qError } = await supabase
       .from('quotes')

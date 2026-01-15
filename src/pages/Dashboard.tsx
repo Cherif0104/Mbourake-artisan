@@ -61,26 +61,7 @@ export function Dashboard() {
       setLoading(true);
       
       if (profile.role === 'artisan') {
-        // Récupérer tous les projets disponibles pour l'artisan (pas seulement 'open')
-        // Cela inclut les projets où il peut soumettre un devis
-        const { data: openProjects } = await supabase
-          .from('projects')
-          .select('*, categories(*), profiles!projects_client_id_fkey(*)')
-          .in('status', ['open', 'quote_received'])
-          .order('created_at', { ascending: false })
-          .limit(10);
-        
-        setProjects(openProjects || []);
-        
-        // Récupérer TOUS les devis de l'artisan (historique complet)
-        const { data: quotes } = await supabase
-          .from('quotes')
-          .select('*, projects(*, categories(*), profiles!projects_client_id_fkey(*))')
-          .eq('artisan_id', profile.id)
-          .order('created_at', { ascending: false });
-        
-        setMyQuotes(quotes || []);
-        
+        // D'abord récupérer les données de l'artisan pour avoir sa catégorie
         const { data: artisan } = await supabase
           .from('artisans')
           .select('*, categories(*)')
@@ -92,7 +73,28 @@ export function Dashboard() {
           setVerificationStatus(artisan.verification_status || 'unverified');
           setCategoryName(artisan.categories?.name || null);
           setIsAvailable(artisan.is_available !== false);
+
+          // Récupérer UNIQUEMENT les projets de sa catégorie
+          // Un artisan ne voit QUE les projets liés à sa catégorie
+          const { data: openProjects } = await supabase
+            .from('projects')
+            .select('*, categories(*), profiles!projects_client_id_fkey(*)')
+            .eq('category_id', artisan.category_id) // FILTRE CRITIQUE : uniquement sa catégorie
+            .in('status', ['open', 'quote_received'])
+            .order('created_at', { ascending: false })
+            .limit(10);
+          
+          setProjects(openProjects || []);
         }
+        
+        // Récupérer TOUS les devis de l'artisan (historique complet)
+        const { data: quotes } = await supabase
+          .from('quotes')
+          .select('*, projects(*, categories(*), profiles!projects_client_id_fkey(*))')
+          .eq('artisan_id', profile.id)
+          .order('created_at', { ascending: false });
+        
+        setMyQuotes(quotes || []);
       } else {
         const { data: clientProjects } = await supabase
           .from('projects')
