@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 import { PrivateRoute } from './components/PrivateRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { LoginPage } from './pages/LoginPage';
@@ -24,6 +24,46 @@ import { AdminProjects } from './pages/admin/AdminProjects';
 import { AdminEscrows } from './pages/admin/AdminEscrows';
 import { AdminVerifications } from './pages/admin/AdminVerifications';
 import { AdminDisputes } from './pages/admin/AdminDisputes';
+
+// Composant pour page 404 - Route non trouvée
+function NotFoundPage() {
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    // Log pour debug
+    console.warn('404 - Route non trouvée:', window.location.pathname);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="text-center max-w-md">
+        <div className="mb-6">
+          <div className="w-24 h-24 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-4xl font-black text-brand-600">404</span>
+          </div>
+        </div>
+        <h1 className="text-2xl font-black text-gray-900 mb-2">Page non trouvée</h1>
+        <p className="text-gray-600 mb-8">
+          La page que vous cherchez n'existe pas ou a été déplacée.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors"
+          >
+            Retour à l'accueil
+          </button>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition-colors"
+          >
+            Page précédente
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -55,6 +95,9 @@ export default function App() {
       <Route path="/admin/escrows" element={<AdminRoute><AdminEscrows /></AdminRoute>} />
       <Route path="/admin/verifications" element={<AdminRoute><AdminVerifications /></AdminRoute>} />
       <Route path="/admin/disputes" element={<AdminRoute><AdminDisputes /></AdminRoute>} />
+      
+      {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
