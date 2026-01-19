@@ -649,8 +649,6 @@ export type Database = {
         | "viewed"
         | "accepted" 
         | "rejected" 
-        | "revision_requested"
-        | "revised"
         | "expired"
         | "abandoned"
       reputation_level: "Bronze" | "Silver" | "Gold" | "Platinum"

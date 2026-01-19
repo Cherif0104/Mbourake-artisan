@@ -3,11 +3,12 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Search, Heart, CheckCircle, Star, ArrowLeft, MapPin, 
   Award, Filter, X, ChevronDown, SlidersHorizontal, Shield,
-  User, Briefcase, PlusCircle
+  User, Briefcase, PlusCircle, Image
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
+import { getTier, TIER_COLORS } from '../utils/artisanUtils';
 
 interface ArtisanData {
   id: string;
@@ -24,6 +25,7 @@ interface ArtisanData {
   verified: boolean;
   img: string;
   bio: string;
+  portfolio_first_image: string | null;
 }
 
 interface CategoryData {
@@ -32,22 +34,6 @@ interface CategoryData {
   icon_name: string;
   slug: string;
 }
-
-// Tier calculation based on projects completed
-const getTier = (projects: number): 'Platine' | 'Or' | 'Argent' | 'Bronze' => {
-  if (projects >= 50) return 'Platine';
-  if (projects >= 25) return 'Or';
-  if (projects >= 10) return 'Argent';
-  return 'Bronze';
-};
-
-// Tier colors
-const TIER_COLORS = {
-  'Platine': 'bg-gradient-to-r from-purple-500 to-pink-500 text-white',
-  'Or': 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white',
-  'Argent': 'bg-gradient-to-r from-gray-400 to-gray-500 text-white',
-  'Bronze': 'bg-gradient-to-r from-orange-300 to-orange-400 text-white',
-};
 
 type SortOption = 'rating' | 'reviews' | 'projects' | 'tier';
 
@@ -110,18 +96,41 @@ export function CategoryPage() {
       const categoryId = catData?.id || parseInt(slug);
       
       // 2. Get artisans in this category
-      const { data: artisansData } = await supabase
+      const { data: artisansData, error: artisansError } = await supabase
         .from('artisans')
         .select(`
           id, bio, specialty, verification_status, is_available, rating_avg,
-          category_id,
-          profiles!artisans_id_fkey (id, full_name, avatar_url, location),
+          category_id, portfolio_urls,
           categories (name, slug)
         `)
         .eq('category_id', categoryId);
       
-      // 3. Get review counts for each artisan
-      if (artisansData) {
+      if (artisansError) {
+        console.error('Error fetching artisans:', artisansError);
+      }
+      
+      // 3. Récupérer les profils séparément pour éviter les problèmes de jointure
+      let profilesMap: Record<string, any> = {};
+      if (artisansData && artisansData.length > 0) {
+        const artisanIds = artisansData.map(a => a.id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, location')
+          .in('id', artisanIds);
+        
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        } else if (profilesData) {
+          // Créer une map pour accès rapide
+          profilesMap = profilesData.reduce((acc: Record<string, any>, profile: any) => {
+            acc[profile.id] = profile;
+            return acc;
+          }, {});
+        }
+      }
+      
+      // 4. Get review counts for each artisan
+      if (artisansData && artisansData.length > 0) {
         const formattedArtisans: ArtisanData[] = await Promise.all(
           artisansData.map(async (a: any) => {
             // Get review count
@@ -137,25 +146,54 @@ export function CategoryPage() {
               .eq('artisan_id', a.id)
               .eq('status', 'accepted');
             
+            // Récupérer les vraies données depuis la base de données
+            // Ne pas utiliser de valeurs par défaut qui masquent les vraies données
+            const portfolioUrls = Array.isArray(a.portfolio_urls) ? a.portfolio_urls.filter((url: string) => url && url.trim() !== '') : [];
+            
+            // Récupérer le profil depuis la map
+            const profile = profilesMap[a.id];
+            
+            const fullName = profile?.full_name?.trim() || null;
+            const specialty = a.specialty?.trim() || null;
+            const location = profile?.location?.trim() || null;
+            const avatarUrl = profile?.avatar_url?.trim() || null;
+            const bio = a.bio?.trim() || null;
+            
+            // Log pour debug (à retirer en production)
+            console.log('Artisan data:', {
+              id: a.id,
+              fullName,
+              specialty,
+              location,
+              avatarUrl,
+              portfolioUrls: portfolioUrls.length,
+              bio: bio ? bio.substring(0, 50) : null,
+              profileData: profile
+            });
+            
             return {
               id: a.id,
-              name: a.profiles?.full_name || 'Artisan',
-              specialty: a.specialty || '',
+              name: fullName || 'Artisan',
+              specialty: specialty || 'Spécialiste',
               category: a.categories?.name || 'Autre',
               category_id: a.category_id,
-              rating: a.rating_avg || 4.5,
+              rating: a.rating_avg || 0,
               reviews: reviewCount || 0,
               projects_completed: projectCount || 0,
               is_available: a.is_available !== false,
               tier: getTier(projectCount || 0),
-              location: a.profiles?.location || 'Sénégal',
+              location: location || 'Localisation non renseignée',
               verified: a.verification_status === 'verified',
-              img: a.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(a.profiles?.full_name || 'A')}&background=F97316&color=fff`,
-              bio: a.bio || '',
+              img: avatarUrl || (fullName ? `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=F97316&color=fff` : `https://ui-avatars.com/api/?name=Artisan&background=F97316&color=fff`),
+              bio: bio || '',
+              portfolio_first_image: portfolioUrls.length > 0 ? portfolioUrls[0] : null,
             };
           })
         );
         setArtisans(formattedArtisans);
+      } else {
+        console.warn('No artisans data found for category:', categoryId);
+        setArtisans([]);
       }
       
       setLoading(false);
@@ -235,7 +273,7 @@ export function CategoryPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Catégorie introuvable</h2>
           <p className="text-gray-500 mb-6">Cette catégorie n'existe pas ou a été supprimée.</p>
           <button 
-            onClick={() => navigate('/landing')}
+            onClick={() => navigate('/artisans')}
             className="px-6 py-3 bg-brand-500 text-white font-bold rounded-xl"
           >
             Retour à l'accueil
@@ -287,7 +325,7 @@ export function CategoryPage() {
               </>
             ) : (
               <button 
-                onClick={() => navigate('/login?mode=login')}
+                onClick={() => navigate('/')}
                 className="bg-brand-500 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-brand-600 transition-all"
               >
                 Connexion
@@ -452,16 +490,54 @@ export function CategoryPage() {
                 style={{ animationDelay: `${i * 30}ms` }}
               >
                 {/* Image Section */}
-                <div className="relative h-48 overflow-hidden">
-                  <img 
-                    src={artisan.img} 
-                    alt={artisan.name} 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <div className="relative h-56 overflow-hidden bg-gray-100">
+                  {/* Portfolio image or avatar - Toujours afficher la vraie image */}
+                  {artisan.portfolio_first_image ? (
+                    <img 
+                      src={artisan.portfolio_first_image} 
+                      alt={`Portfolio de ${artisan.name}`} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                      onError={(e) => {
+                        // Si l'image du portfolio échoue, utiliser l'avatar
+                        const target = e.target as HTMLImageElement;
+                        if (artisan.img && target.src !== artisan.img) {
+                          target.src = artisan.img;
+                        }
+                      }}
+                    />
+                  ) : artisan.img ? (
+                    <img 
+                      src={artisan.img} 
+                      alt={artisan.name} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-brand-100 to-orange-100 flex items-center justify-center">
+                      <User size={48} className="text-gray-300" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                  
+                  {/* Photo de profil en overlay - Toujours afficher si disponible */}
+                  {artisan.img && (
+                    <div className="absolute top-3 left-3">
+                      <div className="w-12 h-12 rounded-xl border-2 border-white/90 shadow-lg overflow-hidden bg-white">
+                        <img 
+                          src={artisan.img} 
+                          alt={artisan.name} 
+                          className="w-full h-full object-cover" 
+                          onError={(e) => {
+                            // Si l'avatar échoue, masquer l'overlay
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Status Badge */}
-                  <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                  <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg ${
                     artisan.is_available ? 'bg-green-500 text-white' : 'bg-gray-500 text-white'
                   }`}>
                     <div className={`w-1.5 h-1.5 rounded-full bg-white ${artisan.is_available ? 'animate-pulse' : ''}`} />
@@ -469,20 +545,22 @@ export function CategoryPage() {
                   </div>
                   
                   {/* Tier Badge */}
-                  <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${TIER_COLORS[artisan.tier]}`}>
+                  <div className={`absolute top-14 right-3 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-lg ${TIER_COLORS[artisan.tier]}`}>
                     <Award size={12} />
                     {artisan.tier}
                   </div>
                   
-                  {/* Location */}
-                  <div className="absolute bottom-3 left-3 flex items-center gap-1.5 text-white text-xs font-medium">
-                    <MapPin size={12} />
-                    {artisan.location}
+                  {/* Location - Plus visible */}
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <div className="flex items-center gap-1.5 text-white text-xs font-bold bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                      <MapPin size={14} />
+                      <span>{artisan.location}</span>
+                    </div>
                   </div>
                   
                   {/* Verified Badge */}
                   {artisan.verified && (
-                    <div className="absolute bottom-3 right-3 w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <div className="absolute top-14 left-3 w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shadow-lg border-2 border-white">
                       <Shield size={14} className="text-white" />
                     </div>
                   )}
@@ -495,28 +573,38 @@ export function CategoryPage() {
                     {artisan.verified && <CheckCircle size={16} className="text-blue-500" />}
                   </h3>
                   
-                  <p className="text-sm text-gray-500 font-medium mb-4 line-clamp-1">
-                    {artisan.specialty || 'Spécialiste'}
-                  </p>
+                  {artisan.specialty && (
+                    <p className="text-sm text-brand-600 font-bold mb-3">
+                      {artisan.specialty}
+                    </p>
+                  )}
                   
                   {/* Stats */}
-                  <div className="flex items-center gap-4 mb-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <Star size={14} className="text-yellow-400 fill-yellow-400" />
+                  <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-100">
+                    <div className="flex items-center gap-1.5">
+                      <Star size={16} className="text-yellow-400 fill-yellow-400" />
                       <span className="font-black text-gray-900">{artisan.rating.toFixed(1)}</span>
-                      <span className="text-gray-400">({artisan.reviews})</span>
+                      <span className="text-gray-400 text-xs">({artisan.reviews} avis)</span>
                     </div>
-                    <div className="flex items-center gap-1 text-gray-500">
-                      <Briefcase size={14} />
-                      <span className="font-bold">{artisan.projects_completed} projets</span>
+                    <div className="flex items-center gap-1.5 text-gray-600">
+                      <Briefcase size={16} />
+                      <span className="font-bold text-sm">{artisan.projects_completed} projets</span>
                     </div>
                   </div>
                   
                   {/* Bio Preview */}
                   {artisan.bio && (
-                    <p className="text-xs text-gray-500 mb-4 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-gray-600 mb-4 line-clamp-2 leading-relaxed">
                       {artisan.bio}
                     </p>
+                  )}
+                  
+                  {/* Portfolio indicator */}
+                  {artisan.portfolio_first_image && (
+                    <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
+                      <Image size={14} />
+                      <span className="font-medium">Portfolio disponible</span>
+                    </div>
                   )}
                   
                   {/* CTA */}
@@ -524,7 +612,7 @@ export function CategoryPage() {
                     onClick={() => navigate(`/artisans/${artisan.id}`)}
                     className="w-full py-3 bg-gray-900 text-white font-black rounded-xl hover:bg-brand-500 active:scale-[0.98] transition-all uppercase tracking-widest text-[10px]"
                   >
-                    Voir le profil
+                    Voir le profil complet
                   </button>
                 </div>
               </div>

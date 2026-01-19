@@ -36,7 +36,7 @@ export function ArtisansPage() {
   const [loading, setLoading] = useState(true);
   
   // Filters state
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || '');
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [selectedTier, setSelectedTier] = useState<string>('');
@@ -86,13 +86,18 @@ export function ArtisansPage() {
     fetchArtisans();
   }, []);
   
-  // Filter artisans
+  // Filter artisans - amélioration pour inclure spécialités et noms
   const filteredArtisans = useMemo(() => {
     return artisans.filter(artisan => {
-      // Search filter
-      if (searchQuery && !artisan.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
-          !artisan.specialty.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false;
+      // Search filter - recherche dans nom, spécialité et catégorie
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = artisan.name.toLowerCase().includes(query);
+        const matchesSpecialty = artisan.specialty.toLowerCase().includes(query);
+        const matchesCategory = artisan.category.toLowerCase().includes(query);
+        if (!matchesName && !matchesSpecialty && !matchesCategory) {
+          return false;
+        }
       }
       // Category filter
       if (selectedCategory && artisan.category !== selectedCategory) {
@@ -138,7 +143,7 @@ export function ArtisansPage() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate('/landing')}
+              onClick={() => navigate('/artisans')}
               className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
             >
               <ArrowLeft size={20} className="text-gray-600" />
@@ -157,7 +162,7 @@ export function ArtisansPage() {
             </button>
           ) : (
             <button 
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/')}
               className="bg-brand-500 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-brand-600 transition-all"
             >
               Connexion
@@ -177,7 +182,7 @@ export function ArtisansPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher un artisan ou une spécialité..."
+                placeholder="Rechercher un artisan, une spécialité ou une catégorie..."
                 className="flex-1 bg-transparent outline-none text-gray-700 font-medium"
               />
               {searchQuery && (
@@ -351,17 +356,12 @@ export function ArtisansPage() {
                   <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg ${
                     artisan.status === 'Disponible' ? 'bg-green-500 text-white' : 'bg-yellow-500 text-white'
                   }`}>
-                    <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    <div className={`w-1.5 h-1.5 rounded-full bg-white ${artisan.is_available ? 'animate-pulse' : ''}`} />
                     {artisan.status}
                   </div>
                   
                   {/* Tier Badge */}
-                  <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg ${
-                    artisan.tier === 'Platine' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' :
-                    artisan.tier === 'Or' ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white' :
-                    artisan.tier === 'Argent' ? 'bg-gradient-to-r from-gray-400 to-gray-500 text-white' :
-                    'bg-gradient-to-r from-orange-300 to-orange-400 text-white'
-                  }`}>
+                  <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg ${TIER_COLORS[artisan.tier]}`}>
                     <Award size={12} className="inline mr-1" />
                     {artisan.tier}
                   </div>

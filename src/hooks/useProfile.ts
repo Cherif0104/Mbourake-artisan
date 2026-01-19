@@ -30,18 +30,38 @@ export function useProfile() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          artisans!artisans_id_fkey(category_id)
+        `)
         .eq('id', auth.user.id)
         .maybeSingle();
 
       if (!mounted) return;
 
       if (error) {
+        // Ne pas afficher d'erreur si c'est un problème de connexion réseau
+        const isNetworkError = 
+          error.message?.toLowerCase().includes('failed to fetch') ||
+          error.message?.toLowerCase().includes('network') ||
+          error.message?.toLowerCase().includes('connection') ||
+          error.message?.toLowerCase().includes('timeout');
+        
+        if (!isNetworkError) {
+          console.error('Erreur lors du chargement du profil:', error);
+        }
         setState({ profile: null, loading: false });
         return;
       }
 
-      setState({ profile: data ?? null, loading: false });
+      // Enrichir le profil avec category_id depuis artisans
+      // La relation artisans_id_fkey est one-to-one, donc artisans est un objet unique
+      const enrichedProfile = data ? {
+        ...data,
+        category_id: (data as any).artisans?.category_id ?? data.category_id ?? null
+      } : null;
+
+      setState({ profile: enrichedProfile, loading: false });
     };
 
     run();
@@ -99,12 +119,23 @@ export function useProfile() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          artisans!artisans_id_fkey(category_id)
+        `)
         .eq('id', auth.user.id)
         .single();
 
       if (error) throw error;
-      setState({ profile: data, loading: false });
+      
+      // Enrichir le profil avec category_id depuis artisans
+      // La relation artisans_id_fkey est one-to-one, donc artisans est un objet unique
+      const enrichedProfile = data ? {
+        ...data,
+        category_id: (data as any).artisans?.category_id ?? data.category_id ?? null
+      } : null;
+      
+      setState({ profile: enrichedProfile, loading: false });
     },
     [auth.user],
   );

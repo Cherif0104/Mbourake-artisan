@@ -10,7 +10,6 @@ export type NotificationType =
   | 'new_quote' 
   | 'quote_accepted' 
   | 'quote_rejected' 
-  | 'revision_requested' 
   | 'project_completed' 
   | 'payment_received' 
   | 'verification_approved' 
@@ -135,7 +134,7 @@ export async function notifyArtisanQuoteAccepted(projectId: string, artisanId: s
     userId: artisanId,
     type: 'quote_accepted',
     title: 'Devis accepté !',
-    message: `Votre devis pour "${projectTitle}" a été accepté.`,
+    message: `Votre devis pour "${projectTitle}" a été accepté. En attente du paiement du client pour démarrer les travaux.`,
     data: { project_id: projectId },
   });
 }
@@ -153,18 +152,9 @@ export async function notifyArtisanQuoteRejected(projectId: string, artisanId: s
   });
 }
 
-/**
- * Notifie l'artisan quand une révision est demandée
- */
-export async function notifyArtisanRevisionRequested(projectId: string, artisanId: string, projectTitle: string) {
-  await createNotification({
-    userId: artisanId,
-    type: 'revision_requested',
-    title: 'Révision de devis demandée',
-    message: `Le client demande une révision de votre devis pour "${projectTitle}".`,
-    data: { project_id: projectId },
-  });
-}
+// Fonction supprimée : notifyArtisanRevisionRequested
+// La logique de révision a été remplacée par un refus avec raison optionnelle.
+// Utiliser notifyArtisanQuoteRejected avec rejectionReason à la place.
 
 /**
  * Notifie le client quand les travaux sont terminés
@@ -187,7 +177,7 @@ export async function notifyArtisanPaymentReceived(projectId: string, artisanId:
     userId: artisanId,
     type: 'payment_received',
     title: 'Paiement reçu',
-    message: `Vous avez reçu ${amount.toLocaleString('fr-FR')} FCFA.`,
+    message: `Vous avez reçu ${amount.toLocaleString('fr-FR')} FCFA. Vous pouvez maintenant commencer les travaux.`,
     data: { project_id: projectId },
   });
 }
@@ -203,4 +193,60 @@ export async function notifyNewMessage(projectId: string, recipientId: string, s
     message: `${senderName} vous a envoyé un message.`,
     data: { project_id: projectId },
   });
+}
+
+/**
+ * Assure qu'un chat existe entre le client et l'artisan pour un projet
+ * Crée automatiquement un message de bienvenue si le chat n'existe pas encore
+ * Cette fonction est appelée automatiquement à l'acceptation d'un devis
+ */
+export async function ensureProjectChatExists(
+  projectId: string,
+  clientId: string,
+  artisanId: string,
+  projectTitle: string
+) {
+  try {
+    // Vérifier si un message existe déjà entre ces deux utilisateurs pour ce projet
+    const { data: existingMessages, error: checkError } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('project_id', projectId)
+      .or(`sender_id.eq.${clientId},sender_id.eq.${artisanId}`)
+      .limit(1);
+
+    if (checkError) {
+      console.error('Error checking existing chat:', checkError);
+      // Ne pas bloquer si la vérification échoue
+    }
+
+    // Si aucun message n'existe, créer un message de bienvenue
+    if (!existingMessages || existingMessages.length === 0) {
+      // Récupérer le nom de l'artisan
+      const { data: artisanProfile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', artisanId)
+        .single();
+
+      const artisanName = artisanProfile?.full_name || 'l\'artisan';
+
+      // Créer un message de bienvenue de la part de l'artisan vers le client
+      const { error: messageError } = await supabase.from('messages').insert({
+        project_id: projectId,
+        sender_id: artisanId,
+        receiver_id: clientId,
+        content: `Bonjour ! Votre devis pour "${projectTitle}" a été accepté. Nous pouvons maintenant discuter des détails du projet. N'hésitez pas à me contacter si vous avez des questions.`,
+        type: 'text',
+      });
+
+      if (messageError) {
+        console.error('Error creating welcome message:', messageError);
+      } else {
+        console.log(`Chat créé automatiquement pour le projet ${projectId}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring project chat exists:', error);
+  }
 }

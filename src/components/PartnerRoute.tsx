@@ -20,7 +20,7 @@ export function PartnerRoute({ children }: PartnerRouteProps) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (profile?.role !== 'partner') {

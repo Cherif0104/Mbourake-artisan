@@ -20,7 +20,7 @@ export function ChambreMetierRoute({ children }: ChambreMetierRouteProps) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (profile?.role !== 'chambre_metier') {

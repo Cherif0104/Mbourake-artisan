@@ -46,7 +46,6 @@ export function CreateProjectPage() {
   const [isUrgent, setIsUrgent] = useState(false);
   const [propertyDetails, setPropertyDetails] = useState({
     type: '', // appartement, maison, bureau, etc.
-    floor: '',
     accessNotes: '',
   });
 
@@ -212,7 +211,17 @@ export function CreateProjectPage() {
         photoUrls.push(supabase.storage.from('photos').getPublicUrl(photoData.path).data.publicUrl);
       }
 
-      // 4. Create Project with all new fields
+      // 4. Prepare property_details - ensure floor is not an empty string if present
+      let propertyDetailsJson = null;
+      if (propertyDetails.type) {
+        propertyDetailsJson = {
+          type: propertyDetails.type,
+          accessNotes: propertyDetails.accessNotes || null,
+          // floor est supprimé car il peut causer des problèmes si c'est un integer
+        };
+      }
+
+      // 5. Create Project with all new fields
       const { data: newProject, error: projectError } = await supabase
         .from('projects')
         .insert({
@@ -222,25 +231,35 @@ export function CreateProjectPage() {
           audio_description_url: audioUrl || null,
           video_url: videoUrl || null,
           photos_urls: photoUrls,
-          location,
+          location: location || null,
           is_open: isOpen,
           target_artisan_id: !isOpen ? targetArtisanId : null,
-          max_distance_km: isOpen ? maxDistanceKm : null,
-          min_rating: isOpen ? minRating : null,
+          max_distance_km: isOpen ? (maxDistanceKm !== null ? Number(maxDistanceKm) : null) : null,
+          min_rating: isOpen ? (minRating !== null ? Number(minRating) : null) : null,
           preferred_date: preferredDate || null,
           preferred_time_start: preferredTimeStart || null,
           preferred_time_end: preferredTimeEnd || null,
           is_urgent: isUrgent,
-          property_details: propertyDetails.type ? propertyDetails : null,
+          property_details: propertyDetailsJson,
           status: 'open',
           expires_at: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(), // 6 days
         })
         .select()
         .single();
 
-      if (projectError) throw projectError;
+      if (projectError) {
+        console.error('Erreur création projet:', projectError);
+        // Message d'erreur plus détaillé
+        let errorMessage = projectError.message;
+        if (projectError.message?.includes('invalid input syntax for type integer')) {
+          errorMessage = "Erreur de format de données. Veuillez vérifier les champs numériques (distance, note minimum).";
+        } else if (projectError.message?.includes('row-level security policy')) {
+          errorMessage = "Erreur d'autorisation. Veuillez vous reconnecter et réessayer.";
+        }
+        throw new Error(errorMessage);
+      }
 
-      // 5. Log création projet (traçabilité)
+      // 6. Log création projet (traçabilité)
       if (newProject) {
         try {
           await supabase.rpc('log_project_action', {

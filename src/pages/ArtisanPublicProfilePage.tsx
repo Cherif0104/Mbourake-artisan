@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useFavorites } from '../hooks/useFavorites';
+import { getTier, TIER_COLORS } from '../utils/artisanUtils';
 
 interface Review {
   id: string;
@@ -38,6 +39,7 @@ interface ArtisanProfile {
     video_urls: string[];
     verification_status: string;
     rating_avg: number | null;
+    is_available: boolean | null;
     category: {
       id: number;
       name: string;
@@ -54,7 +56,7 @@ export function ArtisanPublicProfilePage() {
   
   const [artisan, setArtisan] = useState<ArtisanProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [reviewStats, setReviewStats] = useState({ count: 0, avg: 0, projectsCount: 0 });
+  const [reviewStats, setReviewStats] = useState({ count: 0, avg: 0, projectsCount: 0, tier: 'Bronze' as 'Platine' | 'Or' | 'Argent' | 'Bronze' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -72,31 +74,51 @@ export function ArtisanPublicProfilePage() {
       setLoading(true);
       setError(null);
 
-      // Fetch profile with artisan data
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
+      // Vérifier d'abord que c'est bien un artisan via la table artisans
+      // Fetch artisan details d'abord
+      const { data: artisanData, error: artisanError } = await supabase
+        .from('artisans')
         .select(`
-          id, full_name, email, phone, avatar_url, location, member_id, created_at
+          bio, specialty, portfolio_urls, video_urls, verification_status, rating_avg, is_available,
+          categories (id, name, icon_name)
         `)
         .eq('id', id)
-        .eq('role', 'artisan')
-        .single();
-
-      if (profileError || !profileData) {
+        .maybeSingle();
+      
+      if (artisanError) {
+        console.error('Error fetching artisan details:', artisanError);
+        setError('Artisan non trouvé');
+        setLoading(false);
+        return;
+      }
+      
+      if (!artisanData) {
         setError('Artisan non trouvé');
         setLoading(false);
         return;
       }
 
-      // Fetch artisan details
-      const { data: artisanData } = await supabase
-        .from('artisans')
+      // Ensuite, récupérer le profil avec .maybeSingle() pour éviter l'erreur 406
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
         .select(`
-          bio, specialty, portfolio_urls, video_urls, verification_status, rating_avg,
-          categories (id, name, icon_name)
+          id, full_name, email, phone, avatar_url, location, member_id, created_at, role
         `)
         .eq('id', id)
-        .single() as { data: any };
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        setError('Artisan non trouvé');
+        setLoading(false);
+        return;
+      }
+
+      if (!profileData) {
+        setError('Artisan non trouvé');
+        setLoading(false);
+        return;
+      }
 
       setArtisan({
         ...profileData,
@@ -107,6 +129,7 @@ export function ArtisanPublicProfilePage() {
           video_urls: artisanData.video_urls || [],
           verification_status: artisanData.verification_status,
           rating_avg: artisanData.rating_avg,
+          is_available: artisanData.is_available,
           category: artisanData.categories as any
         } : null
       });
@@ -149,7 +172,8 @@ export function ArtisanPublicProfilePage() {
           .eq('artisan_id', id)
           .eq('status', 'accepted');
         
-        setReviewStats({ count, avg: avg || 0, projectsCount: projectsCount || 0 });
+        const tier = getTier(projectsCount || 0);
+        setReviewStats({ count, avg: avg || 0, projectsCount: projectsCount || 0, tier });
       }
       
       setLoading(false);
@@ -183,10 +207,18 @@ export function ArtisanPublicProfilePage() {
   };
 
   const handleRequestProject = () => {
+    // Si l'utilisateur n'est pas connecté, rediriger vers l'inscription en tant que client
     if (!user) {
-      navigate('/login?mode=signup');
+      navigate('/onboard?mode=signup&role=client');
       return;
     }
+    
+    // Si l'utilisateur est connecté mais n'est pas un client, rediriger vers l'inscription client
+    if (currentUserProfile?.role !== 'client') {
+      navigate('/onboard?mode=signup&role=client');
+      return;
+    }
+    
     // Navigate to create project with artisan pre-selected
     navigate(`/create-project?artisan=${id}`);
   };
@@ -311,15 +343,25 @@ export function ArtisanPublicProfilePage() {
                   Certifié
                 </span>
               )}
+              {artisan.artisan && (
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
+                  artisan.artisan.is_available !== false 
+                    ? 'bg-green-50 text-green-700' 
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  <Clock size={14} />
+                  {artisan.artisan.is_available !== false ? 'Disponible' : 'Occupé'}
+                </span>
+              )}
               {artisan.member_id && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-xs font-mono">
                   <Hash size={12} />
                   {artisan.member_id}
                 </span>
               )}
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 rounded-full text-xs font-bold">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${TIER_COLORS[reviewStats.tier]}`}>
                 <Award size={14} />
-                Expert Or
+                {reviewStats.tier}
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-bold">
                 <Calendar size={14} />
@@ -400,12 +442,13 @@ export function ArtisanPublicProfilePage() {
         <section className="bg-white border-b px-6 py-6">
           <h3 className="font-bold text-gray-900 mb-4">Contact</h3>
           <div className="space-y-3">
+            {/* Téléphone masqué pour la confidentialité */}
             {artisan.phone && (
-              <div className="flex items-center gap-3 text-gray-600">
+              <div className="flex items-center gap-3 text-gray-400">
                 <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-                  <Phone size={18} className="text-gray-500" />
+                  <Phone size={18} className="text-gray-400" />
                 </div>
-                <span className="font-medium">{artisan.phone}</span>
+                <span className="font-medium text-sm">Numéro masqué pour la confidentialité</span>
               </div>
             )}
             <div className="flex items-center gap-3 text-gray-600">
@@ -414,6 +457,14 @@ export function ArtisanPublicProfilePage() {
               </div>
               <span className="font-medium">{artisan.email}</span>
             </div>
+            {artisan.location && (
+              <div className="flex items-center gap-3 text-gray-600">
+                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                  <MapPin size={18} className="text-gray-500" />
+                </div>
+                <span className="font-medium">{artisan.location}</span>
+              </div>
+            )}
           </div>
         </section>
 
@@ -509,15 +560,13 @@ export function ArtisanPublicProfilePage() {
             <MessageSquare size={20} />
             Message
           </button>
-          {(isClient || !user) && (
-            <button 
-              onClick={handleRequestProject}
-              className="flex-[2] py-4 bg-brand-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-600 active:scale-[0.98] transition-all shadow-lg shadow-brand-200"
-            >
-              <Briefcase size={20} />
-              Demander un projet
-            </button>
-          )}
+          <button 
+            onClick={handleRequestProject}
+            className="flex-[2] py-4 bg-brand-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-600 active:scale-[0.98] transition-all shadow-lg shadow-brand-200"
+          >
+            <Briefcase size={20} />
+            {user && currentUserProfile?.role === 'client' ? 'Demander un projet' : 'Se connecter pour demander'}
+          </button>
         </div>
       </div>
 

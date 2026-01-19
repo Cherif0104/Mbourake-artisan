@@ -233,7 +233,7 @@ export function AdminDashboard() {
           <button
             onClick={async () => {
               await auth.signOut();
-              navigate('/landing');
+              navigate('/');
             }}
             className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white font-bold text-sm transition-all"
           >

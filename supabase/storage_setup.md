@@ -16,6 +16,13 @@
   - Les utilisateurs authentifiés peuvent uploader
   - Tous peuvent lire
 
+### 3. Bucket `documents`
+- **Usage** : Stocker les documents PDF (factures proforma, devis PDF, etc.)
+- **Public** : Oui (pour affichage)
+- **Policies** :
+  - Les utilisateurs authentifiés peuvent uploader
+  - Tous peuvent lire
+
 ## Configuration via SQL (à exécuter dans Supabase Dashboard)
 
 ```sql
@@ -27,6 +34,11 @@ ON CONFLICT (id) DO NOTHING;
 -- Créer le bucket photos
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('photos', 'photos', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Créer le bucket documents
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('documents', 'documents', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Policies pour le bucket audio
@@ -55,11 +67,24 @@ CREATE POLICY "Users can upload photos"
 CREATE POLICY "Anyone can read photos"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'photos');
+
+-- Policies pour le bucket documents
+CREATE POLICY "Users can upload documents"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'documents' AND
+    auth.role() = 'authenticated'
+  );
+
+CREATE POLICY "Anyone can read documents"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'documents');
 ```
 
 ## Configuration via l'interface Supabase
 
 1. Aller dans **Storage** dans le dashboard Supabase
-2. Créer les buckets `audio` et `photos`
+2. Créer les buckets `audio`, `photos` et `documents`
 3. Configurer les policies d'accès selon les besoins
+4. **Important** : Le bucket `documents` doit accepter le type MIME `application/pdf`
 

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  User, Plus, MapPin, Clock, ChevronRight, Shield, 
+  User, Plus, PlusCircle, MapPin, Clock, ChevronRight, Shield, 
   Briefcase, Home, Settings, LogOut, CheckCircle, FileText,
-  Send, RotateCcw, Star, Search, Menu, X, Image, Video,
+  Send, Star, Search, Menu, X, Image, Video,
   MessageSquare, CreditCard, AlertCircle, Check, Eye,
-  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Heart, Receipt
+  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Heart, Receipt, MoreVertical
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -22,7 +22,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   quote_accepted: { label: 'Accepté', color: 'bg-green-100 text-green-700', icon: <Check size={14} /> },
   in_progress: { label: 'En cours', color: 'bg-brand-100 text-brand-700', icon: <TrendingUp size={14} /> },
   completed: { label: 'Terminé', color: 'bg-green-100 text-green-700', icon: <CheckCircle size={14} /> },
-  revision_requested: { label: 'Révision', color: 'bg-yellow-100 text-yellow-700', icon: <RotateCcw size={14} /> },
   pending: { label: 'En attente', color: 'bg-blue-100 text-blue-700', icon: <Clock size={14} /> },
   accepted: { label: 'Accepté', color: 'bg-green-100 text-green-700', icon: <Check size={14} /> },
   expired: { label: 'Expiré', color: 'bg-gray-100 text-gray-500', icon: <Clock size={14} /> },
@@ -39,9 +38,24 @@ const getGreeting = () => {
 
 export function Dashboard() {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
-  const { profile } = useProfile();
+  const location = useLocation();
+  const auth = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   
+  // Vérifier si le profil est complet
+  const isProfileComplete = (profile: any): boolean => {
+    if (!profile) return false;
+    const requiredFields = ['role', 'full_name', 'location'];
+    const hasRequiredFields = requiredFields.every(
+      field => profile[field] && profile[field].toString().trim().length > 0
+    );
+    if (!hasRequiredFields) return false;
+    if (profile.role === 'artisan' && !profile.category_id) return false;
+    return true;
+  };
+  
+  // States - Déclarer hasRedirectedToOnboard AVANT le useEffect qui l'utilise
+  const [hasRedirectedToOnboard, setHasRedirectedToOnboard] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [projects, setProjects] = useState<any[]>([]);
   const [myQuotes, setMyQuotes] = useState<any[]>([]);
@@ -50,9 +64,23 @@ export function Dashboard() {
   const [artisanData, setArtisanData] = useState<any>(null);
   const [categoryName, setCategoryName] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
   const [togglingAvailability, setTogglingAvailability] = useState(false);
   const [quoteFilter, setQuoteFilter] = useState<string>('Tous'); // Pour filtrer les devis
+  
+  // Rediriger vers /onboard si profil incomplet
+  useEffect(() => {
+    if (auth.loading || profileLoading) return;
+    if (hasRedirectedToOnboard) return; // Guard pour éviter les redirections multiples
+    
+    if (auth.user && profile && !isProfileComplete(profile)) {
+      setHasRedirectedToOnboard(true);
+      navigate('/onboard?mode=signup&step=profile', { replace: true });
+    }
+  }, [auth.user, auth.loading, profile, profileLoading, navigate, hasRedirectedToOnboard]);
+  
+  const { signOut } = auth;
 
   // Fetch data
   useEffect(() => {
@@ -97,10 +125,12 @@ export function Dashboard() {
         
         setMyQuotes(quotes || []);
       } else {
+        // Récupérer les projets du client, exclure les projets annulés pour l'affichage principal
         const { data: clientProjects } = await supabase
           .from('projects')
           .select('*, categories(*), quotes(*)')
           .eq('client_id', profile.id)
+          .neq('status', 'cancelled') // Exclure les projets annulés de la liste principale
           .order('created_at', { ascending: false });
         
         setProjects(clientProjects || []);
@@ -110,11 +140,11 @@ export function Dashboard() {
     };
     
     fetchData();
-  }, [profile]);
+  }, [profile, location.pathname]); // Rafraîchir aussi quand on arrive sur la page
 
   const handleLogout = async () => {
     await signOut();
-    navigate('/landing');
+    navigate('/');
   };
 
   const toggleAvailability = async () => {
@@ -152,7 +182,7 @@ export function Dashboard() {
 
   // Counts
   const urgentCount = isArtisan 
-    ? myQuotes.filter(q => q.status === 'revision_requested').length
+    ? myQuotes.filter(q => q.status === 'pending' && !q.is_read).length
     : projects.filter(p => p.quotes?.length > 0 && p.status === 'open').length;
   
   const activeCount = isArtisan
@@ -183,110 +213,204 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ============== HEADER SIMPLIFIÉ ============== */}
-      <header className="bg-white sticky top-0 z-30 shadow-sm">
-        <div className="max-w-lg mx-auto px-5 py-4 flex items-center justify-between">
-          {/* Avatar + Salutation */}
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setActiveTab('profile')}
-              className="relative"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 p-0.5 shadow-lg shadow-brand-200/50">
-                <div className="w-full h-full rounded-2xl bg-white flex items-center justify-center overflow-hidden">
-                  {profile.avatar_url ? (
-                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <User size={22} className="text-brand-500" />
-                  )}
+      {/* ============== HEADER MODERNE AVEC ACTIONS VISIBLES ============== */}
+      <header className="bg-white sticky top-0 z-30 shadow-sm border-b border-gray-100">
+        <div className="max-w-lg mx-auto px-5 py-3">
+          {/* Ligne 1: Avatar + Salutation + Actions rapides */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setActiveTab('profile')}
+                className="relative"
+              >
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 p-0.5 shadow-md">
+                  <div className="w-full h-full rounded-xl bg-white flex items-center justify-center overflow-hidden">
+                    {profile.avatar_url ? (
+                      <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={20} className="text-brand-500" />
+                    )}
+                  </div>
                 </div>
-              </div>
-              {isArtisan && isVerified && (
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-lg flex items-center justify-center border-2 border-white">
-                  <Check size={10} className="text-white" strokeWidth={3} />
-                </div>
-              )}
-            </button>
-            
-            <div>
-              <p className="text-lg font-bold text-gray-900">
-                {getGreeting()}, {firstName} 👋
-              </p>
-              <p className="text-sm text-gray-500 font-medium flex items-center gap-1">
-                {isArtisan ? (
-                  <>
-                    <Briefcase size={12} />
-                    {categoryName || 'Artisan'}
-                  </>
-                ) : (
-                  <>
-                    <MapPin size={12} />
-                    {profile.location || 'Sénégal'}
-                  </>
+                {isArtisan && isVerified && (
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-lg flex items-center justify-center border-2 border-white">
+                    <Check size={8} className="text-white" strokeWidth={3} />
+                  </div>
                 )}
-              </p>
+              </button>
+              
+              <div>
+                <p className="text-base font-bold text-gray-900">
+                  {getGreeting()}, {firstName}
+                </p>
+                <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                  {isArtisan ? (
+                    <>
+                      <Briefcase size={10} />
+                      {categoryName || 'Artisan'}
+                    </>
+                  ) : (
+                    <>
+                      <MapPin size={10} />
+                      {profile.location || 'Sénégal'}
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions rapides - Toujours visibles */}
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              
+              {/* Bouton Explorer */}
+              <button 
+                onClick={() => navigate('/artisans')}
+                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-brand-100 hover:text-brand-600 transition-all"
+                aria-label="Explorer"
+                title="Explorer les projets/artisans"
+              >
+                <Search size={18} />
+              </button>
+
+              {/* Bouton Paramètres/Profil - Dropdown simplifié */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-all"
+                  aria-label="Options"
+                >
+                  {showMenu ? <X size={18} /> : <Settings size={18} />}
+                </button>
+                
+                {/* Menu simplifié - Seulement les actions importantes */}
+                {showMenu && (
+                  <div className="absolute right-0 top-12 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button 
+                      onClick={() => { navigate('/edit-profile'); setShowMenu(false); }}
+                      className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm"
+                    >
+                      <User size={16} className="text-gray-400" />
+                      <span className="font-medium text-gray-700">Mon profil</span>
+                    </button>
+                    {isArtisan && (
+                      <button 
+                        onClick={() => { navigate('/edit-profile?tab=portfolio'); setShowMenu(false); }}
+                        className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm"
+                      >
+                        <Image size={16} className="text-gray-400" />
+                        <span className="font-medium text-gray-700">Portfolio</span>
+                      </button>
+                    )}
+                    <div className="h-px bg-gray-100 my-1" />
+                    <button 
+                      onClick={() => { handleLogout(); setShowMenu(false); }}
+                      className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-red-50 transition-colors text-sm"
+                    >
+                      <LogOut size={16} className="text-red-500" />
+                      <span className="font-medium text-red-500">Déconnexion</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Actions */}
+          {/* Ligne 2: Barre d'actions rapides - Actions principales seulement */}
           <div className="flex items-center gap-2">
-            <NotificationBell />
-            
-            <button 
-              onClick={() => setShowMenu(!showMenu)}
-              className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors"
-              aria-label="Menu"
+            {/* Bouton Créer projet (pour clients) */}
+            {!isArtisan && (
+              <button
+                onClick={() => navigate('/create-project')}
+                className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-xs hover:bg-brand-600 transition-colors whitespace-nowrap flex-shrink-0 shadow-sm"
+              >
+                <PlusCircle size={16} />
+                Nouveau projet
+              </button>
+            )}
+
+            {/* Bouton Vérification (pour artisans non vérifiés) */}
+            {isArtisan && verificationStatus === 'unverified' && (
+              <button
+                onClick={() => navigate('/verification')}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl font-bold text-xs hover:bg-blue-100 transition-colors whitespace-nowrap flex-shrink-0 border border-blue-200"
+              >
+                <Shield size={16} />
+                Se vérifier
+              </button>
+            )}
+
+            {/* Bouton Portfolio (pour artisans) */}
+            {isArtisan && (
+              <button
+                onClick={() => navigate('/edit-profile?tab=portfolio')}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-bold text-xs hover:bg-gray-200 transition-colors whitespace-nowrap flex-shrink-0"
+              >
+                <Image size={16} />
+                Portfolio
+              </button>
+            )}
+
+            {/* Bouton Explorer (toujours visible) */}
+            <button
+              onClick={() => navigate('/artisans')}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-bold text-xs hover:bg-gray-200 transition-colors whitespace-nowrap flex-shrink-0"
             >
-              {showMenu ? <X size={20} /> : <Menu size={20} />}
+              <Search size={16} />
+              Explorer
             </button>
+
+            {/* Menu "Plus" pour les actions secondaires */}
+            <div className="relative">
+              <button
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-bold text-xs hover:bg-gray-200 transition-colors whitespace-nowrap flex-shrink-0"
+              >
+                <MoreVertical size={16} />
+                Plus
+              </button>
+
+              {/* Dropdown menu pour actions secondaires */}
+              {showMoreMenu && (
+                <div className="absolute right-0 top-12 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <button 
+                    onClick={() => { navigate('/favorites'); setShowMoreMenu(false); }}
+                    className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    <Heart size={16} className="text-gray-400" />
+                    <span className="font-medium text-gray-700">Favoris</span>
+                  </button>
+                  <button 
+                    onClick={() => { navigate('/expenses'); setShowMoreMenu(false); }}
+                    className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    <Receipt size={16} className="text-gray-400" />
+                    <span className="font-medium text-gray-700">Dépenses</span>
+                  </button>
+                  <button 
+                    onClick={() => { navigate('/invoices'); setShowMoreMenu(false); }}
+                    className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    <FileText size={16} className="text-gray-400" />
+                    <span className="font-medium text-gray-700">Factures</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Menu déroulant */}
-        {showMenu && (
-          <div className="absolute right-4 top-16 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-            <button 
-              onClick={() => { navigate('/edit-profile'); setShowMenu(false); }}
-              className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors"
-            >
-              <User size={18} className="text-gray-400" />
-              <span className="font-medium text-gray-700">Modifier profil</span>
-            </button>
-            {isArtisan && (
-              <button 
-                onClick={() => { navigate('/edit-profile?tab=portfolio'); setShowMenu(false); }}
-                className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors"
-              >
-                <Image size={18} className="text-gray-400" />
-                <span className="font-medium text-gray-700">Mon portfolio</span>
-              </button>
-            )}
-            <button 
-              onClick={() => { navigate('/landing'); setShowMenu(false); }}
-              className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors"
-            >
-              <Search size={18} className="text-gray-400" />
-              <span className="font-medium text-gray-700">Explorer</span>
-            </button>
-            <div className="h-px bg-gray-100 my-2" />
-            <button 
-              onClick={() => { handleLogout(); setShowMenu(false); }}
-              className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-red-50 transition-colors"
-            >
-              <LogOut size={18} className="text-red-500" />
-              <span className="font-medium text-red-500">Déconnexion</span>
-            </button>
-          </div>
+        {/* Overlay pour fermer les menus */}
+        {(showMenu || showMoreMenu) && (
+          <div 
+            className="fixed inset-0 z-20" 
+            onClick={() => {
+              setShowMenu(false);
+              setShowMoreMenu(false);
+            }} 
+          />
         )}
       </header>
-
-      {/* Overlay pour fermer le menu */}
-      {showMenu && (
-        <div 
-          className="fixed inset-0 z-20" 
-          onClick={() => setShowMenu(false)} 
-        />
-      )}
 
       {/* ============== MAIN CONTENT ============== */}
       <main className="max-w-lg mx-auto px-5 py-6 pb-32">
@@ -309,7 +433,7 @@ export function Dashboard() {
                     {urgentCount} action{urgentCount > 1 ? 's' : ''} en attente
                   </p>
                   <p className="text-sm text-gray-500">
-                    {isArtisan ? 'Révisions demandées' : 'Devis à consulter'}
+                    {isArtisan ? 'Devis à consulter' : 'Devis à consulter'}
                   </p>
                 </div>
                 <ChevronRight size={20} className="text-gray-400" />
@@ -367,7 +491,7 @@ export function Dashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-gray-900">Projets disponibles</h2>
                   <button 
-                    onClick={() => navigate('/landing')}
+                    onClick={() => navigate('/artisans')}
                     className="text-sm text-brand-500 font-bold flex items-center gap-1"
                   >
                     Voir plus
@@ -392,7 +516,13 @@ export function Dashboard() {
                     {projects.slice(0, 3).map((project) => (
                       <button
                         key={project.id}
-                        onClick={() => navigate(`/projects/${project.id}`)}
+                        onClick={() => {
+                          // Forcer le scroll en haut avant la navigation
+                          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                          document.documentElement.scrollTop = 0;
+                          document.body.scrollTop = 0;
+                          navigate(`/projects/${project.id}`);
+                        }}
                         className="w-full bg-white rounded-2xl p-4 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99]"
                       >
                         <div className="flex items-start justify-between mb-3">
@@ -452,7 +582,13 @@ export function Dashboard() {
                       return (
                         <button
                           key={project.id}
-                          onClick={() => navigate(`/projects/${project.id}`)}
+                          onClick={() => {
+                          // Forcer le scroll en haut avant la navigation
+                          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                          document.documentElement.scrollTop = 0;
+                          document.body.scrollTop = 0;
+                          navigate(`/projects/${project.id}`);
+                        }}
                           className="w-full bg-white rounded-2xl p-4 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99]"
                         >
                           <div className="flex items-start justify-between mb-3">
@@ -485,20 +621,6 @@ export function Dashboard() {
               </section>
             )}
 
-            {/* Lien vers exploration */}
-            <button
-              onClick={() => navigate('/landing')}
-              className="w-full bg-gray-100 hover:bg-gray-200 rounded-2xl p-4 flex items-center gap-4 transition-colors active:scale-[0.99]"
-            >
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                <Search size={22} className="text-gray-500" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="font-bold text-gray-900">Explorer les artisans</p>
-                <p className="text-sm text-gray-500">Parcourir tous les profils</p>
-              </div>
-              <ChevronRight size={20} className="text-gray-400" />
-            </button>
           </div>
         )}
 
@@ -547,7 +669,6 @@ export function Dashboard() {
                       { key: 'pending', label: 'En attente' },
                       { key: 'accepted', label: 'Acceptés' },
                       { key: 'rejected', label: 'Refusés' },
-                      { key: 'revision_requested', label: 'Révision' },
                       { key: 'expired', label: 'Expirés' },
                     ].map((filter) => (
                       <button
@@ -578,7 +699,13 @@ export function Dashboard() {
                     return (
                       <button
                         key={quote.id}
-                        onClick={() => navigate(`/projects/${quote.project_id}`)}
+                          onClick={() => {
+                            // Forcer le scroll en haut avant la navigation
+                            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                            document.documentElement.scrollTop = 0;
+                            document.body.scrollTop = 0;
+                            navigate(`/projects/${quote.project_id}`);
+                          }}
                         className="w-full bg-white rounded-2xl p-4 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99]"
                       >
                         <div className="flex items-start justify-between mb-3">
@@ -591,6 +718,14 @@ export function Dashboard() {
                           </span>
                         </div>
                         <h3 className="font-bold text-gray-900 mb-2">{quote.projects?.title}</h3>
+                        {quote.status === 'rejected' && quote.rejection_reason && (
+                          <div className="mb-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-2">
+                            <span className="text-xs font-bold text-red-700">❌ Refusé</span>
+                            <span className="text-xs text-red-700 line-clamp-2 flex-1">
+                              : {quote.rejection_reason}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
                           <span className="text-lg font-black text-brand-600">
                             {quote.amount?.toLocaleString('fr-FR')} FCFA
@@ -660,7 +795,13 @@ export function Dashboard() {
                     return (
                       <button
                         key={project.id}
-                        onClick={() => navigate(`/projects/${project.id}`)}
+                        onClick={() => {
+                          // Forcer le scroll en haut avant la navigation
+                          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                          document.documentElement.scrollTop = 0;
+                          document.body.scrollTop = 0;
+                          navigate(`/projects/${project.id}`);
+                        }}
                         className="w-full bg-white rounded-2xl p-4 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99]"
                       >
                         <div className="flex items-start justify-between mb-3">
@@ -699,7 +840,7 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* ============== PROFILE TAB ============== */}
+        {/* ============== PROFILE TAB (SIMPLIFIÉ - Seulement info essentielles) ============== */}
         {activeTab === 'profile' && (
           <div className="space-y-6 animate-in fade-in duration-300">
             
@@ -738,12 +879,12 @@ export function Dashboard() {
               )}
               
               {isArtisan && (
-                <div className="mt-4 space-y-3">
+                <div className="mt-6 space-y-4">
                   {/* Toggle disponibilité */}
                   <button 
                     onClick={toggleAvailability}
                     disabled={togglingAvailability}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                    className={`w-full flex items-center justify-between px-5 py-4 rounded-xl transition-all ${
                       isAvailable 
                         ? 'bg-green-50 border-2 border-green-200' 
                         : 'bg-gray-100 border-2 border-gray-200'
@@ -758,7 +899,7 @@ export function Dashboard() {
                         <ToggleLeft size={28} className="text-gray-400" />
                       )}
                       <div className="text-left">
-                        <p className={`font-bold ${isAvailable ? 'text-green-700' : 'text-gray-600'}`}>
+                        <p className={`font-bold text-sm ${isAvailable ? 'text-green-700' : 'text-gray-600'}`}>
                           {isAvailable ? 'Disponible' : 'Indisponible'}
                         </p>
                         <p className="text-xs text-gray-500">
@@ -769,131 +910,8 @@ export function Dashboard() {
                     <div className={`w-3 h-3 rounded-full ${isAvailable ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
                   </button>
 
-                  {/* Badge certifié */}
-                  <div className="flex justify-center gap-2">
-                    {isVerified ? (
-                      <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 rounded-xl text-sm font-bold">
-                        <Shield size={16} />
-                        Certifié
-                      </span>
-                    ) : (
-                      <button 
-                        onClick={() => navigate('/verification')}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-50 text-yellow-700 rounded-xl text-sm font-bold hover:bg-yellow-100 transition-colors"
-                      >
-                        <Shield size={16} />
-                        Demander la vérification
-                      </button>
-                    )}
-                  </div>
                 </div>
               )}
-            </div>
-
-            {/* Portfolio Preview (Artisans only) */}
-            {isArtisan && (
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <button 
-                  onClick={() => navigate('/edit-profile?tab=portfolio')}
-                  className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <div className="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center">
-                    <Image size={22} className="text-brand-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-gray-900">Mon portfolio</p>
-                    <p className="text-sm text-gray-500">
-                      {artisanData?.portfolio_urls?.length || 0} photos · {artisanData?.video_urls?.length || 0} vidéos
-                    </p>
-                  </div>
-                  <ChevronRight size={20} className="text-gray-400" />
-                </button>
-              </div>
-            )}
-
-            {/* Actions rapides */}
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
-              <button 
-                onClick={() => navigate('/edit-profile')}
-                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-                  <User size={22} className="text-gray-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-gray-900">Modifier mon profil</p>
-                </div>
-                <ChevronRight size={20} className="text-gray-400" />
-              </button>
-              
-              {!isArtisan && (
-                <button 
-                  onClick={() => navigate('/favorites')}
-                  className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                    <Heart size={22} className="text-red-500" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-gray-900">Mes favoris</p>
-                    <p className="text-xs text-gray-400">Artisans sauvegardés</p>
-                  </div>
-                  <ChevronRight size={20} className="text-gray-400" />
-                </button>
-              )}
-              
-              <button 
-                onClick={() => navigate('/expenses')}
-                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <Receipt size={22} className="text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-gray-900">Suivi des dépenses</p>
-                  <p className="text-xs text-gray-400">Enregistrer et suivre vos dépenses</p>
-                </div>
-                <ChevronRight size={20} className="text-gray-400" />
-              </button>
-              
-              <button 
-                onClick={() => navigate('/invoices')}
-                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                  <FileText size={22} className="text-green-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-gray-900">Mes factures</p>
-                  <p className="text-xs text-gray-400">Factures automatiques générées</p>
-                </div>
-                <ChevronRight size={20} className="text-gray-400" />
-              </button>
-              
-              <button 
-                onClick={() => navigate('/landing')}
-                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-                  <Search size={22} className="text-gray-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-gray-900">Explorer les artisans</p>
-                </div>
-                <ChevronRight size={20} className="text-gray-400" />
-              </button>
-              
-              <button 
-                onClick={handleLogout}
-                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-red-50 transition-colors"
-              >
-                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                  <LogOut size={22} className="text-red-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-red-500">Déconnexion</p>
-                </div>
-              </button>
             </div>
           </div>
         )}
@@ -910,9 +928,9 @@ export function Dashboard() {
         </button>
       )}
 
-      {/* ============== BOTTOM NAVIGATION (3 tabs) ============== */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-30 safe-area-pb">
-        <div className="max-w-lg mx-auto px-8 py-3 flex items-center justify-around">
+      {/* ============== BOTTOM NAVIGATION MODERNE ============== */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-200 z-30 safe-area-pb shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <div className="max-w-lg mx-auto px-4 py-2.5 flex items-center justify-around">
           {[
             { id: 'home' as TabId, icon: Home, label: 'Accueil' },
             { id: 'activity' as TabId, icon: isArtisan ? Send : Briefcase, label: isArtisan ? 'Devis' : 'Projets', badge: urgentCount },
@@ -925,22 +943,48 @@ export function Dashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex flex-col items-center py-2 px-6 rounded-2xl transition-all ${
+                className={`relative flex flex-col items-center justify-center gap-1 py-2.5 px-4 min-w-[70px] rounded-xl transition-all duration-200 ${
                   isActive 
-                    ? 'text-brand-600 bg-brand-50' 
+                    ? 'text-brand-600' 
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
                 aria-label={tab.label}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={`text-xs font-bold mt-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}>
+                {/* Indicateur de fond pour l'onglet actif */}
+                {isActive && (
+                  <div className="absolute inset-0 bg-brand-50 rounded-xl -z-10 animate-in fade-in duration-200" />
+                )}
+                
+                {/* Icône avec effet de scale pour l'actif */}
+                <div className={`relative ${isActive ? 'scale-110' : 'scale-100'} transition-transform duration-200`}>
+                  <Icon 
+                    size={22} 
+                    strokeWidth={isActive ? 2.5 : 2} 
+                    className={isActive ? 'text-brand-600' : 'text-gray-400'}
+                  />
+                  {/* Badge de notification */}
+                  {tab.badge && tab.badge > 0 && (
+                    <span className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full text-[10px] font-black text-white ${
+                      isActive ? 'bg-brand-500' : 'bg-red-500'
+                    } animate-pulse`}>
+                      {tab.badge > 9 ? '9+' : tab.badge}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Label avec animation */}
+                <span className={`text-[11px] font-bold transition-all duration-200 ${
+                  isActive 
+                    ? 'text-brand-600 scale-105' 
+                    : 'text-gray-400 scale-100'
+                }`}>
                   {tab.label}
                 </span>
-                {tab.badge && tab.badge > 0 && (
-                  <span className="absolute -top-1 right-3 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {tab.badge > 9 ? '9+' : tab.badge}
-                  </span>
+                
+                {/* Indicateur de position (ligne en bas) */}
+                {isActive && (
+                  <div className="absolute -bottom-0.5 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-brand-500 rounded-full" />
                 )}
               </button>
             );

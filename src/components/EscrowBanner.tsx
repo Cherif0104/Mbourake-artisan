@@ -4,7 +4,7 @@ import {
   Wallet, ArrowRight, ChevronDown, ChevronUp, Lock, Unlock
 } from 'lucide-react';
 import { useEscrow, type Escrow } from '../hooks/useEscrow';
-import { BYPASS_MODE } from '../lib/paymentBypass';
+import { BYPASS_MODE, PAYMENT_METHODS } from '../lib/paymentBypass';
 import { PaymentModal } from './PaymentModal';
 
 interface EscrowBannerProps {
@@ -199,25 +199,48 @@ export function EscrowBanner({ escrow, isClient, onRefresh }: EscrowBannerProps)
               </div>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {['wave', 'orange', 'card'].map((method) => (
-              <button
-                key={method}
-                onClick={() => setSelectedPayment(method)}
-                className={`p-3 rounded-xl border-2 text-center transition-all ${
-                  selectedPayment === method
-                    ? 'border-brand-500 bg-brand-50'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                <span className="text-xl mb-1 block">
-                  {method === 'wave' ? '🌊' : method === 'orange' ? '🟠' : '💳'}
-                </span>
-                <span className="text-[10px] font-bold text-gray-600 uppercase">
-                  {method === 'wave' ? 'Wave' : method === 'orange' ? 'Orange' : 'Carte'}
-                </span>
-              </button>
-            ))}
+          <div className="flex gap-2">
+            {PAYMENT_METHODS.filter(m => ['wave', 'orange_money', 'card'].includes(m.id) && m.logo).map((method) => {
+              const methodKey = method.id === 'orange_money' ? 'orange' : method.id;
+              return (
+                <button
+                  key={method.id}
+                  onClick={() => setSelectedPayment(methodKey)}
+                  className={`flex-1 p-3 rounded-xl border-2 text-center transition-all ${
+                    selectedPayment === methodKey
+                      ? 'border-brand-500 bg-brand-50'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-center mb-1 h-10 min-h-[40px]">
+                    {method.logo ? (
+                      <img 
+                        src={method.logo} 
+                        alt={method.name}
+                        className="max-h-10 max-w-full object-contain"
+                        style={{ maxHeight: '40px', maxWidth: '100%' }}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          const parent = target.parentElement;
+                          if (parent) {
+                            target.style.display = 'none';
+                            const fallback = document.createElement('span');
+                            fallback.className = 'text-xl block';
+                            fallback.textContent = method.icon;
+                            parent.appendChild(fallback);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span className="text-xl block">{method.icon}</span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600 uppercase block">
+                    {method.id === 'orange_money' ? 'Orange' : method.name.toUpperCase()}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           <button
             onClick={handleOpenPayment}
@@ -275,9 +298,16 @@ export function EscrowBanner({ escrow, isClient, onRefresh }: EscrowBannerProps)
 
       {/* Status: Funds Held */}
       {escrow.status === 'held' && (advanceAmount === 0 || escrow.is_advance_paid) && (
-        <div className="flex items-center justify-center gap-2 text-green-700 font-bold text-sm">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />
-          Fonds sécurisés dans l'escrow
+        <div className="bg-white rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-center gap-2 text-green-700 font-bold text-sm mb-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />
+            Fonds sécurisés dans l'escrow
+          </div>
+          <p className="text-xs text-gray-600 text-center leading-relaxed">
+            Le montant a été retenu pour garantir l'exécution du projet.
+            Une fois que le projet sera conclu et validé par le client,
+            le montant sera automatiquement reversé sur votre compte.
+          </p>
         </div>
       )}
 

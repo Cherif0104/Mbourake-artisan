@@ -17,11 +17,11 @@ export function PrivateRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Utilisateur non authentifié - rediriger vers login
+  // Utilisateur non authentifié - rediriger vers /onboard
   if (!auth.user) {
     // Sauvegarder l'URL actuelle pour redirection après login
     const currentPath = window.location.pathname + window.location.search;
-    return <Navigate to={`/login?redirect=${encodeURIComponent(currentPath)}`} replace />;
+    return <Navigate to={`/onboard?mode=login&redirect=${encodeURIComponent(currentPath)}`} replace />;
   }
 
   // Utilisateur authentifié - afficher le contenu

@@ -13,7 +13,6 @@ const NOTIFICATION_ICONS: Record<string, { icon: React.ReactNode; color: string;
   new_quote: { icon: <FileText size={16} />, color: 'text-purple-600', bg: 'bg-purple-100' },
   quote_accepted: { icon: <Check size={16} />, color: 'text-green-600', bg: 'bg-green-100' },
   quote_rejected: { icon: <X size={16} />, color: 'text-red-600', bg: 'bg-red-100' },
-  revision_requested: { icon: <RotateCcw size={16} />, color: 'text-yellow-600', bg: 'bg-yellow-100' },
   project_completed: { icon: <Check size={16} />, color: 'text-green-600', bg: 'bg-green-100' },
   payment_received: { icon: <CreditCard size={16} />, color: 'text-green-600', bg: 'bg-green-100' },
   verification_approved: { icon: <Shield size={16} />, color: 'text-blue-600', bg: 'bg-blue-100' },
@@ -62,16 +61,23 @@ export function NotificationBell() {
     
     // Navigate based on notification type
     const { data } = notification;
+    
+    // Forcer le scroll en haut avant la navigation
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    
     switch (notification.type) {
       case 'new_project':
       case 'quote_accepted':
       case 'quote_rejected':
-      case 'revision_requested':
       case 'project_completed':
         if (data?.project_id) {
           navigate(`/projects/${data.project_id}`);
         }
         break;
+      // Case revision_requested supprimé - la logique de révision a été remplacée par un refus avec raison
+      // Les anciennes notifications de révision seront ignorées silencieusement
       case 'new_quote':
         if (data?.project_id) {
           navigate(`/projects/${data.project_id}`);

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
+import { useToastContext } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -20,6 +21,7 @@ export function InvoicesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { profile } = useProfile();
+  const { info } = useToastContext();
   
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,7 @@ export function InvoicesPage() {
 
   const handleSendInvoice = async (invoice: any) => {
     // TODO: Envoyer l'email avec la facture
-    alert('Envoi email à implémenter');
+    info('Envoi email à implémenter');
   };
 
   const totalInvoices = invoices.length;

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Play, Trash2, Check } from 'lucide-react';
+import { useToastContext } from '../contexts/ToastContext';
 
 interface AudioRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
@@ -7,6 +8,7 @@ interface AudioRecorderProps {
 }
 
 export function AudioRecorder({ onRecordingComplete, onDelete }: AudioRecorderProps) {
+  const { error: showError } = useToastContext();
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export function AudioRecorder({ onRecordingComplete, onDelete }: AudioRecorderPr
       }, 1000);
     } catch (err) {
       console.error("Error accessing microphone:", err);
-      alert("Impossible d'accéder au micro.");
+      showError("Impossible d'accéder au micro.");
     }
   };
 
@@ -82,6 +84,7 @@ export function AudioRecorder({ onRecordingComplete, onDelete }: AudioRecorderPr
     return (
       <div className="flex items-center gap-3 bg-brand-50 p-4 rounded-2xl border-2 border-brand-100 animate-in zoom-in duration-200">
         <button 
+          type="button"
           onClick={() => {
             const audio = new Audio(audioUrl);
             audio.play();
@@ -95,6 +98,7 @@ export function AudioRecorder({ onRecordingComplete, onDelete }: AudioRecorderPr
           <div className="text-brand-600 font-medium">{formatTime(recordingTime)}</div>
         </div>
         <button 
+          type="button"
           onClick={handleDelete}
           className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
         >
@@ -110,6 +114,7 @@ export function AudioRecorder({ onRecordingComplete, onDelete }: AudioRecorderPr
         <div className="flex flex-col items-center gap-4 animate-pulse">
           <div className="text-2xl font-black text-brand-600">{formatTime(recordingTime)}</div>
           <button
+            type="button"
             onClick={stopRecording}
             className="w-20 h-20 bg-red-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-red-100 animate-bounce"
           >
@@ -120,6 +125,7 @@ export function AudioRecorder({ onRecordingComplete, onDelete }: AudioRecorderPr
       ) : (
         <div className="flex flex-col items-center gap-4">
           <button
+            type="button"
             onClick={startRecording}
             className="w-20 h-20 bg-brand-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-brand-100 hover:bg-brand-600 active:scale-90 transition-all"
           >

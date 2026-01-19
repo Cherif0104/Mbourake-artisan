@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
+import { useToastContext } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
 
 type ExpenseCategory = 'materials' | 'labor' | 'transport' | 'equipment' | 'other';
@@ -23,6 +24,7 @@ export function ExpensesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { profile } = useProfile();
+  const { error: showError } = useToastContext();
   
   const [expenses, setExpenses] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -174,7 +176,7 @@ export function ExpensesPage() {
       // Refresh expenses
       await fetchExpenses();
     } catch (err: any) {
-      alert(`Erreur: ${err.message || 'Impossible d\'enregistrer la dépense'}`);
+      showError(`Erreur: ${err.message || 'Impossible d\'enregistrer la dépense'}`);
     } finally {
       setSubmitting(false);
     }

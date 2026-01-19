@@ -4,6 +4,7 @@ import { ArrowLeft, Camera, Loader2, User, Check, Image, Video, X, Upload, Play 
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
+import { useToastContext } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
 
 const MAX_PHOTOS = 10;
@@ -23,6 +24,7 @@ export function EditProfilePage() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const { categories } = useDiscovery();
+  const { error: showError } = useToastContext();
   
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -85,7 +87,7 @@ export function EditProfilePage() {
     if (!files || !user) return;
     
     if (portfolioUrls.length + files.length > MAX_PHOTOS) {
-      alert(`Maximum ${MAX_PHOTOS} photos autorisées`);
+      showError(`Maximum ${MAX_PHOTOS} photos autorisées`);
       return;
     }
     
@@ -97,7 +99,7 @@ export function EditProfilePage() {
       for (const file of Array.from(files)) {
         // Check file size
         if (file.size > MAX_PHOTO_SIZE_MB * 1024 * 1024) {
-          alert(`Photo trop volumineuse (max ${MAX_PHOTO_SIZE_MB}MB)`);
+          showError(`Photo trop volumineuse (max ${MAX_PHOTO_SIZE_MB}MB)`);
           continue;
         }
         
@@ -158,7 +160,7 @@ export function EditProfilePage() {
     if (!files || !user) return;
     
     if (videoUrls.length + files.length > MAX_VIDEOS) {
-      alert(`Maximum ${MAX_VIDEOS} vidéos autorisées`);
+      showError(`Maximum ${MAX_VIDEOS} vidéos autorisées`);
       return;
     }
     
@@ -170,7 +172,7 @@ export function EditProfilePage() {
       for (const file of Array.from(files)) {
         // Check file size
         if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
-          alert(`Vidéo trop volumineuse (max ${MAX_VIDEO_SIZE_MB}MB)`);
+          showError(`Vidéo trop volumineuse (max ${MAX_VIDEO_SIZE_MB}MB)`);
           continue;
         }
         

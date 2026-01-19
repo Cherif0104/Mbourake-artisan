@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   ArrowLeft, MapPin, Calendar, Play, MessageCircle, CheckCircle, X, 
-  RotateCcw, Star, ThumbsUp, Hash, Clock, AlertTriangle, FileText,
-  Mic, User, Video, ChevronDown, ChevronUp, Shield, Circle, CreditCard,
+  Star, ThumbsUp, Hash, Clock, AlertTriangle, FileText,
+  Mic, User, Video, ChevronDown, ChevronUp, ChevronRight, Shield, Circle, CreditCard,
   Wrench, Award
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
@@ -12,15 +12,16 @@ import { useEscrow } from '../hooks/useEscrow';
 import { useToastContext } from '../contexts/ToastContext';
 import { EscrowBanner } from '../components/EscrowBanner';
 import { QuoteForm } from '../components/QuoteForm';
-import { RevisionRequest } from '../components/RevisionRequest';
+import { RejectionModal } from '../components/RejectionModal';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { supabase } from '../lib/supabase';
 import { 
   notifyArtisanQuoteAccepted, 
   notifyArtisanQuoteRejected, 
-  notifyArtisanRevisionRequested,
-  notifyClientProjectCompleted 
+  notifyClientProjectCompleted,
+  notifyArtisanPaymentReceived,
+  ensureProjectChatExists
 } from '../lib/notificationService';
-import { generateQuotePDF } from '../lib/quotePdfGenerator';
 import { SkeletonScreen, LoadingSpinner } from '../components/SkeletonScreen';
 
 const PROJECT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -42,8 +43,6 @@ const QUOTE_STATUS_LABELS: Record<string, { label: string; color: string; icon: 
   viewed: { label: 'Vu', color: 'bg-purple-50 text-purple-600 border-purple-200', icon: CheckCircle },
   accepted: { label: 'Accepté', color: 'bg-green-50 text-green-600 border-green-200', icon: CheckCircle },
   rejected: { label: 'Refusé', color: 'bg-red-50 text-red-600 border-red-200', icon: X },
-  revision_requested: { label: 'Révision demandée', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: RotateCcw },
-  revised: { label: 'Révisé', color: 'bg-blue-50 text-blue-600 border-blue-200', icon: RotateCcw },
   expired: { label: 'Expiré', color: 'bg-gray-50 text-gray-500 border-gray-200', icon: Clock },
   abandoned: { label: 'Abandonné', color: 'bg-gray-50 text-gray-500 border-gray-200', icon: X },
 };
@@ -63,8 +62,14 @@ const getTimelineProgress = (status: string, hasQuotes: boolean, escrowStatus: s
     case 'open':
       return hasQuotes ? 1 : 0;
     case 'quote_accepted':
-      if (escrowStatus === 'held') return 3;
+      // Si un escrow existe (même en pending), on est à l'étape "Payé"
+      if (escrowStatus) {
+        return escrowStatus === 'held' || escrowStatus === 'advance_paid' || escrowStatus === 'released' ? 3 : 2;
+      }
       return 2;
+    case 'payment_pending':
+      // Si le statut est payment_pending, on est à l'étape "Payé" (en attente de paiement)
+      return 3;
     case 'in_progress':
       return 4;
     case 'completion_requested':
@@ -81,9 +86,10 @@ const getTimelineProgress = (status: string, hasQuotes: boolean, escrowStatus: s
 export function ProjectDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const auth = useAuth();
   const { profile } = useProfile();
-  const { initiateEscrow } = useEscrow();
+  const { initiateEscrow, releaseFullPayment } = useEscrow();
   const { success, error: showError, warning, info } = useToastContext();
   
   const [project, setProject] = useState<any>(null);
@@ -94,15 +100,26 @@ export function ProjectDetailsPage() {
   
   // UI States
   const [showQuoteForm, setShowQuoteForm] = useState(false);
-  const [revisionQuoteId, setRevisionQuoteId] = useState<string | null>(null);
+  const [rejectQuoteId, setRejectQuoteId] = useState<string | null>(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  
+  // Ref pour éviter les recharges intempestifs
+  const fetchDetailsRef = useRef(false);
 
   const fetchDetails = async () => {
     if (!id) return;
+    
+    // Attendre que l'utilisateur soit chargé avant de fetch
+    if (auth.loading || !auth.user) {
+      console.log('[DEBUG] Waiting for user to be loaded...');
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
@@ -118,6 +135,19 @@ export function ProjectDetailsPage() {
         console.error('Error fetching project:', pError);
         console.error('Project ID:', id);
         console.error('Error details:', JSON.stringify(pError, null, 2));
+        
+        // Détecter les erreurs CORS ou réseau
+        const isNetworkError = pError.message?.includes('Failed to fetch') || 
+                               pError.message?.includes('NetworkError') ||
+                               pError.message?.includes('ERR_FAILED') ||
+                               pError.message?.includes('CORS');
+        
+        if (isNetworkError) {
+          setError('Erreur de connexion. Vérifiez votre connexion internet et désactivez les extensions de navigateur (AdBlock, VPN, etc.) qui pourraient bloquer les requêtes.');
+          setProject(null);
+          setLoading(false);
+          return;
+        }
         
         // Set appropriate error message avec instructions
         if (pError.code === 'PGRST116' || pError.message?.includes('No rows')) {
@@ -191,17 +221,82 @@ export function ProjectDetailsPage() {
       }
     }
 
-    // Fetch quotes with artisan profiles
-      const { data: qData, error: qError } = await supabase
+    // Fetch quotes - Récupérer TOUS les devis (tous statuts) pour diagnostic
+    let qData: any[] = [];
+    let qError: any = null;
+
+    console.log('[DEBUG] Fetching quotes for project:', id);
+    console.log('[DEBUG] Current user:', auth.user?.id);
+
+    // Tentative 1: Avec relation explicite - SANS FILTRE DE STATUT
+    const { data: qDataWithProfile, error: qErrorWithProfile } = await supabase
       .from('quotes')
-      .select('*, profiles(*)')
+      .select(`
+        *,
+        profiles!quotes_artisan_id_fkey (
+          id,
+          full_name,
+          avatar_url,
+          role
+        )
+      `)
       .eq('project_id', id)
       .order('created_at', { ascending: false });
 
-      if (qError) {
-        console.error('Error fetching quotes:', qError);
+    console.log('[DEBUG] Quotes with profile - Data:', qDataWithProfile);
+    console.log('[DEBUG] Quotes with profile - Error:', qErrorWithProfile);
+
+    if (!qErrorWithProfile && qDataWithProfile) {
+      qData = qDataWithProfile || [];
+      console.log('[DEBUG] Successfully fetched', qData.length, 'quotes with profile');
+    } else {
+      console.warn('[DEBUG] Error fetching quotes with profile, trying fallback:', qErrorWithProfile);
+      
+      // Tentative 2: Sans relation (fallback) - SANS FILTRE DE STATUT
+      const { data: qDataFallback, error: qErrorFallback } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('project_id', id)
+        .order('created_at', { ascending: false });
+      
+      console.log('[DEBUG] Quotes fallback - Data:', qDataFallback);
+      console.log('[DEBUG] Quotes fallback - Error:', qErrorFallback);
+      
+      if (!qErrorFallback && qDataFallback) {
+        qData = qDataFallback || [];
+        console.log('[DEBUG] Successfully fetched', qData.length, 'quotes without profile');
+        
+        // Récupérer les profils séparément si nécessaire
+        if (qData.length > 0) {
+          const artisanIds = [...new Set(qData.map(q => q.artisan_id).filter(Boolean))];
+          console.log('[DEBUG] Fetching profiles for artisan IDs:', artisanIds);
+          
+          if (artisanIds.length > 0) {
+            const { data: profilesData, error: profilesError } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url, role')
+              .in('id', artisanIds);
+            
+            console.log('[DEBUG] Profiles data:', profilesData);
+            console.log('[DEBUG] Profiles error:', profilesError);
+            
+            // Fusionner les profils avec les devis
+            qData = qData.map(quote => ({
+              ...quote,
+              profiles: profilesData?.find(p => p.id === quote.artisan_id) || null
+            }));
+          }
+        }
+      } else {
+        console.error('[DEBUG] Error fetching quotes (fallback):', qErrorFallback);
+        qError = qErrorFallback;
       }
-    setQuotes(qData || []);
+    }
+
+    console.log('[DEBUG] Final quotes array length:', qData.length);
+    console.log('[DEBUG] Final quotes:', qData.map(q => ({ id: q.id, status: q.status, artisan_id: q.artisan_id })));
+    
+    setQuotes(qData);
 
     // Fetch escrow
       const { data: eData, error: eError } = await supabase
@@ -223,9 +318,46 @@ export function ProjectDetailsPage() {
     }
   };
 
+  // Optimiser le useEffect pour éviter les recharges intempestifs
   useEffect(() => {
-    fetchDetails();
-  }, [id]);
+    // Réinitialiser les refs quand l'ID change
+    fetchDetailsRef.current = false;
+    
+    // Ne fetch que si l'utilisateur est chargé et disponible
+    // ET si on n'est pas déjà en train de charger
+    if (!auth.loading && auth.user && !fetchDetailsRef.current) {
+      fetchDetailsRef.current = true;
+      fetchDetails().finally(() => {
+        fetchDetailsRef.current = false;
+      });
+    } else if (auth.loading) {
+      // Si l'auth est en cours de chargement, réinitialiser le loading
+      setLoading(true);
+    }
+  }, [id, auth.user, auth.loading]); // Dépendre de id, auth.user et auth.loading
+
+  // Grouper les quotes par artisan pour l'historique chronologique
+  const groupedQuotes = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    
+    quotes.forEach(quote => {
+      const key = quote.artisan_id || 'unknown';
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(quote);
+    });
+    
+    // Trier chaque groupe par date de création (chronologique)
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => 
+        new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+      );
+    });
+    
+    return groups;
+  }, [quotes]);
+
 
   const handleAcceptQuote = async (quote: any) => {
     // Validation préalable complète
@@ -240,8 +372,8 @@ export function ProjectDetailsPage() {
       return;
     }
     
-    // Vérifier que le devis est en statut 'pending'
-    if (quote.status !== 'pending' && quote.status !== 'viewed') {
+    // Vérifier que le devis peut être accepté (pending ou viewed)
+    if (!['pending', 'viewed'].includes(quote.status)) {
       showError('Ce devis ne peut plus être accepté (statut: ' + quote.status + ')');
       return;
     }
@@ -267,7 +399,7 @@ export function ProjectDetailsPage() {
         throw new Error(`Erreur mise à jour devis: ${quoteUpdateError.message}`);
       }
       
-      // Log action acceptation devis
+      // Log action acceptation devis (non-bloquant)
       try {
         await supabase.rpc('log_quote_action', {
           p_quote_id: quote.id,
@@ -278,10 +410,11 @@ export function ProjectDetailsPage() {
           p_new_value: { status: 'accepted', amount: quote.amount }
         });
       } catch (logErr) {
+        // Fonction RPC optionnelle - ignorer silencieusement si elle n'existe pas
         console.error('Error logging quote acceptance:', logErr);
       }
       
-      // Reject other quotes avec meilleure gestion
+      // Reject other quotes
       const { data: rejectedQuotes, error: rejectError } = await supabase
         .from('quotes')
         .select('id')
@@ -301,7 +434,7 @@ export function ProjectDetailsPage() {
           console.error('Error rejecting other quotes:', updateRejectError);
         }
         
-        // Log rejections des autres devis
+        // Log rejections des autres devis (non-bloquant)
         for (const rejectedQuote of rejectedQuotes) {
           try {
             await supabase.rpc('log_quote_action', {
@@ -314,6 +447,7 @@ export function ProjectDetailsPage() {
               p_metadata: { reason: 'other_quote_accepted' }
             });
           } catch (logErr) {
+            // Fonction RPC optionnelle - ignorer silencieusement si elle n'existe pas
             console.error('Error logging quote rejection:', logErr);
           }
         }
@@ -331,7 +465,7 @@ export function ProjectDetailsPage() {
         throw new Error(`Erreur mise à jour projet: ${projectUpdateError.message}`);
       }
 
-      // Log changement statut projet
+      // Log changement statut projet (non-bloquant)
       try {
         await supabase.rpc('log_project_action', {
           p_project_id: id,
@@ -342,35 +476,93 @@ export function ProjectDetailsPage() {
           p_metadata: { quote_id: quote.id }
         });
       } catch (logErr) {
+        // Fonction RPC optionnelle - ignorer silencieusement si elle n'existe pas
         console.error('Error logging project status change:', logErr);
       }
 
-      // Initiate escrow avec vérification
-      try {
-        const escrowResult = await initiateEscrow({
-        project_id: id,
-        total_amount: quote.amount,
-        artisan_is_verified: quote.profiles?.is_verified ?? false,
-      });
-      
-        if (!escrowResult?.id) {
-          throw new Error('Échec de la création de l\'escrow');
-        }
-        
-        // Log création escrow
+      // Vérifier si un escrow existe déjà pour ce projet (bypass système de paiement)
+      const { data: existingEscrow } = await supabase
+        .from('escrows')
+        .select('id, status')
+        .eq('project_id', id)
+        .maybeSingle();
+
+      // Initiate escrow seulement si aucun escrow n'existe déjà
+      if (!existingEscrow) {
         try {
-          await supabase.rpc('log_escrow_action', {
-            p_escrow_id: escrowResult.id,
-            p_user_id: auth.user.id,
-            p_action: 'created',
-            p_new_value: { total_amount: quote.amount, status: 'pending' }
+          // Essayer de créer l'escrow via la fonction normale
+          const escrowResult = await initiateEscrow({
+            project_id: id,
+            total_amount: quote.amount,
+            artisan_is_verified: quote.profiles?.is_verified ?? false,
           });
-        } catch (logErr) {
-          console.error('Error logging escrow creation:', logErr);
+        
+          if (!escrowResult?.id) {
+            throw new Error('Échec de la création de l\'escrow');
+          }
+          
+          // Mettre à jour l'état local immédiatement pour affichage immédiat
+          setEscrow(escrowResult);
+          
+          // Log création escrow (non-bloquant)
+          try {
+            await supabase.rpc('log_escrow_action', {
+              p_escrow_id: escrowResult.id,
+              p_user_id: auth.user.id,
+              p_action: 'created',
+              p_new_value: { total_amount: quote.amount, status: 'pending' }
+            });
+          } catch (logErr) {
+            // Fonction RPC optionnelle - ignorer silencieusement si elle n'existe pas
+            console.error('Error logging escrow creation:', logErr);
+          }
+        } catch (escrowErr: any) {
+          console.error('Error creating escrow:', escrowErr);
+          // Si l'erreur est liée à la politique RLS (récursion infinie), essayer via RPC SECURITY DEFINER
+          if (escrowErr.message?.includes('infinite recursion') || escrowErr.message?.includes('policy')) {
+            console.warn('Escrow creation failed due to RLS policy error. Trying bypass via RPC...');
+            try {
+              // Essayer de créer l'escrow via une fonction RPC qui bypass les RLS
+              const { data: bypassEscrow, error: bypassError } = await supabase.rpc('create_escrow_bypass', {
+                p_project_id: id,
+                p_total_amount: quote.amount,
+                p_artisan_is_verified: quote.profiles?.is_verified ?? false,
+              });
+              
+              if (bypassError || !bypassEscrow) {
+                console.warn('Bypass RPC failed or not available. Proceeding without escrow (bypass mode).');
+                // Mettre le statut du projet à payment_pending pour indiquer qu'on est en attente de paiement
+                // même sans escrow créé (mode bypass uniquement)
+                await supabase
+                  .from('projects')
+                  .update({ status: 'payment_pending' })
+                  .eq('id', id);
+              } else if (bypassEscrow) {
+                // Mettre à jour l'état local si escrow créé via bypass
+                setEscrow(bypassEscrow);
+              }
+            } catch (bypassErr) {
+              console.warn('Bypass RPC not available. Proceeding without escrow (bypass mode).');
+              // Mettre le statut du projet à payment_pending pour indiquer qu'on est en attente de paiement
+              await supabase
+                .from('projects')
+                .update({ status: 'payment_pending' })
+                .eq('id', id);
+            }
+          } else {
+            // Pour les autres erreurs, mettre le statut à payment_pending quand même
+            console.warn('Escrow creation failed. Proceeding without escrow (bypass mode).');
+            await supabase
+              .from('projects')
+              .update({ status: 'payment_pending' })
+              .eq('id', id);
+          }
+          // L'escrow peut être créé manuellement par un admin si nécessaire
         }
-      } catch (escrowErr: any) {
-        console.error('Error creating escrow:', escrowErr);
-        throw new Error(`Erreur création escrow: ${escrowErr.message}`);
+      } else {
+        console.log('Escrow already exists for this project. Skipping creation.');
+        // Ne pas changer le statut - il reste à quote_accepted car l'escrow existe
+        // L'EscrowBanner s'affichera automatiquement quand l'escrow existe
       }
 
       // Notifier l'artisan
@@ -381,22 +573,41 @@ export function ProjectDetailsPage() {
           console.error('Error notifying artisan:', notifErr);
         }
       }
+
+      // Créer automatiquement le chat entre client et artisan
+      if (quote.artisan_id && project?.client_id && project?.title) {
+        try {
+          await ensureProjectChatExists(id, project.client_id, quote.artisan_id, project.title);
+        } catch (chatErr) {
+          console.error('Error ensuring chat exists:', chatErr);
+          // Ne pas bloquer si le chat échoue
+        }
+      }
       
-      // Message de succès
-      success('Devis accepté avec succès !');
+      // Message de succès avec guidance
+      success('Devis accepté avec succès ! Redirection vers la page de paiement...');
       
-      // Rafraîchir les données
-      await fetchDetails();
+      // Rediriger vers la page de paiement au lieu de rafraîchir ici
+      // Cela évite les problèmes de rendu React et offre une meilleure UX mobile
+      setTimeout(() => {
+        if (id) {
+          navigate(`/projects/${id}/payment`);
+        }
+      }, 800);
       
     } catch (err: any) {
       console.error('Error accepting quote:', err);
       showError(`Erreur lors de l'acceptation: ${err.message || 'Erreur inconnue'}`);
+      // En cas d'erreur, juste rafraîchir pour avoir l'état correct
+      setTimeout(async () => {
+        await fetchDetails();
+      }, 100);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleRejectQuote = async (quoteId: string) => {
+  const handleRejectQuote = async (quoteId: string, rejectionReason?: string) => {
     // Validation préalable
     if (!auth.user?.id || !id) {
       showError('Erreur : informations manquantes');
@@ -430,10 +641,15 @@ export function ProjectDetailsPage() {
       setActionLoading(true);
       const oldStatus = quote.status;
       
-      // Update quote status avec vérification d'erreur
+      // Update quote status avec raison de refus si fournie
+      const updateData: any = { status: 'rejected' };
+      if (rejectionReason && rejectionReason.trim()) {
+        updateData.rejection_reason = rejectionReason.trim();
+      }
+      
       const { error: updateError } = await supabase
         .from('quotes')
-        .update({ status: 'rejected' })
+        .update(updateData)
         .eq('id', quoteId);
       
       if (updateError) {
@@ -448,22 +664,22 @@ export function ProjectDetailsPage() {
           p_user_id: auth.user.id,
           p_action: 'rejected',
           p_old_value: { status: oldStatus },
-          p_new_value: { status: 'rejected' }
+          p_new_value: { status: 'rejected', rejection_reason: rejectionReason || null }
         });
       } catch (logErr) {
         console.error('Error logging quote rejection:', logErr);
       }
       
-      // Notifier l'artisan
+      // Notifier l'artisan avec la raison si fournie
       if (quote.artisan_id && project?.title) {
         try {
-          await notifyArtisanQuoteRejected(id, quote.artisan_id, project.title);
+          await notifyArtisanQuoteRejected(id, quote.artisan_id, project.title, rejectionReason);
         } catch (notifErr) {
           console.error('Error notifying artisan:', notifErr);
         }
       }
       
-      success('Devis refusé avec succès');
+      success('Devis refusé avec succès. Vous pouvez continuer à consulter les autres devis.');
       await fetchDetails();
     } catch (err: any) {
       console.error('Error rejecting quote:', err);
@@ -497,54 +713,38 @@ export function ProjectDetailsPage() {
         console.error('Error logging project completion:', logErr);
       }
       
-      // Créer une demande de remboursement (au lieu de rembourser directement)
-      if (escrow) {
+      // Libérer le paiement final à l'artisan (clôture normale du projet)
+      if (escrow && acceptedQuote?.artisan_id) {
         const oldEscrowStatus = escrow.status;
-        const oldRefundStatus = escrow.refund_status;
         
-        await supabase
-          .from('escrows')
-          .update({ 
-            refund_requested_at: new Date().toISOString(),
-            refund_status: 'pending',
-            refund_requested_by: auth.user.id,
-            status: 'held' // Garder en "held" jusqu'à validation admin
-          })
-          .eq('id', escrow.id);
-
-        // Log demande remboursement
+        // Libérer le paiement final
+        await releaseFullPayment(escrow.id);
+        
+        // Log libération paiement
         try {
           await supabase.rpc('log_escrow_action', {
             p_escrow_id: escrow.id,
             p_user_id: auth.user.id,
-            p_action: 'refund_requested',
-            p_old_value: { status: oldEscrowStatus, refund_status: oldRefundStatus },
-            p_new_value: { status: 'held', refund_status: 'pending' }
+            p_action: 'released',
+            p_old_value: { status: oldEscrowStatus },
+            p_new_value: { status: 'released' }
           });
         } catch (logErr) {
-          console.error('Error logging refund request:', logErr);
+          console.error('Error logging payment release:', logErr);
         }
 
-        // Notifier l'admin qu'un remboursement est demandé
+        // Notifier l'artisan du paiement final libéré
         try {
-          const { data: admins } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('role', 'admin');
-
-          if (admins && admins.length > 0) {
-            for (const admin of admins) {
-              await supabase.from('notifications').insert({
-                user_id: admin.id,
-                type: 'system',
-                title: 'Demande de remboursement',
-                message: `Un client demande le remboursement pour le projet "${project?.title || id}". Validation requise.`,
-                data: { project_id: id, escrow_id: escrow.id, action: 'review_refund' }
-              });
-            }
+          const remainingAmount = (escrow.artisan_payout || 0) - (escrow.advance_paid || 0);
+          if (remainingAmount > 0) {
+            await notifyArtisanPaymentReceived(
+              id!,
+              acceptedQuote.artisan_id,
+              remainingAmount
+            );
           }
         } catch (notifErr) {
-          console.error('Error notifying admin:', notifErr);
+          console.error('Error notifying artisan:', notifErr);
         }
       }
       
@@ -622,23 +822,54 @@ export function ProjectDetailsPage() {
       return;
     }
     
-    const confirmed = window.confirm(
-      'Êtes-vous sûr de vouloir annuler ce projet ? Cette action est irréversible.'
-    );
+    // Afficher le modal de confirmation au lieu de window.confirm
+    setShowCancelConfirm(true);
+  };
+
+  const confirmCancelProject = async () => {
+    if (!id || !auth.user?.id || project?.client_id !== auth.user.id) {
+      showError('Action non autorisée');
+      setShowCancelConfirm(false);
+      return;
+    }
     
-    if (!confirmed) return;
+    setShowCancelConfirm(false);
     
     try {
       setActionLoading(true);
       
-      // Mettre à jour le statut du projet
-      const { error: projectError } = await supabase
+      // Vérifier que l'utilisateur est bien le client du projet
+      if (!auth.user?.id || project?.client_id !== auth.user.id) {
+        throw new Error('Vous n\'êtes pas autorisé à annuler ce projet.');
+      }
+      
+      // Mettre à jour le statut du projet - SANS .single() pour éviter l'erreur
+      console.log('[DEBUG] Cancelling project:', id, 'User:', auth.user.id);
+      const { data: updateData, error: projectError } = await supabase
         .from('projects')
-        .update({ status: 'cancelled' })
-        .eq('id', id);
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('client_id', auth.user.id) // Vérifier explicitement que c'est le bon client
+        .select('id, status');
+      
+      console.log('[DEBUG] Update result - Data:', updateData);
+      console.log('[DEBUG] Update result - Error:', projectError);
       
       if (projectError) {
-        throw new Error(`Erreur: ${projectError.message}`);
+        console.error('[DEBUG] Failed to update project:', projectError);
+        throw new Error(`Erreur lors de la mise à jour: ${projectError.message}`);
+      }
+      
+      // Vérifier que l'update a bien fonctionné
+      if (!updateData || updateData.length === 0) {
+        console.error('[DEBUG] No rows updated - RLS might be blocking or project not found');
+        throw new Error('Impossible de mettre à jour le projet. Vérifiez que vous êtes bien le propriétaire du projet.');
+      }
+      
+      const updatedProject = updateData[0];
+      if (updatedProject.status !== 'cancelled') {
+        console.warn('[DEBUG] Update might have failed - status is:', updatedProject.status);
+        throw new Error('Le statut du projet n\'a pas été correctement mis à jour.');
       }
       
       // Rejeter tous les devis en attente
@@ -655,17 +886,26 @@ export function ProjectDetailsPage() {
           .in('id', pendingQuotes.map(q => q.id));
       }
       
-      // Log action
+      // Log action (optionnel - en arrière-plan, ne bloque pas l'annulation)
       try {
-        await supabase.rpc('log_project_action', {
+        const logResult = supabase.rpc('log_project_action', {
           p_project_id: id,
           p_user_id: auth.user.id,
           p_action: 'cancelled',
           p_old_value: { status: project?.status },
           p_new_value: { status: 'cancelled' }
         });
+        
+        // Si c'est une Promise, attendre silencieusement
+        if (logResult && typeof logResult.catch === 'function') {
+          logResult.catch(() => {
+            // Fonction RPC optionnelle - ignorer silencieusement si elle n'existe pas
+            // L'annulation continue même si le log échoue
+          });
+        }
       } catch (logErr) {
-        console.error('Error logging project cancellation:', logErr);
+        // Ignorer silencieusement - fonction optionnelle
+        console.warn('Could not log project action:', logErr);
       }
       
       // Notifier les artisans ayant soumis un devis
@@ -687,8 +927,21 @@ export function ProjectDetailsPage() {
         }
       }
       
-      success('Projet annulé avec succès');
+      success('Projet annulé avec succès. Vous pouvez créer un nouveau projet si nécessaire.');
+      
+      // Mettre à jour l'état local immédiatement pour forcer le re-render
+      setProject(prev => prev ? { ...prev, status: 'cancelled' } : null);
+      
+      // Attendre un peu pour que la base de données soit à jour
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Forcer un refresh complet des données AVANT de naviguer
       await fetchDetails();
+      
+      // Attendre encore un peu puis retourner au dashboard
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 800);
       
     } catch (err: any) {
       console.error('Error cancelling project:', err);
@@ -731,7 +984,7 @@ export function ProjectDetailsPage() {
       await notifyClientProjectCompleted(id, project.client_id, project.title);
       
       fetchDetails();
-      success("Demande de clôture envoyée au client !");
+      success("Demande de clôture envoyée au client ! Le client doit confirmer la fin des travaux pour libérer le paiement final.");
     } catch (err) {
       showError("Erreur lors de la demande");
     }
@@ -773,7 +1026,7 @@ export function ProjectDetailsPage() {
     );
   }
 
-  const isClient = project.client_id === auth.user?.id;
+  const isClient = project?.client_id === auth.user?.id;
   const isArtisan = profile?.role === 'artisan';
   const hasSubmittedQuote = quotes.some(q => q.artisan_id === auth.user?.id);
   const acceptedQuote = quotes.find(q => q.status === 'accepted');
@@ -797,13 +1050,56 @@ export function ProjectDetailsPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
-        {/* Escrow Banner */}
+        {/* Escrow Banner - Afficher toujours si escrow existe */}
         {escrow && (
           <EscrowBanner 
             escrow={escrow} 
             isClient={isClient} 
             onRefresh={fetchDetails} 
           />
+        )}
+        
+        {/* Section "En attente de paiement" pour l'artisan */}
+        {isArtisan && acceptedQuote?.artisan_id === auth.user?.id && 
+         escrow && escrow.status === 'pending' && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white">
+                <Clock size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-blue-900 text-sm">En attente du paiement du client</h3>
+                <p className="text-xs text-blue-700 font-medium">Une fois le paiement effectué, vous pourrez commencer les travaux</p>
+              </div>
+            </div>
+            <p className="text-sm text-blue-800 mb-2">
+              Votre devis a été accepté ! Le client va procéder au paiement pour sécuriser les fonds.
+            </p>
+            <p className="text-xs text-blue-600">
+              Vous serez notifié dès que le paiement sera reçu et vous pourrez alors commencer les travaux.
+            </p>
+          </div>
+        )}
+        
+        {/* Message de paiement en attente si statut est payment_pending mais pas d'escrow (mode bypass) */}
+        {project?.status === 'payment_pending' && !escrow && (
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-5 mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-yellow-500 flex items-center justify-center text-white">
+                <CreditCard size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm">Paiement en attente</h3>
+                <p className="text-xs text-yellow-700 font-medium">Mode bypass activé</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 mb-2">
+              Le devis a été accepté. Le système de paiement est temporairement en mode bypass.
+            </p>
+            <p className="text-xs text-gray-600">
+              Le paiement peut être effectué manuellement par l'administrateur.
+            </p>
+          </div>
         )}
 
         {/* Dispute Banner */}
@@ -839,22 +1135,22 @@ export function ProjectDetailsPage() {
           </div>
         )}
 
-        {/* Timeline Visuelle */}
-        <section className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
-          <h3 className="font-bold text-gray-900 text-sm mb-4">Suivi du projet</h3>
+        {/* Timeline Visuelle - HORIZONTALE */}
+        <section className="bg-white rounded-2xl border border-gray-100 p-4 mb-6">
+          <h3 className="font-bold text-gray-900 text-sm mb-3">Suivi du projet</h3>
           
-          <div className="relative">
-            {/* Progress Line */}
-            <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-100" />
+          <div className="relative px-2">
+            {/* Progress Line Horizontale */}
+            <div className="absolute left-2 right-2 top-6 h-0.5 bg-gray-100" />
             <div 
-              className="absolute left-6 top-0 w-0.5 bg-brand-500 transition-all duration-500"
+              className="absolute left-2 top-6 h-0.5 bg-brand-500 transition-all duration-500"
               style={{ 
-                height: `${(getTimelineProgress(project.status, quotes.length > 0, escrow?.status) / (TIMELINE_STEPS.length - 1)) * 100}%` 
+                width: `${(getTimelineProgress(project.status, quotes.length > 0, escrow?.status) / (TIMELINE_STEPS.length - 1)) * 100}%` 
               }}
             />
             
-            {/* Steps */}
-            <div className="relative space-y-4">
+            {/* Steps - Horizontaux */}
+            <div className="relative flex items-start justify-between gap-2">
               {TIMELINE_STEPS.map((step, index) => {
                 const currentProgress = getTimelineProgress(project.status, quotes.length > 0, escrow?.status);
                 const isCompleted = index <= currentProgress;
@@ -862,27 +1158,30 @@ export function ProjectDetailsPage() {
                 const Icon = step.icon;
                 
                 return (
-                  <div key={step.id} className="flex items-center gap-4">
-                    <div className={`relative z-10 w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                  <div key={step.id} className="flex flex-col items-center flex-1 min-w-0">
+                    {/* Icon */}
+                    <div className={`relative z-10 w-10 h-10 rounded-xl flex items-center justify-center transition-all mb-2 ${
                       isCompleted 
                         ? 'bg-brand-500 text-white shadow-lg shadow-brand-200' 
                         : 'bg-gray-100 text-gray-400'
                     } ${isCurrent ? 'ring-4 ring-brand-100' : ''}`}>
-                      <Icon size={20} strokeWidth={isCompleted ? 2.5 : 2} />
+                      <Icon size={18} strokeWidth={isCompleted ? 2.5 : 2} />
                     </div>
-                    <div className="flex-1">
-                      <p className={`font-bold text-sm ${isCompleted ? 'text-gray-900' : 'text-gray-400'}`}>
+                    
+                    {/* Label */}
+                    <div className="text-center w-full">
+                      <p className={`font-bold text-xs leading-tight ${isCompleted ? 'text-gray-900' : 'text-gray-400'}`}>
                         {step.label}
                       </p>
                       {isCurrent && (
-                        <p className="text-xs text-brand-500 font-medium animate-pulse">
-                          En cours...
+                        <p className="text-[10px] text-brand-500 font-medium animate-pulse mt-0.5">
+                          En cours
                         </p>
                       )}
+                      {isCompleted && !isCurrent && (
+                        <CheckCircle size={14} className="text-green-500 mx-auto mt-1" />
+                      )}
                     </div>
-                    {isCompleted && !isCurrent && (
-                      <CheckCircle size={18} className="text-green-500" />
-                    )}
                   </div>
                 );
               })}
@@ -1020,7 +1319,7 @@ export function ProjectDetailsPage() {
         </section>
 
         {/* Quote Form for Artisans */}
-        {showQuoteForm && isArtisan && !isClient && !hasSubmittedQuote && (
+        {showQuoteForm && isArtisan && !isClient && (
           <div className="mb-6">
             <QuoteForm
               projectId={id!}
@@ -1030,7 +1329,9 @@ export function ProjectDetailsPage() {
                 setShowQuoteForm(false);
                 fetchDetails();
               }}
-              onCancel={() => setShowQuoteForm(false)}
+              onCancel={() => {
+                setShowQuoteForm(false);
+              }}
             />
           </div>
         )}
@@ -1048,7 +1349,7 @@ export function ProjectDetailsPage() {
             </h3>
             
             {/* Add Quote Button for Artisans */}
-            {isArtisan && !isClient && !hasSubmittedQuote && 
+            {isArtisan && !isClient && 
              ['open', 'quote_received'].includes(project.status || '') && 
              project.status !== 'expired' && 
              project.status !== 'cancelled' && 
@@ -1057,12 +1358,12 @@ export function ProjectDetailsPage() {
                 onClick={() => setShowQuoteForm(true)}
                 className="px-4 py-2 bg-brand-500 text-white text-sm font-bold rounded-xl"
               >
-                Proposer un devis
+                {hasSubmittedQuote ? 'Modifier ou envoyer un nouveau devis' : 'Proposer un devis'}
               </button>
             )}
             
             {/* Message pour projets expirés/annulés */}
-            {isArtisan && !isClient && !hasSubmittedQuote && 
+            {isArtisan && !isClient && 
              ['expired', 'cancelled'].includes(project.status || '') && (
               <p className="text-xs text-gray-500 italic">
                 Ce projet n'accepte plus de nouveaux devis
@@ -1070,48 +1371,84 @@ export function ProjectDetailsPage() {
             )}
           </div>
 
-          {/* Revision Request Modal */}
-          {revisionQuoteId && (() => {
-            const revisionQuote = quotes.find(q => q.id === revisionQuoteId);
-            return revisionQuote ? (
-            <div className="mb-4">
-              <RevisionRequest
-                quoteId={revisionQuoteId}
-                  currentAmount={revisionQuote.amount || 0}
-                  projectId={id!}
-                  artisanId={revisionQuote.artisan_id!}
-                  projectTitle={project?.title || ''}
-                onSuccess={() => {
-                  setRevisionQuoteId(null);
-                  fetchDetails();
+          {/* Rejection Modal */}
+          {rejectQuoteId && (() => {
+            const rejectQuote = quotes.find(q => q.id === rejectQuoteId);
+            return rejectQuote ? (
+              <RejectionModal
+                open={!!rejectQuote}
+                onClose={() => setRejectQuoteId(null)}
+                onConfirm={async (reason) => {
+                  await handleRejectQuote(rejectQuoteId, reason);
+                  setRejectQuoteId(null);
                 }}
-                onCancel={() => setRevisionQuoteId(null)}
+                quoteAmount={rejectQuote.amount || 0}
+                artisanName={rejectQuote.profiles?.full_name || 'Artisan'}
               />
-            </div>
             ) : null;
           })()}
 
           {quotes.length === 0 ? (
             <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
               <Mic size={32} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-400 text-sm">Aucun devis pour le moment</p>
+              <p className="text-gray-400 text-sm mb-4">Aucun devis pour le moment</p>
+              {/* Bouton de rafraîchissement si l'utilisateur est artisan ou client */}
+              {(isArtisan || isClient) && (
+                <button
+                  onClick={() => {
+                    console.log('[DEBUG] Manual refresh requested');
+                    fetchDetails();
+                  }}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Rafraîchir ↻
+                </button>
+              )}
             </div>
           ) : (
-            <div className="space-y-4">
-              {quotes.map((quote) => {
-                const StatusIcon = QUOTE_STATUS_LABELS[quote.status]?.icon || Clock;
-                const isExpanded = expandedQuoteId === quote.id;
+            <div className="space-y-6">
+              {Object.entries(groupedQuotes).map(([artisanId, artisanQuotes]) => {
+                if (artisanQuotes.length === 0) return null;
                 
                 return (
-                  <div 
-                    key={quote.id} 
-                    className={`bg-white rounded-2xl border transition-all ${
-                      quote.status === 'accepted' ? 'border-green-200' :
-                      quote.status === 'revision_requested' ? 'border-yellow-200' :
-                      quote.status === 'rejected' ? 'border-gray-200 opacity-60' :
-                      'border-gray-100'
-                    }`}
-                  >
+                  <div key={artisanId} className="space-y-3">
+                    {/* En-tête avec nom de l'artisan (seulement si plusieurs devis) */}
+                    {artisanQuotes.length > 1 && (
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {artisanQuotes[0].profiles?.avatar_url ? (
+                            <img src={artisanQuotes[0].profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <User size={14} className="text-gray-400" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 text-sm">
+                            {artisanQuotes[0].profiles?.full_name || 'Artisan'}
+                          </span>
+                          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                            {artisanQuotes.length} devis
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Historique chronologique des devis */}
+                    <div className={`space-y-3 ${artisanQuotes.length > 1 ? 'pl-4 border-l-2 border-gray-200' : ''}`}>
+                      {artisanQuotes.map((quote, index) => {
+                        const StatusIcon = QUOTE_STATUS_LABELS[quote.status]?.icon || Clock;
+                        const isExpanded = expandedQuoteId === quote.id;
+                        
+                        return (
+                          <div 
+                            id={`quote-${quote.id}`}
+                            key={quote.id} 
+                            className={`bg-white rounded-2xl border transition-all relative ${
+                              quote.status === 'accepted' ? 'border-green-200' :
+                              quote.status === 'rejected' ? 'border-gray-200 opacity-60' :
+                              'border-gray-100'
+                            }`}
+                          >
                     {/* Quote Header */}
                     <div className="p-4">
                       <div className="flex items-start justify-between mb-3">
@@ -1130,13 +1467,35 @@ export function ProjectDetailsPage() {
                                 <Shield size={14} className="text-green-500" />
                               )}
                             </div>
-                            <p className="text-[9px] text-gray-400 font-mono">{quote.quote_number}</p>
+                            <p className="text-[9px] text-gray-400 font-mono">
+                              Devis #{quote.quote_number || quote.id.slice(0, 8).toUpperCase()}
+                            </p>
+                            {/* Indicateur de révision */}
+                            {index > 0 && (
+                              <p className="text-[9px] text-yellow-600 font-medium mt-0.5">
+                                Révision #{index + 1}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="text-right">
                           <p className="text-lg font-black text-brand-500">{quote.amount?.toLocaleString('fr-FR')} FCFA</p>
                           {quote.urgent_surcharge_percent > 0 && (
                             <p className="text-[10px] text-yellow-600">+{quote.urgent_surcharge_percent}% urgence</p>
+                          )}
+                          {/* Date avec lien vers devis précédent */}
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            {new Date(quote.created_at).toLocaleDateString('fr-FR', { 
+                              day: 'numeric', 
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                          {index > 0 && (
+                            <p className="text-[9px] text-yellow-600 mt-0.5">
+                              ← Devis #{artisanQuotes[index - 1].quote_number || artisanQuotes[index - 1].id.slice(0, 8).toUpperCase()}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1149,16 +1508,16 @@ export function ProjectDetailsPage() {
                         {QUOTE_STATUS_LABELS[quote.status]?.label || quote.status}
                       </div>
 
-                      {/* Revision Reason */}
-                      {quote.status === 'revision_requested' && quote.revision_reason && (
-                        <div className="mt-3 bg-yellow-50 rounded-xl p-3">
-                          <p className="text-xs font-bold text-yellow-700 uppercase mb-1">Raison de la révision</p>
-                          <p className="text-sm text-yellow-800">{quote.revision_reason}</p>
-                          {quote.client_suggested_price && (
-                            <p className="text-sm text-yellow-700 font-bold mt-1">
-                              Prix suggéré: {quote.client_suggested_price.toLocaleString('fr-FR')} FCFA
-                            </p>
-                          )}
+                      {/* Raison de refus - Affichée si le devis est rejeté avec raison */}
+                      {quote.status === 'rejected' && quote.rejection_reason && (
+                        <div className="mt-3 bg-red-50 rounded-xl p-4 border border-red-200">
+                          <div className="flex items-start gap-2">
+                            <X size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-xs font-bold text-red-800 mb-1 uppercase">Raison du refus :</p>
+                              <p className="text-sm text-red-900 leading-relaxed">{quote.rejection_reason}</p>
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -1285,9 +1644,9 @@ export function ProjectDetailsPage() {
                       </div>
                     )}
 
-                    {/* Client Actions */}
-                    {isClient && ['open', 'quote_received'].includes(project.status) && quote.status === 'pending' && (
-                      <div className="p-4 border-t border-gray-50 space-y-2">
+                    {/* Client Actions - Visibles tant qu'aucun devis n'est accepté ET que le projet n'est pas en stage de paiement */}
+                    {isClient && !quotes.some(q => q.status === 'accepted') && project?.status !== 'payment_pending' && project?.status !== 'in_progress' && project?.status !== 'completion_requested' && project?.status !== 'completed' && ['pending', 'viewed'].includes(quote.status) && !actionLoading && (
+                      <div key={`actions-${quote.id}`} className="p-4 border-t border-gray-50 space-y-2">
                         <button 
                           onClick={() => handleAcceptQuote(quote)}
                           disabled={actionLoading}
@@ -1302,50 +1661,39 @@ export function ProjectDetailsPage() {
                             </>
                           )}
                         </button>
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => setRevisionQuoteId(quote.id)}
-                            disabled={actionLoading}
-                            className="flex-1 bg-yellow-50 text-yellow-700 font-bold py-3 rounded-xl border border-yellow-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Demander une révision de ce devis"
-                          >
-                            <RotateCcw size={16} aria-hidden="true" />
-                            Demander une révision
-                          </button>
-                          <button 
-                            onClick={() => handleRejectQuote(quote.id)}
-                            disabled={actionLoading}
-                            className="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Refuser ce devis"
-                          >
-                            <X size={16} aria-hidden="true" />
-                            Refuser le devis
-                          </button>
-                        </div>
+                        <button 
+                          onClick={() => setRejectQuoteId(quote.id)}
+                          disabled={actionLoading}
+                          className="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="Refuser ce devis"
+                        >
+                          <X size={16} aria-hidden="true" />
+                          Refuser le devis
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Affichage du loading pendant l'action */}
+                    {isClient && actionLoading && ['pending', 'viewed'].includes(quote.status) && (
+                      <div key={`loading-${quote.id}`} className="p-4 border-t border-gray-50 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
                       </div>
                     )}
 
-                    {/* Artisan Actions for Revision Request */}
-                    {isArtisan && quote.artisan_id === auth.user?.id && quote.status === 'revision_requested' && (
-                      <div className="p-4 border-t border-gray-50 space-y-2">
-                        <button 
-                          onClick={() => setShowQuoteForm(true)}
-                          className="w-full bg-brand-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"
-                        >
-                          <RotateCcw size={18} />
-                          Soumettre un nouveau devis
-                        </button>
-                        <button 
-                          onClick={async () => {
-                            await supabase.from('quotes').update({ status: 'abandoned' }).eq('id', quote.id);
-                            fetchDetails();
-                          }}
-                          className="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-xl"
-                        >
-                          Abandonner
-                        </button>
+                    {/* Affichage raison de refus pour l'artisan */}
+                    {isArtisan && quote.artisan_id === auth.user?.id && quote.status === 'rejected' && quote.rejection_reason && (
+                      <div className="p-4 border-t border-gray-50 bg-blue-50 rounded-b-xl">
+                        <p className="text-xs font-bold text-blue-800 mb-1 uppercase">Message du client :</p>
+                        <p className="text-sm text-blue-900 mb-3">{quote.rejection_reason}</p>
+                        <p className="text-xs text-blue-700 italic">
+                          Vous pouvez soumettre un nouveau devis en tenant compte de ces commentaires.
+                        </p>
                       </div>
                     )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}
@@ -1377,67 +1725,73 @@ export function ProjectDetailsPage() {
         </section>
       </main>
 
-      {/* Bottom Actions - CLIENT */}
-      {isClient && project.status === 'quote_accepted' && escrow?.status === 'held' && (
+      {/* Bottom Actions - CLIENT (Escrow pending - Pay now) */}
+      {isClient && (project.status === 'quote_accepted' || project.status === 'payment_pending') && 
+       escrow && escrow.status === 'pending' && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-20 space-y-2">
           <button
-            onClick={handleCompleteProject}
-            className="w-full bg-green-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2"
+            onClick={() => navigate(`/projects/${id}/payment`)}
+            className="w-full bg-brand-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-brand-600 transition-colors"
           >
-            <ThumbsUp size={20} />
-            Confirmer la fin des travaux
+            <CreditCard size={20} />
+            Procéder au paiement
           </button>
+        </div>
+      )}
+
+      {/* Bottom Actions - CLIENT (Escrow held - Work page) */}
+      {isClient && (project.status === 'in_progress' || project.status === 'completion_requested') && 
+       escrow && (escrow.status === 'held' || escrow.status === 'advance_paid') && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-20 space-y-2">
           <button
-            onClick={handleReportDispute}
-            className="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 border border-red-200"
+            onClick={() => navigate(`/projects/${id}/work`)}
+            className="w-full bg-brand-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-brand-600 transition-colors"
           >
-            <AlertTriangle size={18} />
-            Signaler un problème
+            <Wrench size={20} />
+            Voir les travaux en cours
           </button>
+          {project.status === 'completion_requested' && (
+            <button
+              onClick={() => navigate(`/projects/${id}/completion`)}
+              className="w-full bg-green-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-green-600 transition-colors"
+            >
+              <CheckCircle size={18} />
+              Finaliser le projet
+            </button>
+          )}
         </div>
       )}
 
       {/* Bottom Actions - CLIENT (Completion Requested) */}
       {isClient && project.status === 'completion_requested' && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-20 space-y-2">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-2 flex items-center gap-2">
-            <Clock size={16} className="text-blue-500" />
-            <p className="text-sm text-blue-700 font-medium">L'artisan a terminé les travaux et attend votre confirmation.</p>
-          </div>
           <button
-            onClick={handleCompleteProject}
-            className="w-full bg-green-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2"
+            onClick={() => navigate(`/projects/${id}/completion`)}
+            className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-green-600 transition-colors"
           >
-            <ThumbsUp size={20} />
-            Confirmer et valider
+            <CheckCircle size={20} />
+            Finaliser le projet
           </button>
           <button
-            onClick={handleReportDispute}
-            className="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 border border-red-200"
+            onClick={() => navigate(`/chat/${id}`)}
+            className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
           >
-            <AlertTriangle size={18} />
-            Signaler un problème
+            <MessageCircle size={18} />
+            Contacter l'artisan
           </button>
         </div>
       )}
 
-      {/* Bottom Actions - ARTISAN (Request Completion) */}
+      {/* Bottom Actions - ARTISAN (Work page) */}
       {isArtisan && acceptedQuote?.artisan_id === auth.user?.id && 
-       ['quote_accepted', 'in_progress'].includes(project.status) && (
+       project.status === 'in_progress' && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-20 space-y-2">
           <button
-            onClick={handleRequestCompletion}
-            className="w-full bg-green-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2"
+            onClick={() => navigate(`/projects/${id}/work`)}
+            className="w-full bg-brand-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-brand-600 transition-colors"
           >
-            <CheckCircle size={20} />
-            Travaux terminés - Demander clôture
-          </button>
-          <button
-            onClick={handleReportDispute}
-            className="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 border border-red-200"
-          >
-            <AlertTriangle size={18} />
-            Signaler un problème
+            <Wrench size={20} />
+            Voir les travaux en cours
           </button>
         </div>
       )}
@@ -1514,6 +1868,18 @@ export function ProjectDetailsPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de confirmation d'annulation */}
+      <ConfirmModal
+        open={showCancelConfirm}
+        title="Annuler le projet"
+        message="Êtes-vous sûr de vouloir annuler ce projet ? Cette action est irréversible et tous les devis en attente seront automatiquement rejetés."
+        confirmText="Oui, annuler"
+        cancelText="Non, garder le projet"
+        variant="danger"
+        onConfirm={confirmCancelProject}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
     </div>
   );
 }

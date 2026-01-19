@@ -5,7 +5,7 @@ import { useAuth } from './useAuth';
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'new_project' | 'new_quote' | 'quote_accepted' | 'quote_rejected' | 'revision_requested' | 'project_completed' | 'payment_received' | 'verification_approved' | 'verification_rejected' | 'new_message' | 'system';
+  type: 'new_project' | 'new_quote' | 'quote_accepted' | 'quote_rejected' | 'project_completed' | 'payment_received' | 'verification_approved' | 'verification_rejected' | 'new_message' | 'system';
   title: string;
   message: string | null;
   data: Record<string, any>;

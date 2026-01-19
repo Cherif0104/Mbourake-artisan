@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js",
     "build": "node ./node_modules/vite/bin/vite.js build",
-    "preview": "node ./node_modules/vite/bin/vite.js preview"
+    "preview": "node ./node_modules/vite/bin/vite.js preview",
+    "diagnose": "node scripts/diagnose-id.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

@@ -11,7 +11,8 @@
 export interface PaymentMethod {
   id: string;
   name: string;
-  icon: string;
+  icon: string; // Emoji pour compatibilité
+  logo?: string; // Chemin vers l'image du logo
   description: string;
   processingTime: string;
   fees: number; // en pourcentage
@@ -25,6 +26,7 @@ export const PAYMENT_METHODS: PaymentMethod[] = [
     id: 'wave',
     name: 'Wave',
     icon: '🌊',
+    logo: '/payment-logos/wave.png',
     description: 'Paiement mobile Wave',
     processingTime: 'Instantané',
     fees: 0,
@@ -36,6 +38,7 @@ export const PAYMENT_METHODS: PaymentMethod[] = [
     id: 'orange_money',
     name: 'Orange Money',
     icon: '🟠',
+    logo: '/payment-logos/orange-money.png',
     description: 'Paiement mobile Orange Money',
     processingTime: 'Instantané',
     fees: 1,
@@ -44,36 +47,15 @@ export const PAYMENT_METHODS: PaymentMethod[] = [
     available: true,
   },
   {
-    id: 'free_money',
-    name: 'Free Money',
-    icon: '💚',
-    description: 'Paiement mobile Free Money',
-    processingTime: 'Instantané',
-    fees: 0,
-    minAmount: 100,
-    maxAmount: 1000000,
-    available: true,
-  },
-  {
     id: 'card',
     name: 'Carte Bancaire',
     icon: '💳',
+    logo: '/payment-logos/card.png',
     description: 'Visa, Mastercard',
     processingTime: 'Instantané',
     fees: 2.5,
     minAmount: 1000,
     maxAmount: 10000000,
-    available: true,
-  },
-  {
-    id: 'bank_transfer',
-    name: 'Virement Bancaire',
-    icon: '🏦',
-    description: 'Virement depuis votre banque',
-    processingTime: '24-48h',
-    fees: 0,
-    minAmount: 10000,
-    maxAmount: 50000000,
     available: true,
   },
 ];

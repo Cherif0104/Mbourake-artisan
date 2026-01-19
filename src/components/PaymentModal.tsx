@@ -116,24 +116,67 @@ export function PaymentModal({
 
         <div className="mt-5">
           <p className="text-xs font-bold uppercase text-gray-500 tracking-[0.3em]">Méthode</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {PAYMENT_METHODS.map((method) => (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {PAYMENT_METHODS.filter(m => m.logo).map((method) => (
               <button
                 key={method.id}
                 type="button"
                 onClick={() => setMethodId(method.id)}
-                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                className={`flex-1 min-w-[120px] rounded-2xl border-2 px-4 py-4 text-center transition ${
                   methodId === method.id
                     ? 'border-brand-500 bg-brand-50 text-brand-700'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                 }`}
               >
-                <div className="text-xl">{method.icon}</div>
-                <div className="mt-1 text-sm font-bold">{method.name}</div>
-                <p className="text-xs text-gray-500">{method.description}</p>
+                <div className="flex items-center justify-center mb-2 h-14 min-h-[56px]">
+                  {method.logo ? (
+                    <img 
+                      src={method.logo} 
+                      alt={method.name}
+                      className="max-h-14 max-w-full object-contain w-auto h-auto"
+                      style={{ maxHeight: '56px', maxWidth: '100%' }}
+                      onError={(e) => {
+                        // Fallback sur l'emoji si l'image ne charge pas
+                        const target = e.target as HTMLImageElement;
+                        const parent = target.parentElement;
+                        if (parent) {
+                          target.style.display = 'none';
+                          const fallback = document.createElement('div');
+                          fallback.className = 'text-2xl';
+                          fallback.textContent = method.icon;
+                          parent.appendChild(fallback);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="text-2xl">{method.icon}</div>
+                  )}
+                </div>
+                <div className="text-xs font-bold uppercase">{method.name}</div>
               </button>
             ))}
           </div>
+          {/* Afficher les méthodes sans logo dans une grille séparée si nécessaire */}
+          {PAYMENT_METHODS.filter(m => !m.logo && m.available).length > 0 && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {PAYMENT_METHODS.filter(m => !m.logo && m.available).map((method) => (
+                <button
+                  key={method.id}
+                  type="button"
+                  onClick={() => setMethodId(method.id)}
+                  className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    methodId === method.id
+                      ? 'border-brand-500 bg-brand-50 text-brand-700'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="text-xl mb-2">{method.icon}</div>
+                  <div className="text-sm font-bold">{method.name}</div>
+                  <p className="text-xs text-gray-500">{method.description}</p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-5 space-y-2">

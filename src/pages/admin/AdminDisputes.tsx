@@ -4,6 +4,7 @@ import {
   MessageSquare, Phone, CreditCard, FileText, ChevronRight,
   X, DollarSign, ArrowRight, Loader2
 } from 'lucide-react';
+import { useToastContext } from '../../contexts/ToastContext';
 import { supabase } from '../../lib/supabase';
 
 interface DisputedProject {
@@ -40,6 +41,7 @@ interface DisputedProject {
 type Resolution = 'refund_client' | 'pay_artisan' | 'split';
 
 export function AdminDisputes() {
+  const { error: showError } = useToastContext();
   const [disputes, setDisputes] = useState<DisputedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDispute, setSelectedDispute] = useState<DisputedProject | null>(null);
@@ -190,7 +192,7 @@ export function AdminDisputes() {
       
     } catch (err) {
       console.error('Error resolving dispute:', err);
-      alert('Erreur lors de la résolution du litige');
+      showError('Erreur lors de la résolution du litige');
     }
     
     setResolving(false);
