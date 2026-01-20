@@ -298,16 +298,9 @@ export function EscrowBanner({ escrow, isClient, onRefresh }: EscrowBannerProps)
 
       {/* Status: Funds Held */}
       {escrow.status === 'held' && (advanceAmount === 0 || escrow.is_advance_paid) && (
-        <div className="bg-white rounded-xl p-4 space-y-2">
-          <div className="flex items-center justify-center gap-2 text-green-700 font-bold text-sm mb-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />
-            Fonds sécurisés dans l'escrow
-          </div>
-          <p className="text-xs text-gray-600 text-center leading-relaxed">
-            Le montant a été retenu pour garantir l'exécution du projet.
-            Une fois que le projet sera conclu et validé par le client,
-            le montant sera automatiquement reversé sur votre compte.
-          </p>
+        <div className="flex items-center justify-center gap-2 text-green-700 font-bold text-sm">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />
+          Fonds sécurisés dans l'escrow
         </div>
       )}
 

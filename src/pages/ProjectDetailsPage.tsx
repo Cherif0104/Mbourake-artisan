@@ -1644,8 +1644,8 @@ export function ProjectDetailsPage() {
                       </div>
                     )}
 
-                    {/* Client Actions - Visibles tant qu'aucun devis n'est accepté ET que le projet n'est pas en stage de paiement */}
-                    {isClient && !quotes.some(q => q.status === 'accepted') && project?.status !== 'payment_pending' && project?.status !== 'in_progress' && project?.status !== 'completion_requested' && project?.status !== 'completed' && ['pending', 'viewed'].includes(quote.status) && !actionLoading && (
+                    {/* Client Actions - Visibles tant qu'aucun devis n'est accepté */}
+                    {isClient && !quotes.some(q => q.status === 'accepted') && ['pending', 'viewed'].includes(quote.status) && !actionLoading && (
                       <div key={`actions-${quote.id}`} className="p-4 border-t border-gray-50 space-y-2">
                         <button 
                           onClick={() => handleAcceptQuote(quote)}

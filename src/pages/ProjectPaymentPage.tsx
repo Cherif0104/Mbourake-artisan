@@ -217,13 +217,9 @@ export function ProjectPaymentPage() {
         <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
           <ShieldCheck size={24} className="text-brand-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-bold text-sm text-brand-900 mb-1">Paiement sécurisé par escrow</p>
-            <p className="text-xs text-brand-700 leading-relaxed mb-2">
-              Le montant de votre paiement sera retenu dans notre système d'escrow pour garantir l'exécution du projet.
-              Une fois que le projet sera conclu et validé, le montant sera automatiquement reversé à l'artisan.
-            </p>
-            <p className="text-[10px] text-brand-600 font-medium">
-              💡 Cette garantie protège vos intérêts et ceux de l'artisan.
+            <p className="font-bold text-sm text-brand-900 mb-1">Paiement sécurisé</p>
+            <p className="text-xs text-brand-700 leading-relaxed">
+              Votre paiement est protégé par notre système d'escrow. Les fonds seront libérés uniquement après validation des travaux.
             </p>
           </div>
         </div>
