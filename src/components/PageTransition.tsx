@@ -1,31 +1,47 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 /**
  * Composant pour afficher un overlay premium lors des transitions de page
  * Masque les bugs visuels pendant le chargement et améliore l'UX
+ * Garantit une seule instance à la fois (pas de doublons)
  */
 export function PageTransition() {
   const location = useLocation();
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [displayContent, setDisplayContent] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const animationRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Nettoyer les timers précédents pour éviter les doublons
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (animationRef.current) {
+      clearTimeout(animationRef.current);
+    }
+
     // Démarrer la transition
     setIsTransitioning(true);
     setDisplayContent(true);
 
     // Timer pour masquer l'overlay après un court délai
-    const timer = setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
       setIsTransitioning(false);
       // Attendre la fin de l'animation avant de masquer complètement
-      setTimeout(() => {
+      animationRef.current = setTimeout(() => {
         setDisplayContent(false);
       }, 300);
-    }, 400); // Durée totale : 400ms d'affichage + 300ms d'animation = 700ms max
+    }, 500); // Durée totale : 500ms d'affichage + 300ms d'animation = 800ms max
 
     return () => {
-      clearTimeout(timer);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      if (animationRef.current) {
+        clearTimeout(animationRef.current);
+      }
     };
   }, [location.pathname]);
 
@@ -38,9 +54,10 @@ export function PageTransition() {
         isTransitioning ? 'opacity-100' : 'opacity-0'
       }`}
       style={{ pointerEvents: isTransitioning ? 'auto' : 'none' }}
+      aria-hidden="true"
     >
       {/* Illustration premium avec logo Mbourake stylisé */}
-      <div className="flex flex-col items-center gap-6">
+      <div className="flex flex-col items-center gap-6 px-4">
         {/* Logo animé */}
         <div className="relative">
           {/* Cercle de fond avec animation pulse */}
@@ -61,14 +78,24 @@ export function PageTransition() {
           </div>
         </div>
 
-        {/* Texte de chargement avec animation */}
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+        {/* Message personnalisé */}
+        <div className="text-center max-w-xs">
+          <p className="text-base font-black text-gray-900 mb-2">
+            La première plateforme
+          </p>
+          <p className="text-base font-black text-brand-600 mb-3">
+            faite pour les artisans au Sénégal
+          </p>
+          
+          {/* Texte de chargement avec animation */}
+          <div className="flex items-center justify-center gap-2">
+            <div className="flex gap-1">
+              <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+            <span className="text-sm font-bold text-gray-500 ml-2">Chargement...</span>
           </div>
-          <span className="text-sm font-bold text-gray-600 ml-2">Chargement...</span>
         </div>
       </div>
 
