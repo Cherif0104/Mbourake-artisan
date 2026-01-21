@@ -35,6 +35,7 @@ import { AdminEscrows } from './pages/admin/AdminEscrows';
 import { AdminVerifications } from './pages/admin/AdminVerifications';
 import { AdminDisputes } from './pages/admin/AdminDisputes';
 import { AdminAffiliations } from './pages/admin/AdminAffiliations';
+import { RevisionsPage } from './pages/RevisionsPage';
 
 // Composant pour page 404 - Route non trouvée
 function NotFoundPage() {
@@ -96,6 +97,7 @@ function AppContent() {
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+      <Route path="/revisions" element={<PrivateRoute><RevisionsPage /></PrivateRoute>} />
       <Route path="/create-project" element={<PrivateRoute><CreateProjectPage /></PrivateRoute>} />
       <Route path="/projects/:id" element={<PrivateRoute><ProjectDetailsPage /></PrivateRoute>} />
       <Route path="/projects/:id/payment" element={<PrivateRoute><ProjectPaymentPage /></PrivateRoute>} />

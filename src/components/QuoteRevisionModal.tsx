@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { X, Send, AlertCircle } from 'lucide-react';
+import { X, Send, AlertCircle, Mic, Upload, FileText, Trash2, Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
+import { AudioRecorder } from './AudioRecorder';
+import { generateSafeFileName } from '../lib/fileUtils';
 
 interface QuoteRevisionModalProps {
   isOpen: boolean;
@@ -21,6 +23,10 @@ export function QuoteRevisionModal({
   onSuccess
 }: QuoteRevisionModalProps) {
   const [comments, setComments] = useState('');
+  const [suggestedPrice, setSuggestedPrice] = useState('');
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const { success, error: showError } = useToastContext();
 
@@ -73,18 +79,30 @@ export function QuoteRevisionModal({
 
       // Notifier l'artisan
       if (quoteData?.artisan_id && revisionData) {
-        const { notifyArtisanRevisionRequested } = await import('../lib/notificationService');
-        await notifyArtisanRevisionRequested(
-          projectId,
-          quoteId,
-          quoteData.artisan_id,
-          clientProfile?.full_name || 'Un client',
-          revisionData.id
-        );
+        try {
+          const { notifyArtisanRevisionRequested } = await import('../lib/notificationService');
+          await notifyArtisanRevisionRequested(
+            projectId,
+            quoteId,
+            quoteData.artisan_id,
+            clientProfile?.full_name || 'Un client',
+            revisionData.id
+          );
+          console.log('[QuoteRevisionModal] Notification envoyée à l\'artisan:', quoteData.artisan_id);
+        } catch (notifError) {
+          console.error('[QuoteRevisionModal] Erreur lors de l\'envoi de la notification:', notifError);
+          // Ne pas bloquer si la notification échoue
+        }
+      } else {
+        console.warn('[QuoteRevisionModal] Impossible de notifier l\'artisan:', { quoteData, revisionData });
       }
 
       success('Demande de révision envoyée avec succès');
       setComments('');
+      setSuggestedPrice('');
+      setAudioBlob(null);
+      setAudioUrl(null);
+      setDocumentFile(null);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -167,7 +185,7 @@ export function QuoteRevisionModal({
             </button>
             <button
               type="submit"
-              disabled={loading || !comments.trim()}
+              disabled={loading || (!comments.trim() && !audioBlob)}
               className="flex-1 px-4 py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (

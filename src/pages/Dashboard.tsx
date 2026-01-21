@@ -873,6 +873,12 @@ export function Dashboard() {
                           {quoteRevisions.length}
                         </span>
                       </h3>
+                      <button
+                        onClick={() => navigate('/revisions')}
+                        className="text-xs font-bold text-brand-600 hover:text-brand-700"
+                      >
+                        Voir tout
+                      </button>
                     </div>
                     <div className="space-y-3">
                       {quoteRevisions.map((revision) => (
@@ -900,11 +906,11 @@ export function Dashboard() {
                           </div>
                           <div className="flex gap-2">
                             <button
-                              onClick={() => navigate(`/projects/${revision.project_id}?revision=${revision.id}`)}
+                              onClick={() => navigate('/revisions')}
                               className="flex-1 bg-brand-500 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-brand-600 transition-colors flex items-center justify-center gap-2"
                             >
                               <FileText size={14} />
-                              Voir et répondre
+                              Voir toutes les révisions
                             </button>
                           </div>
                         </div>

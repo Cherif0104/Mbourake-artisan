@@ -79,12 +79,8 @@ export function NotificationBell() {
         }
         break;
       case 'quote_revision_requested':
-        // Rediriger vers la page du projet avec le paramètre de révision
-        if (data?.project_id && data?.revision_id) {
-          navigate(`/projects/${data.project_id}?revision=${data.revision_id}`);
-        } else if (data?.project_id) {
-          navigate(`/projects/${data.project_id}`);
-        }
+        // Rediriger vers la page dédiée aux révisions
+        navigate('/revisions');
         break;
       case 'quote_revision_responded':
         // Rediriger vers la page du projet pour voir la réponse
