@@ -4,7 +4,7 @@ import {
   ArrowLeft, Star, MapPin, Phone, Mail, Shield, CheckCircle,
   Heart, Share2, MessageSquare, Calendar, Clock, Image, Video,
   ChevronLeft, ChevronRight, X, Play, Briefcase, Award, Hash,
-  User, Quote, Building2
+  User, Quote, Building2, MessageCircle, Send
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -18,6 +18,8 @@ interface Review {
   rating: number;
   comment: string | null;
   created_at: string;
+  artisan_response: string | null;
+  artisan_response_at: string | null;
   client: {
     full_name: string;
     avatar_url: string | null;
@@ -54,6 +56,7 @@ export function ArtisanPublicProfilePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { profile: currentUserProfile } = useProfile();
+  const { success, error: showError } = useToastContext();
   
   const [artisan, setArtisan] = useState<ArtisanProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -68,6 +71,11 @@ export function ArtisanPublicProfilePage() {
   const [showGallery, setShowGallery] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [galleryType, setGalleryType] = useState<'photo' | 'video'>('photo');
+  
+  // Review response modal state
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [responseText, setResponseText] = useState('');
+  const [submittingResponse, setSubmittingResponse] = useState(false);
 
   useEffect(() => {
     const fetchArtisan = async () => {
@@ -567,7 +575,47 @@ export function ArtisanPublicProfilePage() {
                     </div>
                   </div>
                   {review.comment && (
-                    <p className="text-gray-600 text-sm leading-relaxed">{review.comment}</p>
+                    <p className="text-gray-600 text-sm leading-relaxed mb-3">{review.comment}</p>
+                  )}
+                  
+                  {/* Réponse de l'artisan */}
+                  {review.artisan_response && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="flex items-start gap-2 mb-2">
+                        <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
+                          <MessageCircle size={14} className="text-brand-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-xs font-bold text-brand-700">Réponse de l'artisan</p>
+                            {review.artisan_response_at && (
+                              <span className="text-xs text-gray-400">
+                                {new Date(review.artisan_response_at).toLocaleDateString('fr-FR', { 
+                                  day: 'numeric', 
+                                  month: 'short',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-700 leading-relaxed">{review.artisan_response}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bouton pour répondre (seulement si c'est le profil de l'artisan connecté) */}
+                  {!review.artisan_response && user?.id === id && (
+                    <button
+                      onClick={() => {
+                        const reviewId = review.id;
+                        setSelectedReviewId(reviewId);
+                      }}
+                      className="mt-3 w-full py-2 bg-brand-50 text-brand-700 font-bold text-xs rounded-xl hover:bg-brand-100 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <MessageCircle size={14} />
+                      Répondre au commentaire
+                    </button>
                   )}
                 </div>
               ))}
@@ -642,6 +690,142 @@ export function ArtisanPublicProfilePage() {
 
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white text-sm font-bold bg-black/50 px-4 py-2 rounded-full">
             {galleryIndex + 1} / {galleryType === 'photo' ? portfolioPhotos.length : portfolioVideos.length}
+          </div>
+        </div>
+      )}
+
+      {/* Modal pour répondre à un commentaire */}
+      {selectedReviewId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center">
+                  <MessageCircle className="text-brand-600" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Répondre au commentaire</h3>
+                  <p className="text-xs text-gray-500">Votre réponse sera visible publiquement</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedReviewId(null);
+                  setResponseText('');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                disabled={submittingResponse}
+              >
+                <X size={18} className="text-gray-400" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!responseText.trim()) {
+                  showError('Veuillez saisir une réponse');
+                  return;
+                }
+
+                setSubmittingResponse(true);
+                try {
+                  const { error } = await supabase
+                    .from('reviews')
+                    .update({
+                      artisan_response: responseText.trim(),
+                      artisan_response_at: new Date().toISOString()
+                    })
+                    .eq('id', selectedReviewId);
+
+                  if (error) throw error;
+
+                  success('Réponse publiée avec succès');
+                  
+                  // Recharger les reviews
+                  const { data: reviewsData } = await supabase
+                    .from('reviews')
+                    .select(`
+                      id, rating, comment, created_at, artisan_response, artisan_response_at,
+                      profiles!reviews_client_id_fkey (full_name, avatar_url)
+                    `)
+                    .eq('artisan_id', id)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+
+                  if (reviewsData) {
+                    const formattedReviews = reviewsData.map((r: any) => ({
+                      id: r.id,
+                      rating: r.rating,
+                      comment: r.comment,
+                      created_at: r.created_at,
+                      artisan_response: r.artisan_response,
+                      artisan_response_at: r.artisan_response_at,
+                      client: r.profiles ? {
+                        full_name: r.profiles.full_name,
+                        avatar_url: r.profiles.avatar_url
+                      } : null
+                    }));
+                    setReviews(formattedReviews);
+                  }
+
+                  setSelectedReviewId(null);
+                  setResponseText('');
+                } catch (err: any) {
+                  console.error('Error submitting response:', err);
+                  showError(`Erreur: ${err.message || 'Impossible de publier la réponse'}`);
+                } finally {
+                  setSubmittingResponse(false);
+                }
+              }}
+              className="p-6 space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Votre réponse <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={responseText}
+                  onChange={(e) => setResponseText(e.target.value)}
+                  placeholder="Merci pour votre commentaire..."
+                  rows={5}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none text-sm"
+                  disabled={submittingResponse}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {responseText.length} / 500 caractères
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedReviewId(null);
+                    setResponseText('');
+                  }}
+                  disabled={submittingResponse}
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingResponse || !responseText.trim()}
+                  className="flex-1 px-4 py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {submittingResponse ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      Publier la réponse
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
