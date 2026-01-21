@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search, Building2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
@@ -177,6 +177,7 @@ export function EditProfilePage() {
         { id: 2, title: 'Localisation', icon: MapPin },
         { id: 3, title: 'Informations professionnelles', icon: Briefcase },
         { id: 4, title: 'Portfolio', icon: Image },
+        { id: 5, title: 'Affiliation', icon: Building2 },
       ];
     } else {
       return [
@@ -702,6 +703,8 @@ export function EditProfilePage() {
         if (!isArtisan) return true;
         return !!categoryId;
       case 4: // Portfolio (artisan uniquement, optionnel)
+        return true;
+      case 5: // Affiliation (artisan uniquement, optionnel)
         return true;
       default:
         return true;
@@ -1352,6 +1355,14 @@ export function EditProfilePage() {
                   </div>
                 )}
               </section>
+            </div>
+          )}
+
+          {/* ÉTAPE 5 : Affiliation (artisan uniquement) */}
+          {currentStep === 5 && isArtisan && isMounted && user?.id && (
+            <div key="step-5" className="animate-in fade-in slide-in-from-right-4">
+              <h2 className="text-xl font-black text-gray-900 mb-6">Affiliation</h2>
+              <AffiliationSection artisanId={user.id} />
             </div>
           )}
 

@@ -4,7 +4,7 @@ import {
   ArrowLeft, Star, MapPin, Phone, Mail, Shield, CheckCircle,
   Heart, Share2, MessageSquare, Calendar, Clock, Image, Video,
   ChevronLeft, ChevronRight, X, Play, Briefcase, Award, Hash,
-  User, Quote
+  User, Quote, Building2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -58,6 +58,7 @@ export function ArtisanPublicProfilePage() {
   const [artisan, setArtisan] = useState<ArtisanProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewStats, setReviewStats] = useState({ count: 0, avg: 0, projectsCount: 0, tier: 'Bronze' as 'Platine' | 'Or' | 'Argent' | 'Bronze' });
+  const [affiliations, setAffiliations] = useState<Array<{ affiliation_type: string; affiliation_name: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -134,6 +135,17 @@ export function ArtisanPublicProfilePage() {
           category: artisanData.categories as any
         } : null
       });
+
+      // Fetch verified affiliations
+      const { data: affiliationsData } = await supabase
+        .from('artisan_affiliations')
+        .select('affiliation_type, affiliation_name')
+        .eq('artisan_id', id)
+        .eq('status', 'verified');
+
+      if (affiliationsData) {
+        setAffiliations(affiliationsData);
+      }
 
       // Fetch reviews for this artisan
       const { data: reviewsData } = await supabase
@@ -339,6 +351,27 @@ export function ArtisanPublicProfilePage() {
                   Certifié
                 </span>
               )}
+              {affiliations.length > 0 && affiliations.map((aff, idx) => {
+                const getTypeLabel = (type: string) => {
+                  switch (type) {
+                    case 'chambre': return 'Chambre de Métier';
+                    case 'incubateur': return 'Incubateur';
+                    case 'sae': return 'SAE';
+                    case 'autre': return 'Organisme';
+                    default: return type;
+                  }
+                };
+                return (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 rounded-full text-xs font-bold"
+                    title={aff.affiliation_name || getTypeLabel(aff.affiliation_type)}
+                  >
+                    <Building2 size={14} />
+                    {aff.affiliation_name || getTypeLabel(aff.affiliation_type)}
+                  </span>
+                );
+              })}
               {artisan.artisan && (
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
                   artisan.artisan.is_available !== false 

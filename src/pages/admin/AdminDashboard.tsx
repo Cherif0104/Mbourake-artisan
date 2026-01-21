@@ -3,7 +3,7 @@ import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Briefcase, Shield, DollarSign, 
   TrendingUp, AlertCircle, CheckCircle, Clock, LogOut,
-  ChevronRight, Settings, Bell, AlertTriangle
+  ChevronRight, Settings, Bell, AlertTriangle, Building2
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../../hooks/useAuth';
@@ -171,6 +171,7 @@ export function AdminDashboard() {
     { id: 'projects', path: '/admin/projects', icon: <Briefcase size={20} />, label: 'Projets' },
     { id: 'escrows', path: '/admin/escrows', icon: <DollarSign size={20} />, label: 'Paiements' },
     { id: 'verifications', path: '/admin/verifications', icon: <Shield size={20} />, label: 'Vérifications' },
+    { id: 'affiliations', path: '/admin/affiliations', icon: <Building2 size={20} />, label: 'Affiliations' },
     { id: 'disputes', path: '/admin/disputes', icon: <AlertTriangle size={20} />, label: 'Litiges' },
   ];
 

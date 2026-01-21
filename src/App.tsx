@@ -34,6 +34,7 @@ import { AdminProjects } from './pages/admin/AdminProjects';
 import { AdminEscrows } from './pages/admin/AdminEscrows';
 import { AdminVerifications } from './pages/admin/AdminVerifications';
 import { AdminDisputes } from './pages/admin/AdminDisputes';
+import { AdminAffiliations } from './pages/admin/AdminAffiliations';
 
 // Composant pour page 404 - Route non trouvée
 function NotFoundPage() {
@@ -113,6 +114,7 @@ function AppContent() {
       <Route path="/admin/projects" element={<AdminRoute><AdminProjects /></AdminRoute>} />
       <Route path="/admin/escrows" element={<AdminRoute><AdminEscrows /></AdminRoute>} />
       <Route path="/admin/verifications" element={<AdminRoute><AdminVerifications /></AdminRoute>} />
+      <Route path="/admin/affiliations" element={<AdminRoute><AdminAffiliations /></AdminRoute>} />
       <Route path="/admin/disputes" element={<AdminRoute><AdminDisputes /></AdminRoute>} />
       
       {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}
