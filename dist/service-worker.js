@@ -49,6 +49,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Ignorer les schémas non supportés (chrome-extension, moz-extension, etc.)
+  if (url.protocol === 'chrome-extension:' || 
+      url.protocol === 'moz-extension:' || 
+      url.protocol === 'safari-extension:' ||
+      !url.protocol.startsWith('http')) {
+    return;
+  }
+
   // Ignorer les requêtes vers Supabase (toujours en ligne)
   if (url.hostname.includes('supabase.co')) {
     return;
@@ -62,10 +70,15 @@ self.addEventListener('fetch', (event) => {
           return cachedResponse;
         }
         return fetch(request).then((response) => {
-          if (response.status === 200) {
+          if (response.status === 200 && response.type === 'basic') {
             const responseToCache = response.clone();
             caches.open(DYNAMIC_CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
+              // Vérifier que la requête peut être mise en cache
+              if (request.url.startsWith('http')) {
+                cache.put(request, responseToCache).catch((err) => {
+                  console.warn('Failed to cache request:', request.url, err);
+                });
+              }
             });
           }
           return response;
@@ -105,10 +118,15 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.status === 200) {
+        if (response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();
           caches.open(DYNAMIC_CACHE_NAME).then((cache) => {
-            cache.put(request, responseToCache);
+            // Vérifier que la requête peut être mise en cache
+            if (request.url.startsWith('http')) {
+              cache.put(request, responseToCache).catch((err) => {
+                console.warn('Failed to cache request:', request.url, err);
+              });
+            }
           });
         }
         return response;
