@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
 import { getTier, TIER_COLORS } from '../utils/artisanUtils';
+import { HomeButton } from '../components/HomeButton';
 
 interface ArtisanData {
   id: string;
@@ -52,6 +53,7 @@ export function CategoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [selectedTier, setSelectedTier] = useState<string>('');
+  const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [onlyVerified, setOnlyVerified] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('rating');
@@ -202,12 +204,25 @@ export function CategoryPage() {
     fetchData();
   }, [slug]);
   
+  // Liste des localisations disponibles pour le filtre
+  const availableLocations = useMemo(() => {
+    const set = new Set<string>();
+    artisans.forEach((a) => {
+      if (a.location && a.location.trim()) {
+        set.add(a.location.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [artisans]);
+
   // Filter artisans
   const filteredArtisans = useMemo(() => {
-    return artisans.filter(artisan => {
-      if (searchQuery && 
-          !artisan.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
-          !artisan.specialty.toLowerCase().includes(searchQuery.toLowerCase())) {
+    return artisans.filter((artisan) => {
+      if (
+        searchQuery &&
+        !artisan.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !artisan.specialty.toLowerCase().includes(searchQuery.toLowerCase())
+      ) {
         return false;
       }
       if (selectedRating && artisan.rating < selectedRating) {
@@ -222,9 +237,12 @@ export function CategoryPage() {
       if (onlyVerified && !artisan.verified) {
         return false;
       }
+      if (selectedLocation && artisan.location !== selectedLocation) {
+        return false;
+      }
       return true;
     });
-  }, [artisans, searchQuery, selectedRating, selectedTier, onlyAvailable, onlyVerified]);
+  }, [artisans, searchQuery, selectedRating, selectedTier, onlyAvailable, onlyVerified, selectedLocation]);
   
   // Sort artisans
   const sortedArtisans = useMemo(() => {
@@ -245,12 +263,14 @@ export function CategoryPage() {
     });
   }, [filteredArtisans, sortBy]);
   
-  const hasActiveFilters = searchQuery || selectedRating || selectedTier || onlyAvailable || onlyVerified;
+  const hasActiveFilters =
+    !!(searchQuery || selectedRating || selectedTier || selectedLocation || onlyAvailable || onlyVerified);
   
   const clearFilters = () => {
     setSearchQuery('');
     setSelectedRating(null);
     setSelectedTier('');
+    setSelectedLocation('');
     setOnlyAvailable(false);
     setOnlyVerified(false);
   };
@@ -289,16 +309,12 @@ export function CategoryPage() {
       <header className="bg-white border-b sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-            >
-              <ArrowLeft size={20} />
-            </button>
+            <HomeButton />
             <div>
               <h1 className="text-xl font-black text-gray-900">{category.name}</h1>
               <p className="text-xs text-gray-400 font-bold">
-                {sortedArtisans.length} artisan{sortedArtisans.length > 1 ? 's' : ''} trouvé{sortedArtisans.length > 1 ? 's' : ''}
+                {sortedArtisans.length} artisan{sortedArtisans.length > 1 ? 's' : ''} trouvé{sortedArtisans.length > 1 ? 's' : ''}{' '}
+                {availableLocations.length > 0 && selectedLocation && `• ${selectedLocation}`}
               </p>
             </div>
           </div>

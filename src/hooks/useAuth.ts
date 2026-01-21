@@ -15,6 +15,9 @@ export function useAuth() {
     loading: true,
   });
 
+  // Référence pour éviter les redirections multiples
+  const redirectingRef = useRef(false);
+
   useEffect(() => {
     let mounted = true;
 
@@ -44,14 +47,81 @@ export function useAuth() {
           email: session?.user?.email,
         });
       }
+
+      // Redirection globale après authentification réussie
+      if (event === 'SIGNED_IN' && typeof window !== 'undefined') {
+        try {
+          const search = new URLSearchParams(window.location.search);
+          let mode = search.get('mode');
+          let role = search.get('role');
+
+          // Si mode/role ne sont pas dans l'URL (perdus pendant OAuth),
+          // les récupérer depuis localStorage où on les a mémorisés avant OAuth
+          if (!mode) {
+            mode = localStorage.getItem('mbourake_pending_mode') || undefined;
+          }
+          if (!role) {
+            role = localStorage.getItem('mbourake_pending_role') || undefined;
+          }
+
+          // IMPORTANT : Ne PAS nettoyer localStorage ici, car EditProfilePage en a besoin
+          // Il sera nettoyé par EditProfilePage après avoir été lu
+
+          // Pour tous les nouveaux utilisateurs en signup (client ou artisan) :
+          // rediriger directement vers la page de profil pour compléter leur profil
+          if (mode === 'signup') {
+            const profileParams = new URLSearchParams();
+            profileParams.set('mode', 'onboarding');
+            // Toujours inclure le rôle s'il est disponible (URL ou localStorage)
+            const finalRole = role || localStorage.getItem('mbourake_pending_role') || undefined;
+            if (finalRole) {
+              profileParams.set('role', finalRole);
+              console.log('[useAuth] Rôle déterminé pour redirection:', finalRole);
+            } else {
+              console.warn('[useAuth] ATTENTION: Aucun rôle trouvé pour signup, redirection sans rôle');
+            }
+            const profileUrl = `/edit-profile?${profileParams.toString()}`;
+            console.log('[useAuth] SIGNED_IN (signup) → redirection directe vers', profileUrl);
+            setTimeout(() => {
+              window.location.replace(profileUrl);
+            }, 0);
+            return;
+          }
+
+          // Pour les utilisateurs existants en login, vérifier si profil complet
+          // Si profil incomplet, rediriger vers edit-profile aussi
+          // (Cette logique sera gérée par Dashboard ou LandingPage)
+          const params = new URLSearchParams();
+          if (mode) params.set('mode', mode);
+          if (role) params.set('role', role);
+
+          const dashboardUrl = `/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
+
+          // Éviter de naviguer si on est déjà sur /dashboard
+          if (window.location.pathname !== '/dashboard') {
+            console.log('[useAuth] SIGNED_IN (login) → redirection vers', dashboardUrl);
+            setTimeout(() => {
+              window.location.replace(dashboardUrl);
+            }, 0);
+          }
+        } catch (e) {
+          console.warn('[useAuth] Erreur pendant la redirection SIGNED_IN:', e);
+          redirectingRef.current = false;
+        }
+      }
       
       // Éviter les mises à jour inutiles si l'état n'a pas changé
       setState((prevState) => {
         const newUser = session?.user ?? null;
         const newSession = session ?? null;
         
-        // Si l'utilisateur n'a pas changé, ne pas mettre à jour
-        if (prevState.user?.id === newUser?.id && prevState.session?.access_token === newSession?.access_token) {
+        // Si l'utilisateur n'a pas changé et que la session est identique, ne pas mettre à jour
+        // Comparer aussi les tokens pour éviter les mises à jour inutiles
+        const userChanged = prevState.user?.id !== newUser?.id;
+        const tokenChanged = prevState.session?.access_token !== newSession?.access_token;
+        
+        // Si rien n'a changé, retourner l'état précédent pour éviter un re-render
+        if (!userChanged && !tokenChanged && prevState.loading === false) {
           return prevState;
         }
         
@@ -74,12 +144,14 @@ export function useAuth() {
     console.log('[useAuth] URL actuelle:', window.location.href);
     console.log('[useAuth] Origin:', window.location.origin);
     
-    // Rediriger vers /onboard avec le bon mode et préserver le rôle si présent
-    const params = new URLSearchParams({ mode });
+    // Rediriger vers /dashboard après OAuth et préserver le rôle si présent
+    const params = new URLSearchParams();
+    params.set('mode', mode);
     if (role) {
       params.set('role', role);
     }
-    const redirectTo = `${window.location.origin}/onboard?${params.toString()}`;
+    const redirectQuery = params.toString();
+    const redirectTo = `${window.location.origin}/dashboard${redirectQuery ? `?${redirectQuery}` : ''}`;
     
     console.log('[useAuth] Google OAuth redirectTo configuré:', redirectTo);
     

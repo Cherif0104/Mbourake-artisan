@@ -32,6 +32,7 @@ export type Database = {
           updated_at: string | null
           user_id: string | null
           verification_status: string | null
+          video_urls: string[] | null
         }
         Insert: {
           bio?: string | null
@@ -50,6 +51,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string | null
           verification_status?: string | null
+          video_urls?: string[] | null
         }
         Update: {
           bio?: string | null
@@ -68,6 +70,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string | null
           verification_status?: string | null
+          video_urls?: string[] | null
         }
         Relationships: [
           {
@@ -244,7 +247,10 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           category_id: number | null
+          commune: string | null
+          company_name: string | null
           created_at: string | null
+          department: string | null
           email: string | null
           full_name: string | null
           id: string
@@ -252,6 +258,7 @@ export type Database = {
           location: string | null
           member_id: string | null
           phone: string | null
+          region: string | null
           role: string | null
           specialty: string | null
           updated_at: string | null
@@ -260,7 +267,10 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           category_id?: number | null
+          commune?: string | null
+          company_name?: string | null
           created_at?: string | null
+          department?: string | null
           email?: string | null
           full_name?: string | null
           id: string
@@ -268,6 +278,7 @@ export type Database = {
           location?: string | null
           member_id?: string | null
           phone?: string | null
+          region?: string | null
           role?: string | null
           specialty?: string | null
           updated_at?: string | null
@@ -276,7 +287,10 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           category_id?: number | null
+          commune?: string | null
+          company_name?: string | null
           created_at?: string | null
+          department?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
@@ -284,6 +298,7 @@ export type Database = {
           location?: string | null
           member_id?: string | null
           phone?: string | null
+          region?: string | null
           role?: string | null
           specialty?: string | null
           updated_at?: string | null
@@ -415,9 +430,10 @@ export type Database = {
           proposed_time_end: string | null
           proposed_time_start: string | null
           quote_number: string | null
+          rejection_reason: string | null
           revision_count: number | null
           revision_reason: string | null
-          status: string | null
+          status: Database["public"]["Enums"]["quote_status"] | null
           updated_at: string | null
           urgent_surcharge_percent: number | null
           validity_hours: number | null
@@ -441,9 +457,10 @@ export type Database = {
           proposed_time_end?: string | null
           proposed_time_start?: string | null
           quote_number?: string | null
+          rejection_reason?: string | null
           revision_count?: number | null
           revision_reason?: string | null
-          status?: string | null
+          status?: Database["public"]["Enums"]["quote_status"] | null
           updated_at?: string | null
           urgent_surcharge_percent?: number | null
           validity_hours?: number | null
@@ -467,9 +484,10 @@ export type Database = {
           proposed_time_end?: string | null
           proposed_time_start?: string | null
           quote_number?: string | null
+          rejection_reason?: string | null
           revision_count?: number | null
           revision_reason?: string | null
-          status?: string | null
+          status?: Database["public"]["Enums"]["quote_status"] | null
           updated_at?: string | null
           urgent_surcharge_percent?: number | null
           validity_hours?: number | null

@@ -3,6 +3,7 @@ import { Route, Routes, useNavigate } from 'react-router-dom';
 import { ToastContainer } from './components/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ScrollToTop } from './components/ScrollToTop';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useToastContext } from './contexts/ToastContext';
 import { PrivateRoute } from './components/PrivateRoute';
 import { AdminRoute } from './components/AdminRoute';
@@ -12,6 +13,7 @@ import { ArtisansPage } from './pages/ArtisansPage';
 import { CategoryPage } from './pages/CategoryPage';
 import { CreateProjectPage } from './pages/CreateProjectPage';
 import { ProjectDetailsPage } from './pages/ProjectDetailsPage';
+import { CreditsPage } from './pages/CreditsPage';
 import { ProjectPaymentPage } from './pages/ProjectPaymentPage';
 import { ProjectWorkPage } from './pages/ProjectWorkPage';
 import { ProjectCompletionPage } from './pages/ProjectCompletionPage';
@@ -75,7 +77,7 @@ function AppContent() {
   const { toasts, removeToast } = useToastContext();
   
   return (
-    <>
+    <ErrorBoundary>
       <ScrollToTop />
       <OfflineBanner />
       <Routes>
@@ -96,6 +98,7 @@ function AppContent() {
       <Route path="/projects/:id/work" element={<PrivateRoute><ProjectWorkPage /></PrivateRoute>} />
       <Route path="/projects/:id/completion" element={<PrivateRoute><ProjectCompletionPage /></PrivateRoute>} />
       <Route path="/chat/:projectId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
+      <Route path="/credits" element={<PrivateRoute><CreditsPage /></PrivateRoute>} />
       <Route path="/verification" element={<PrivateRoute><VerificationPage /></PrivateRoute>} />
       <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
       <Route path="/expenses" element={<PrivateRoute><ExpensesPage /></PrivateRoute>} />
@@ -113,7 +116,7 @@ function AppContent() {
       <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <ToastContainer toasts={toasts} onRemove={removeToast} />
-    </>
+    </ErrorBoundary>
   );
 }
 

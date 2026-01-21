@@ -16,9 +16,8 @@ export function LandingPage() {
   const { profile, loading: profileLoading } = useProfile();
   const { categories: dbCategories, loading } = useDiscovery();
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
 
+  const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
   // Map icon names to Lucide components
   const iconMap: Record<string, React.ReactNode> = {
     'hammer': <Hammer size={24} />,
@@ -59,6 +58,40 @@ export function LandingPage() {
       navigate('/artisans');
     }
   };
+
+  // Redirection pour utilisateurs authentifiés sans profil
+  // Après OAuth Google, si l'utilisateur n'a pas encore de profil,
+  // le rediriger vers /edit-profile?mode=onboarding pour compléter son profil
+  useEffect(() => {
+    if (auth.loading || profileLoading) return;
+    if (!auth.user) return;
+
+    // Nouveau compte Google sans profil encore créé :
+    // on envoie directement vers le wizard de profil (EditProfilePage en mode onboarding)
+    if (!profile) {
+      // Essayer de récupérer le rôle depuis localStorage (sauvegardé avant OAuth)
+      const roleFromStorage = localStorage.getItem('mbourake_pending_role');
+      const params = new URLSearchParams({ mode: 'onboarding' });
+      if (roleFromStorage) {
+        params.set('role', roleFromStorage);
+      }
+      navigate(`/edit-profile?${params.toString()}`, { replace: true });
+      return;
+    }
+
+    // Si l'utilisateur a un profil complet, rediriger vers le dashboard
+    // (ceci évite que les utilisateurs connectés voient la landing page)
+    const requiredFields = ['role', 'full_name', 'location'];
+    const hasRequiredFields = requiredFields.every(
+      field => profile[field] && profile[field].toString().trim().length > 0
+    );
+    const isProfileComplete = hasRequiredFields && 
+      (profile.role !== 'artisan' || profile.category_id);
+    
+    if (isProfileComplete) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [auth.loading, profileLoading, auth.user, profile, navigate]);
 
   if (auth.loading || profileLoading) {
     return (
@@ -109,18 +142,37 @@ export function LandingPage() {
 
           {/* CTA Buttons */}
           <div className="flex items-center gap-2 md:gap-3">
-            <button 
-              onClick={() => navigate('/onboard?mode=signup')}
-              className="px-4 md:px-5 py-2 md:py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-wider hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              S'inscrire
-            </button>
-            <button 
-              onClick={() => navigate('/onboard?mode=login')}
-              className="px-4 md:px-5 py-2 md:py-2.5 bg-brand-500 text-white rounded-xl font-black text-[10px] md:text-xs uppercase tracking-wider shadow-md shadow-brand-200/50 hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-300/50 active:scale-[0.97] transition-all duration-200"
-            >
-              Connexion
-            </button>
+            {isLoggedIn ? (
+              <>
+                <button 
+                  onClick={() => navigate('/dashboard')}
+                  className="px-4 md:px-5 py-2 md:py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-wider hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  Mon tableau de bord
+                </button>
+                <button 
+                  onClick={() => navigate('/artisans')}
+                  className="px-4 md:px-5 py-2 md:py-2.5 bg-brand-500 text-white rounded-xl font-black text-[10px] md:text-xs uppercase tracking-wider shadow-md shadow-brand-200/50 hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-300/50 active:scale-[0.97] transition-all duration-200"
+                >
+                  Explorer les artisans
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => navigate('/onboard?mode=signup')}
+                  className="px-4 md:px-5 py-2 md:py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-wider hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  S'inscrire
+                </button>
+                <button 
+                  onClick={() => navigate('/onboard?mode=login')}
+                  className="px-4 md:px-5 py-2 md:py-2.5 bg-brand-500 text-white rounded-xl font-black text-[10px] md:text-xs uppercase tracking-wider shadow-md shadow-brand-200/50 hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-300/50 active:scale-[0.97] transition-all duration-200"
+                >
+                  Connexion
+                </button>
+              </>
+            )}
           </div>
         </div>
       </nav>

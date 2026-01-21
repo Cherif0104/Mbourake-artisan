@@ -17,7 +17,7 @@ export function PrivateRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Utilisateur non authentifié - rediriger vers /onboard
+  // Utilisateur non authentifié - rediriger vers /onboard (auth + choix du rôle), qui lui-même lancera Google OAuth
   if (!auth.user) {
     // Sauvegarder l'URL actuelle pour redirection après login
     const currentPath = window.location.pathname + window.location.search;

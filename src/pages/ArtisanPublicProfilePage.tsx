@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useFavorites } from '../hooks/useFavorites';
 import { getTier, TIER_COLORS } from '../utils/artisanUtils';
+import { HomeButton } from '../components/HomeButton';
 
 interface Review {
   id: string;
@@ -264,12 +265,7 @@ export function ArtisanPublicProfilePage() {
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-40">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-          >
-            <ArrowLeft size={20} className="text-gray-600" />
-          </button>
+          <HomeButton />
           <h1 className="font-bold text-gray-900">Profil artisan</h1>
           <div className="flex items-center gap-2">
             <button 

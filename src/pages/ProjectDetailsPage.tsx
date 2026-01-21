@@ -388,8 +388,38 @@ export function ProjectDetailsPage() {
     try {
       setActionLoading(true);
       const oldStatus = quote.status;
-      
-      // Update quote status avec vérification d'erreur
+
+      // 1) Débiter les crédits de l'artisan avant de marquer le devis comme accepté
+      //    (unité : nombre de crédits consommés par devis accepté)
+      // Chaque projet accepté coûte 10 crédits
+      const COST_PER_ACCEPTED_QUOTE = 10;
+      try {
+        const { error: creditError } = await supabase.rpc('consume_credits_for_quote', {
+          p_artisan_id: quote.artisan_id,
+          p_project_id: id,
+          p_quote_id: quote.id,
+          p_cost: COST_PER_ACCEPTED_QUOTE,
+        });
+
+        if (creditError) {
+          // Manque de crédits : empêcher l'acceptation et informer le client
+          if (creditError.message?.includes('insufficient_credits')) {
+            showError("L'artisan n'a pas assez de crédits pour ce projet. Demandez-lui de recharger son compte.");
+          } else {
+            console.error('Erreur lors du débit des crédits de l\'artisan :', creditError);
+            showError("Impossible de débiter les crédits de l'artisan pour ce projet.");
+          }
+          setActionLoading(false);
+          return;
+        }
+      } catch (creditErr: any) {
+        console.error('Unexpected error in consume_credits_for_quote:', creditErr);
+        showError("Une erreur est survenue lors du débit des crédits de l'artisan.");
+        setActionLoading(false);
+        return;
+      }
+
+      // 2) Marquer le devis comme accepté
       const { error: quoteUpdateError } = await supabase
         .from('quotes')
         .update({ status: 'accepted' })
@@ -1644,8 +1674,16 @@ export function ProjectDetailsPage() {
                       </div>
                     )}
 
-                    {/* Client Actions - Visibles tant qu'aucun devis n'est accepté */}
-                    {isClient && !quotes.some(q => q.status === 'accepted') && ['pending', 'viewed'].includes(quote.status) && !actionLoading && (
+                    {/* Client Actions - Visibles uniquement tant que le projet est en phase de devis
+                        (avant acceptation définitive et démarrage des travaux) */}
+                    {isClient 
+                      // Le projet doit encore être dans une phase "pré-travaux"
+                      && ['open', 'quote_received'].includes(project.status || '')
+                      // Aucun devis ne doit être déjà accepté
+                      && !quotes.some(q => q.status === 'accepted')
+                      // Le devis courant doit encore être décidable
+                      && ['pending', 'viewed'].includes(quote.status)
+                      && !actionLoading && (
                       <div key={`actions-${quote.id}`} className="p-4 border-t border-gray-50 space-y-2">
                         <button 
                           onClick={() => handleAcceptQuote(quote)}
@@ -1810,8 +1848,8 @@ export function ProjectDetailsPage() {
         </div>
       )}
 
-      {/* Floating Chat Button - Disponible si devis accepté, même pour projets expirés */}
-      {acceptedQuote && ['quote_accepted', 'in_progress', 'completion_requested', 'completed', 'expired', 'cancelled'].includes(project.status || '') && (
+      {/* Floating Chat Button - Disponible si un devis accepté existe et que le projet est dans un statut compatible */}
+      {acceptedQuote && ['quote_received', 'quote_accepted', 'in_progress', 'completion_requested', 'completed', 'expired', 'cancelled'].includes(project.status || '') && (
         <button 
           onClick={() => navigate(`/chat/${id}`)}
           className="fixed bottom-28 right-4 w-14 h-14 bg-brand-500 text-white rounded-full shadow-lg flex items-center justify-center z-30 hover:bg-brand-600 transition-colors"

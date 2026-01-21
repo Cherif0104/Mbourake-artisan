@@ -80,7 +80,12 @@ export function NotificationBell() {
       // Les anciennes notifications de révision seront ignorées silencieusement
       case 'new_quote':
         if (data?.project_id) {
-          navigate(`/projects/${data.project_id}`);
+          // Si le chat est explicitement activé, ouvrir directement la conversation
+          if (data?.chat_enabled) {
+            navigate(`/chat/${data.project_id}`);
+          } else {
+            navigate(`/projects/${data.project_id}`);
+          }
         }
         break;
       case 'payment_received':

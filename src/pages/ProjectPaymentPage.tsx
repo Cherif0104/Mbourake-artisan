@@ -7,6 +7,7 @@ import { useEscrow } from '../hooks/useEscrow';
 import { useToastContext } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
 import { SkeletonScreen } from '../components/SkeletonScreen';
+import { HomeButton } from '../components/HomeButton';
 import {
   BYPASS_MODE,
   PaymentResult,
@@ -176,12 +177,7 @@ export function ProjectPaymentPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
-        <button 
-          onClick={() => navigate(`/projects/${id}`)} 
-          className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center"
-        >
-          <ArrowLeft size={20} className="text-gray-600" />
-        </button>
+        <HomeButton />
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-gray-900 truncate">Paiement sécurisé</h1>
           <p className="text-xs text-gray-400 font-mono">{project.project_number}</p>
