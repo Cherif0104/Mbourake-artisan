@@ -57,6 +57,7 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [projects, setProjects] = useState<any[]>([]);
   const [myQuotes, setMyQuotes] = useState<any[]>([]);
+  const [quoteRevisions, setQuoteRevisions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [artisanData, setArtisanData] = useState<any>(null);
@@ -215,6 +216,24 @@ export function Dashboard() {
           .order('created_at', { ascending: false });
         
         setMyQuotes(quotes || []);
+
+        // Récupérer les demandes de révision en attente pour les devis de l'artisan
+        if (quotes && quotes.length > 0) {
+          const quoteIds = quotes.map(q => q.id);
+          const { data: revisions } = await supabase
+            .from('quote_revisions')
+            .select(`
+              *,
+              quotes!quote_revisions_quote_id_fkey(*),
+              projects!quote_revisions_project_id_fkey(id, title),
+              profiles!quote_revisions_requested_by_fkey(id, full_name, avatar_url)
+            `)
+            .in('quote_id', quoteIds)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+          
+          setQuoteRevisions(revisions || []);
+        }
       } else {
         // Récupérer les projets du client, exclure les projets annulés pour l'affichage principal
         const { data: clientProjects } = await supabase
@@ -842,100 +861,153 @@ export function Dashboard() {
             </div>
 
             {isArtisan ? (
-              /* Artisan: Liste des devis */
-              myQuotes.length === 0 ? (
-                <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
-                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Send size={28} className="text-gray-300" />
-                  </div>
-                  <p className="text-gray-500 font-medium">Aucun devis envoyé</p>
-                  <p className="text-sm text-gray-400 mt-1">Consultez les projets disponibles</p>
-                </div>
-              ) : (
-                <>
-                  {/* Filtres */}
-                  <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-                    {[
-                      { key: 'Tous', label: 'Tous' },
-                      { key: 'pending', label: 'En attente' },
-                      { key: 'accepted', label: 'Acceptés' },
-                      { key: 'rejected', label: 'Refusés' },
-                      { key: 'expired', label: 'Expirés' },
-                    ].map((filter) => (
-                      <button
-                        key={filter.key}
-                        onClick={() => setQuoteFilter(filter.key)}
-                        className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
-                          quoteFilter === filter.key
-                            ? 'bg-brand-500 text-white shadow-lg'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {filter.label}
-                        {filter.key !== 'Tous' && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-white/20 rounded-full">
-                            {myQuotes.filter(q => q.status === filter.key).length}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {/* Liste des devis filtrés */}
-                  <div className="space-y-3">
-                    {myQuotes
-                      .filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter)
-                      .map((quote) => {
-                    const status = STATUS_CONFIG[quote.status] || STATUS_CONFIG.pending;
-                    return (
-                      <button
-                        key={quote.id}
-                          onClick={() => {
-                            // Forcer le scroll en haut avant la navigation
-                            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                            document.documentElement.scrollTop = 0;
-                            document.body.scrollTop = 0;
-                            navigate(`/projects/${quote.project_id}`);
-                          }}
-                        className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99]"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <span className="text-xs text-gray-500 font-mono bg-gray-100 px-3 py-1.5 rounded-xl font-bold">
-                            {quote.quote_number}
-                          </span>
-                          <span className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 ${status.color} border`}>
-                            {status.icon}
-                            {status.label}
-                          </span>
-                        </div>
-                        <h3 className="font-black text-gray-900 mb-3 text-base">{quote.projects?.title}</h3>
-                        {quote.status === 'rejected' && quote.rejection_reason && (
-                          <div className="mb-3 flex items-start gap-2 bg-red-50 border-2 border-red-200 rounded-xl p-3">
-                            <span className="text-xs font-black text-red-700">❌ Refusé</span>
-                            <span className="text-xs text-red-700 line-clamp-2 flex-1 font-medium">
-                              : {quote.rejection_reason}
+              <>
+                {/* Section Révisions en attente */}
+                {quoteRevisions.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                        <AlertCircle size={20} className="text-yellow-600" />
+                        Révisions en attente
+                        <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">
+                          {quoteRevisions.length}
+                        </span>
+                      </h3>
+                    </div>
+                    <div className="space-y-3">
+                      {quoteRevisions.map((revision) => (
+                        <div
+                          key={revision.id}
+                          className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 hover:shadow-lg transition-all"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <p className="text-xs font-bold text-yellow-800 mb-1">Demande de révision</p>
+                              <p className="text-sm font-black text-gray-900">
+                                {revision.projects?.title || 'Projet'}
+                              </p>
+                              <p className="text-xs text-gray-600 mt-1">
+                                Devis: {revision.quotes?.quote_number || revision.quote_id.slice(0, 8).toUpperCase()}
+                              </p>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {new Date(revision.requested_at).toLocaleDateString('fr-FR')}
                             </span>
                           </div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <span className="text-xl font-black text-brand-600">
-                            {quote.amount?.toLocaleString('fr-FR')} FCFA
-                          </span>
-                          <span className="text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded-lg">
-                            {new Date(quote.created_at).toLocaleDateString('fr-FR')}
-                          </span>
+                          <div className="bg-white rounded-xl p-3 mb-3">
+                            <p className="text-xs font-bold text-gray-700 mb-1">Commentaires du client :</p>
+                            <p className="text-sm text-gray-600">{revision.client_comments}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => navigate(`/projects/${revision.project_id}?revision=${revision.id}`)}
+                              className="flex-1 bg-brand-500 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-brand-600 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <FileText size={14} />
+                              Voir et répondre
+                            </button>
+                          </div>
                         </div>
-                      </button>
-                    );
-                  })}
-                    {myQuotes.filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter).length === 0 && (
-                      <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
-                        <p className="text-gray-400 text-sm">Aucun devis pour ce filtre</p>
-                      </div>
-                    )}
-                </div>
-                </>
-              )
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Artisan: Liste des devis */}
+                {myQuotes.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+                    <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <Send size={28} className="text-gray-300" />
+                    </div>
+                    <p className="text-gray-500 font-medium">Aucun devis envoyé</p>
+                    <p className="text-sm text-gray-400 mt-1">Consultez les projets disponibles</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Filtres */}
+                    <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+                      {[
+                        { key: 'Tous', label: 'Tous' },
+                        { key: 'pending', label: 'En attente' },
+                        { key: 'accepted', label: 'Acceptés' },
+                        { key: 'rejected', label: 'Refusés' },
+                        { key: 'expired', label: 'Expirés' },
+                      ].map((filter) => (
+                        <button
+                          key={filter.key}
+                          onClick={() => setQuoteFilter(filter.key)}
+                          className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
+                            quoteFilter === filter.key
+                              ? 'bg-brand-500 text-white shadow-lg'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {filter.label}
+                          {filter.key !== 'Tous' && (
+                            <span className="ml-2 px-1.5 py-0.5 bg-white/20 rounded-full">
+                              {myQuotes.filter(q => q.status === filter.key).length}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {/* Liste des devis filtrés */}
+                    <div className="space-y-3">
+                      {myQuotes
+                        .filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter)
+                        .map((quote) => {
+                      const status = STATUS_CONFIG[quote.status] || STATUS_CONFIG.pending;
+                      return (
+                        <button
+                          key={quote.id}
+                            onClick={() => {
+                              // Forcer le scroll en haut avant la navigation
+                              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                              document.documentElement.scrollTop = 0;
+                              document.body.scrollTop = 0;
+                              navigate(`/projects/${quote.project_id}`);
+                            }}
+                          className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99]"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <span className="text-xs text-gray-500 font-mono bg-gray-100 px-3 py-1.5 rounded-xl font-bold">
+                              {quote.quote_number}
+                            </span>
+                            <span className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 ${status.color} border`}>
+                              {status.icon}
+                              {status.label}
+                            </span>
+                          </div>
+                          <h3 className="font-black text-gray-900 mb-3 text-base">{quote.projects?.title}</h3>
+                          {quote.status === 'rejected' && quote.rejection_reason && (
+                            <div className="mb-3 flex items-start gap-2 bg-red-50 border-2 border-red-200 rounded-xl p-3">
+                              <span className="text-xs font-black text-red-700">❌ Refusé</span>
+                              <span className="text-xs text-red-700 line-clamp-2 flex-1 font-medium">
+                                : {quote.rejection_reason}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl font-black text-brand-600">
+                              {quote.amount?.toLocaleString('fr-FR')} FCFA
+                            </span>
+                            <span className="text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded-lg">
+                              {new Date(quote.created_at).toLocaleDateString('fr-FR')}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                      {myQuotes.filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter).length === 0 && (
+                        <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+                          <p className="text-gray-400 text-sm">Aucun devis pour ce filtre</p>
+                        </div>
+                      )}
+                  </div>
+                  </>
+                )}
+              </>
             ) : (
               /* Client: Liste des projets */
               projects.length === 0 ? (

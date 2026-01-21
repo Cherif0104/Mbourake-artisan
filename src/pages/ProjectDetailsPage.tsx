@@ -14,6 +14,8 @@ import { EscrowBanner } from '../components/EscrowBanner';
 import { QuoteForm } from '../components/QuoteForm';
 import { RejectionModal } from '../components/RejectionModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { QuoteRevisionModal } from '../components/QuoteRevisionModal';
+import { QuoteRevisionResponseModal } from '../components/QuoteRevisionResponseModal';
 import { supabase } from '../lib/supabase';
 import { 
   notifyArtisanQuoteAccepted, 
@@ -107,6 +109,9 @@ export function ProjectDetailsPage() {
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [revisionQuoteId, setRevisionQuoteId] = useState<string | null>(null);
+  const [quoteRevisions, setQuoteRevisions] = useState<any[]>([]);
+  const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null);
   
   // Ref pour éviter les recharges intempestifs
   const fetchDetailsRef = useRef(false);
@@ -298,6 +303,17 @@ export function ProjectDetailsPage() {
     
     setQuotes(qData);
 
+    // Fetch quote revisions pour ce projet
+    const { data: revisionsData } = await supabase
+      .from('quote_revisions')
+      .select('*')
+      .eq('project_id', id)
+      .order('created_at', { ascending: false });
+
+    if (revisionsData) {
+      setQuoteRevisions(revisionsData);
+    }
+
     // Fetch escrow
       const { data: eData, error: eError } = await supabase
       .from('escrows')
@@ -317,6 +333,14 @@ export function ProjectDetailsPage() {
     setLoading(false);
     }
   };
+
+  // Vérifier si une révision est demandée dans l'URL
+  useEffect(() => {
+    const revisionParam = searchParams.get('revision');
+    if (revisionParam) {
+      setSelectedRevisionId(revisionParam);
+    }
+  }, [searchParams]);
 
   // Optimiser le useEffect pour éviter les recharges intempestifs
   useEffect(() => {
@@ -1728,6 +1752,94 @@ export function ProjectDetailsPage() {
                         </p>
                       </div>
                     )}
+
+                    {/* Affichage des révisions en attente pour l'artisan */}
+                    {isArtisan && quote.artisan_id === auth.user?.id && quoteRevisions.some(r => r.quote_id === quote.id && r.status === 'pending') && (
+                      <div className="p-4 border-t border-gray-50 bg-yellow-50 rounded-b-xl">
+                        <div className="flex items-start justify-between mb-2">
+                          <p className="text-xs font-bold text-yellow-800 uppercase flex items-center gap-2">
+                            <AlertTriangle size={14} />
+                            Demande de révision en attente
+                          </p>
+                        </div>
+                        {quoteRevisions
+                          .filter(r => r.quote_id === quote.id && r.status === 'pending')
+                          .map((revision) => (
+                            <div key={revision.id} className="mb-3 last:mb-0">
+                              <p className="text-sm text-yellow-900 mb-2">{revision.client_comments}</p>
+                              <button
+                                onClick={() => setSelectedRevisionId(revision.id)}
+                                className="w-full bg-yellow-600 text-white font-bold py-2 rounded-xl text-sm hover:bg-yellow-700 transition-colors"
+                              >
+                                Répondre à la révision
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    {/* Bouton "Demander une révision" pour le client - Si devis accepté et projet pas encore en cours */}
+                    {isClient 
+                      && quote.status === 'accepted'
+                      && ['quote_accepted', 'payment_pending'].includes(project.status || '')
+                      && !quoteRevisions.some(r => r.quote_id === quote.id && r.status === 'pending') && (
+                      <div className="p-4 border-t border-gray-50">
+                        <button
+                          onClick={() => setRevisionQuoteId(quote.id)}
+                          className="w-full bg-yellow-50 text-yellow-700 font-bold py-3 rounded-xl border border-yellow-200 flex items-center justify-center gap-2 hover:bg-yellow-100 transition-colors"
+                        >
+                          <AlertTriangle size={16} />
+                          Demander une révision
+                        </button>
+                        <p className="text-xs text-gray-500 text-center mt-2">
+                          Vous pouvez demander une modification du devis avant le début des travaux
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Affichage du statut de révision si une révision existe */}
+                    {isClient && quoteRevisions.some(r => r.quote_id === quote.id) && (
+                      <div className="p-4 border-t border-gray-50">
+                        {quoteRevisions
+                          .filter(r => r.quote_id === quote.id)
+                          .map((revision) => {
+                            const statusLabels: Record<string, { label: string; color: string; icon: any }> = {
+                              pending: { label: 'En attente de réponse', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: Clock },
+                              accepted: { label: 'Révision acceptée', color: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle },
+                              rejected: { label: 'Révision refusée', color: 'bg-red-50 text-red-700 border-red-200', icon: X },
+                              modified: { label: 'Devis modifié', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: FileText },
+                            };
+                            const statusInfo = statusLabels[revision.status] || statusLabels.pending;
+                            const StatusIcon = statusInfo.icon;
+                            
+                            return (
+                              <div key={revision.id} className="bg-gray-50 rounded-xl p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <StatusIcon size={16} className={statusInfo.color.split(' ')[1]} />
+                                    <span className={`text-xs font-bold px-2 py-1 rounded-lg border ${statusInfo.color}`}>
+                                      {statusInfo.label}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(revision.requested_at).toLocaleDateString('fr-FR')}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-gray-700 mb-1">Votre demande :</p>
+                                  <p className="text-sm text-gray-600">{revision.client_comments}</p>
+                                </div>
+                                {revision.artisan_response && (
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-700 mb-1">Réponse de l'artisan :</p>
+                                    <p className="text-sm text-gray-600">{revision.artisan_response}</p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
                           </div>
                         );
                       })}
@@ -1918,6 +2030,44 @@ export function ProjectDetailsPage() {
         onConfirm={confirmCancelProject}
         onCancel={() => setShowCancelConfirm(false)}
       />
+
+      {/* Modal de demande de révision */}
+      {revisionQuoteId && (
+        <QuoteRevisionModal
+          isOpen={!!revisionQuoteId}
+          onClose={() => setRevisionQuoteId(null)}
+          quoteId={revisionQuoteId}
+          projectId={id || ''}
+          quoteAmount={quotes.find(q => q.id === revisionQuoteId)?.amount || 0}
+          onSuccess={() => {
+            fetchDetails();
+          }}
+        />
+      )}
+
+      {/* Modal de réponse à la révision (artisan) */}
+      {selectedRevisionId && (() => {
+        const revision = quoteRevisions.find(r => r.id === selectedRevisionId);
+        const relatedQuote = revision ? quotes.find(q => q.id === revision.quote_id) : null;
+        return revision && relatedQuote && project ? (
+          <QuoteRevisionResponseModal
+            isOpen={!!selectedRevisionId}
+            onClose={() => {
+              setSelectedRevisionId(null);
+              // Nettoyer l'URL
+              const newSearchParams = new URLSearchParams(searchParams);
+              newSearchParams.delete('revision');
+              navigate(`/projects/${id}?${newSearchParams.toString()}`, { replace: true });
+            }}
+            revision={revision}
+            quote={relatedQuote}
+            project={project}
+            onSuccess={() => {
+              fetchDetails();
+            }}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }
