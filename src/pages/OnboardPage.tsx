@@ -185,7 +185,7 @@ export function OnboardPage() {
               <div className="space-y-6">
                 <button
                   onClick={handleGoogleAuth}
-                  disabled={loading || !role}
+                  disabled={loading || (authMode === 'signup' && !role)}
                   type="button"
                   className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-100 rounded-2xl py-4 font-bold text-gray-700 hover:border-gray-200 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
