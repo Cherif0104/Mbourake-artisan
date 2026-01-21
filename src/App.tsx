@@ -3,6 +3,7 @@ import { Route, Routes, useNavigate } from 'react-router-dom';
 import { ToastContainer } from './components/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ScrollToTop } from './components/ScrollToTop';
+import { PageTransition } from './components/PageTransition';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useToastContext } from './contexts/ToastContext';
 import { PrivateRoute } from './components/PrivateRoute';
@@ -79,6 +80,7 @@ function AppContent() {
   return (
     <ErrorBoundary>
       <ScrollToTop />
+      <PageTransition />
       <OfflineBanner />
       <Routes>
       {/* Public Routes */}
@@ -115,6 +117,7 @@ function AppContent() {
       {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}
       <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      <InstallPrompt />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </ErrorBoundary>
   );
