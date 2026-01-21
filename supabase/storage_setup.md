@@ -23,6 +23,14 @@
   - Les utilisateurs authentifiés peuvent uploader
   - Tous peuvent lire
 
+### 4. Bucket `videos`
+- **Usage** : Stocker les fichiers vidéo (portfolio, projets, etc.)
+- **Public** : Oui (pour affichage)
+- **MIME Types acceptés** : video/mp4, video/quicktime, video/x-msvideo, video/webm, video/ogg, etc.
+- **Policies** :
+  - Les utilisateurs authentifiés peuvent uploader
+  - Tous peuvent lire
+
 ## Configuration via SQL (à exécuter dans Supabase Dashboard)
 
 ```sql

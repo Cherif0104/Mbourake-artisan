@@ -422,19 +422,50 @@ export function EditProfilePage() {
           continue;
         }
         
-        if (!file.type.startsWith('video/')) continue;
+        // Vérifier que c'est bien une vidéo (mais accepter même si le type n'est pas détecté)
+        const isVideo = file.type.startsWith('video/') || 
+                       /\.(mp4|mov|avi|wmv|webm|ogg|3gp|mkv)$/i.test(file.name);
         
-        const fileExt = file.name.split('.').pop();
+        if (!isVideo) {
+          showError(`Le fichier "${file.name}" n'est pas une vidéo valide`);
+          continue;
+        }
+        
+        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp4';
         const fileName = `${user.id}/videos/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
         
-        const { error } = await supabase.storage
-          .from('photos')
-          .upload(fileName, file);
+        // Déterminer le contentType selon le type de fichier
+        let contentType = file.type;
+        if (!contentType || contentType === 'application/octet-stream') {
+          // Déterminer le type MIME selon l'extension
+          const mimeTypes: Record<string, string> = {
+            'mp4': 'video/mp4',
+            'mov': 'video/quicktime',
+            'avi': 'video/x-msvideo',
+            'wmv': 'video/x-ms-wmv',
+            'webm': 'video/webm',
+            'ogg': 'video/ogg',
+            '3gp': 'video/3gpp',
+            'mkv': 'video/x-matroska',
+          };
+          contentType = mimeTypes[fileExt] || 'video/mp4';
+        }
         
-        if (error) continue;
+        const { error } = await supabase.storage
+          .from('videos')
+          .upload(fileName, file, {
+            contentType: contentType,
+            upsert: false
+          });
+        
+        if (error) {
+          console.error('Video upload error:', error);
+          showError(`Erreur lors de l'upload de "${file.name}": ${error.message}`);
+          continue;
+        }
         
         const { data: urlData } = supabase.storage
-          .from('photos')
+          .from('videos')
           .getPublicUrl(fileName);
         
         if (urlData?.publicUrl) {
@@ -451,9 +482,12 @@ export function EditProfilePage() {
           .from('artisans')
           .update({ video_urls: updatedUrls })
           .eq('id', user.id);
+        
+        success(`${newUrls.length} vidéo(s) uploadée(s) avec succès`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Video upload error:', err);
+      showError(`Erreur: ${err.message || 'Impossible d\'uploader les vidéos'}`);
     }
     
     setUploadingVideo(false);

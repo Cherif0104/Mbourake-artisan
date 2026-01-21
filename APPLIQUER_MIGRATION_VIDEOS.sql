@@ -1,0 +1,51 @@
+-- ============================================
+-- MIGRATION : Création du bucket videos pour les fichiers vidéo
+-- ============================================
+-- À EXÉCUTER DANS SUPABASE SQL EDITOR
+-- Date: 2025-01-21
+-- ============================================
+
+-- Créer le bucket videos (public pour permettre l'accès aux vidéos)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'videos',
+  'videos',
+  true,
+  NULL, -- Pas de limite de taille
+  ARRAY[
+    'video/mp4',
+    'video/quicktime',
+    'video/x-msvideo',
+    'video/x-ms-wmv',
+    'video/webm',
+    'video/ogg',
+    'video/3gpp',
+    'video/x-matroska',
+    'video/*' -- Accepter tous les types vidéo
+  ]
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Policy: Permettre l'upload aux utilisateurs authentifiés
+CREATE POLICY IF NOT EXISTS "Users can upload videos"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'videos');
+
+-- Policy: Permettre la lecture publique
+CREATE POLICY IF NOT EXISTS "Public can read videos"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'videos');
+
+-- Policy: Permettre la suppression aux utilisateurs authentifiés (leurs propres fichiers)
+CREATE POLICY IF NOT EXISTS "Users can delete their own videos"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'videos' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- ============================================
+-- VÉRIFICATION (optionnel)
+-- ============================================
+-- Exécutez cette requête pour vérifier que le bucket a été créé :
+-- SELECT id, name, public, allowed_mime_types FROM storage.buckets WHERE id = 'videos';
