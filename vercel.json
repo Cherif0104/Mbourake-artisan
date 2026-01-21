@@ -6,7 +6,7 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/((?!api|_next|assets|.*\\.(?:js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|json)).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
@@ -54,6 +54,6 @@
       "permanent": true
     }
   ],
-  "cleanUrls": true,
+  "cleanUrls": false,
   "trailingSlash": false
 }
