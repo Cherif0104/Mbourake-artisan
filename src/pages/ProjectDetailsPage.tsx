@@ -16,6 +16,7 @@ import { RejectionModal } from '../components/RejectionModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { QuoteRevisionModal } from '../components/QuoteRevisionModal';
 import { QuoteRevisionResponseModal } from '../components/QuoteRevisionResponseModal';
+import { RatingModal } from '../components/RatingModal';
 import { supabase } from '../lib/supabase';
 import { 
   notifyArtisanQuoteAccepted, 
@@ -104,8 +105,6 @@ export function ProjectDetailsPage() {
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [rejectQuoteId, setRejectQuoteId] = useState<string | null>(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [review, setReview] = useState('');
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -810,54 +809,6 @@ export function ProjectDetailsPage() {
     }
   };
 
-  const handleSubmitRating = async () => {
-    if (!id || !project || !auth.user?.id) return;
-    try {
-      const acceptedQuote = quotes.find(q => q.status === 'accepted');
-      if (acceptedQuote) {
-        const { data: newReview, error: reviewError } = await supabase.from('reviews').insert({
-          project_id: id,
-          client_id: auth.user.id,
-          artisan_id: acceptedQuote.artisan_id,
-          rating,
-          comment: review || null,
-        }).select().single();
-
-        if (reviewError) throw reviewError;
-
-        // Log action notation (le trigger SQL va générer la facture automatiquement)
-        try {
-          await supabase.rpc('log_project_action', {
-            p_project_id: id,
-            p_user_id: auth.user.id,
-            p_action: 'review_submitted',
-            p_new_value: { rating, has_comment: !!review },
-            p_metadata: { review_id: newReview?.id, artisan_id: acceptedQuote.artisan_id }
-          });
-        } catch (logErr) {
-          console.error('Error logging review submission:', logErr);
-        }
-
-        // Notifier l'artisan qu'il a reçu une note
-        try {
-          await supabase.from('notifications').insert({
-            user_id: acceptedQuote.artisan_id,
-            type: 'system',
-            title: 'Nouvelle note reçue',
-            message: `Vous avez reçu une note de ${rating}/5 pour le projet "${project.title}".${review ? ' Commentaire: ' + review.substring(0, 100) : ''}`,
-            data: { project_id: id, review_id: newReview?.id, rating }
-          });
-        } catch (notifErr) {
-          console.error('Error notifying artisan of review:', notifErr);
-        }
-      }
-      setShowRatingModal(false);
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Error submitting rating:', err);
-      showError("Erreur lors de l'envoi de l'avis");
-    }
-  };
 
   const handleCancelProject = async () => {
     if (!id || !auth.user?.id || project?.client_id !== auth.user.id) {
@@ -1975,53 +1926,33 @@ export function ProjectDetailsPage() {
         </button>
       )}
 
-      {/* Rating Modal */}
-      {showRatingModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle size={32} className="text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-1">Projet Terminé !</h3>
-              <p className="text-sm text-gray-500">Évaluez ce service</p>
-            </div>
-            
-            <div className="flex justify-center gap-2 mb-4">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button key={star} onClick={() => setRating(star)}>
-                  <Star size={36} className={star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'} />
-                </button>
-              ))}
-            </div>
-            
-            <textarea
-              value={review}
-              onChange={(e) => setReview(e.target.value)}
-              placeholder="Partagez votre expérience..."
-              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 min-h-20 focus:outline-none focus:border-brand-500"
-            />
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowRatingModal(false);
-                  navigate('/dashboard');
-                }}
-                className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl"
-              >
-                Plus tard
-              </button>
-              <button
-                onClick={handleSubmitRating}
-                className="flex-1 py-3 bg-brand-500 text-white font-bold rounded-xl"
-              >
-                Envoyer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Rating Modal - s'affiche automatiquement après clôture */}
+      {showRatingModal && (() => {
+        const acceptedQuote = quotes.find(q => q.status === 'accepted');
+        if (!acceptedQuote || !project) return null;
+
+        // Récupérer les infos de l'artisan depuis la relation
+        const artisanProfile = acceptedQuote.profiles;
+        
+        return (
+          <RatingModal
+            isOpen={showRatingModal}
+            onClose={() => {
+              setShowRatingModal(false);
+              navigate('/dashboard');
+            }}
+            projectId={id!}
+            projectTitle={project.title}
+            artisanId={acceptedQuote.artisan_id}
+            artisanName={artisanProfile?.full_name || 'Artisan'}
+            artisanAvatar={artisanProfile?.avatar_url}
+            onSuccess={() => {
+              setShowRatingModal(false);
+              navigate('/dashboard');
+            }}
+          />
+        );
+      })()}
 
       {/* Modal de confirmation d'annulation */}
       <ConfirmModal

@@ -6,6 +6,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useEscrow } from '../hooks/useEscrow';
 import { useToastContext } from '../contexts/ToastContext';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { RatingModal } from '../components/RatingModal';
 import { supabase } from '../lib/supabase';
 import { notifyClientProjectCompleted, notifyArtisanPaymentReceived } from '../lib/notificationService';
 import { SkeletonScreen } from '../components/SkeletonScreen';
@@ -25,10 +26,8 @@ export function ProjectCompletionPage() {
   const [artisan, setArtisan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [review, setReview] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
 
   useEffect(() => {
     if (!id || !auth.user) return;
@@ -137,23 +136,6 @@ export function ProjectCompletionPage() {
 
       if (updateError) throw updateError;
 
-      // Create review if provided
-      if (rating > 0 && quote?.artisan_id) {
-        const { error: reviewError } = await supabase
-          .from('reviews')
-          .insert({
-            project_id: id,
-            artisan_id: quote.artisan_id,
-            client_id: auth.user.id,
-            rating,
-            comment: review || null,
-          });
-
-        if (reviewError) {
-          console.error('Error creating review:', reviewError);
-        }
-      }
-
       // Notify artisan
       if (quote?.artisan_id && project?.title) {
         await notifyArtisanPaymentReceived(
@@ -165,14 +147,8 @@ export function ProjectCompletionPage() {
 
       success('Projet terminé avec succès ! Le paiement a été libéré.');
       
-      // Show review form or redirect
-      if (!showReviewForm && rating === 0) {
-        setShowReviewForm(true);
-      } else {
-        setTimeout(() => {
-          navigate(`/projects/${id}`);
-        }, 1500);
-      }
+      // Afficher automatiquement le modal de notation
+      setShowRatingModal(true);
       
     } catch (err: any) {
       console.error('Error completing project:', err);
@@ -261,58 +237,9 @@ export function ProjectCompletionPage() {
           </div>
         )}
 
-        {/* Review Form */}
-        {showReviewForm && (
-          <div className="bg-white rounded-2xl p-5 mb-6 border border-gray-100">
-            <h3 className="font-bold text-lg text-gray-900 mb-4">Donnez votre avis</h3>
-            
-            <div className="mb-4">
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Note</label>
-              <div className="flex justify-center gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setRating(star)}
-                    className="focus:outline-none"
-                  >
-                    <Star
-                      size={36}
-                      className={star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                Commentaire (optionnel)
-              </label>
-              <textarea
-                value={review}
-                onChange={(e) => setReview(e.target.value)}
-                rows={4}
-                maxLength={500}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:outline-none resize-none text-sm"
-                placeholder="Partagez votre expérience..."
-              />
-              <p className="text-xs text-gray-400 mt-1 text-right">
-                {review.length}/500 caractères
-              </p>
-            </div>
-
-            <button
-              onClick={handleCompleteProject}
-              disabled={actionLoading}
-              className="w-full bg-brand-500 text-white font-bold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading ? 'Traitement...' : 'Envoyer l\'avis et terminer'}
-            </button>
-          </div>
-        )}
 
         {/* Actions */}
-        {canComplete && !showReviewForm && (
+        {canComplete && (
           <div className="space-y-3">
             {isCompletionRequested ? (
               <button
@@ -355,6 +282,26 @@ export function ProjectCompletionPage() {
         confirmText="Oui, clôturer"
         cancelText="Annuler"
       />
+
+      {/* Rating Modal - s'affiche automatiquement après clôture */}
+      {showRatingModal && quote && artisan && (
+        <RatingModal
+          isOpen={showRatingModal}
+          onClose={() => {
+            setShowRatingModal(false);
+            navigate(`/projects/${id}`);
+          }}
+          projectId={id!}
+          projectTitle={project?.title || 'Projet'}
+          artisanId={quote.artisan_id}
+          artisanName={artisan.full_name || 'Artisan'}
+          artisanAvatar={artisan.avatar_url}
+          onSuccess={() => {
+            setShowRatingModal(false);
+            navigate(`/projects/${id}`);
+          }}
+        />
+      )}
     </div>
   );
 }
