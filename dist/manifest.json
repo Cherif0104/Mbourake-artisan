@@ -1,0 +1,12 @@
+{
+  "name": "Mbourake",
+  "short_name": "Mbourake",
+  "description": "Marketplace connectant clients et professionnels au Sénégal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F9FAFB",
+  "theme_color": "#FBBF24",
+  "orientation": "portrait-primary",
+  "icons": []
+}
+
