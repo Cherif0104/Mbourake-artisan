@@ -1,0 +1,87 @@
+--- a/src/components/QuoteRevisionResponseModal.tsx
++++ b/src/components/QuoteRevisionResponseModal.tsx
+@@ -1,5 +1,6 @@
+ import React, { useState } from 'react';
+ import { X, CheckCircle, XCircle, FileText, AlertCircle } from 'lucide-react';
++import { supabase } from '../lib/supabase';
+ import { useToastContext } from '../contexts/ToastContext';
+ import { QuoteForm } from './QuoteForm';
+ 
+@@ -49,6 +50,20 @@ export function QuoteRevisionResponseModal({
+ 
+       if (error) throw error;
+ 
++      // Notifier le client
++      if (project?.client_id) {
++        const { notifyClientRevisionResponded } = await import('../lib/notificationService');
++        const { data: artisanProfile } = await supabase
++          .from('profiles')
++          .select('full_name')
++          .eq('id', quote.artisan_id)
++          .single();
++
++        await notifyClientRevisionResponded(
++          project.id,
++          quote.id,
++          project.client_id,
++          artisanProfile?.full_name || 'L\'artisan',
++          'accepted',
++          revision.id
++        );
++      }
++
+       success('Révision acceptée. Le client sera notifié.');
+       onSuccess();
+       onClose();
+@@ -78,6 +93,20 @@ export function QuoteRevisionResponseModal({
+ 
+       if (error) throw error;
+ 
++      // Notifier le client
++      if (project?.client_id) {
++        const { notifyClientRevisionResponded } = await import('../lib/notificationService');
++        const { data: artisanProfile } = await supabase
++          .from('profiles')
++          .select('full_name')
++          .eq('id', quote.artisan_id)
++          .single();
++
++        await notifyClientRevisionResponded(
++          project.id,
++          quote.id,
++          project.client_id,
++          artisanProfile?.full_name || 'L\'artisan',
++          'rejected',
++          revision.id
++        );
++      }
++
+       success('Révision refusée. Le client sera notifié.');
+       onSuccess();
+       onClose();
+@@ -102,6 +121,20 @@ export function QuoteRevisionResponseModal({
+ 
+       if (error) throw error;
+ 
++      // Notifier le client
++      if (project?.client_id) {
++        const { notifyClientRevisionResponded } = await import('../lib/notificationService');
++        const { data: artisanProfile } = await supabase
++          .from('profiles')
++          .select('full_name')
++          .eq('id', quote.artisan_id)
++          .single();
++
++        await notifyClientRevisionResponded(
++          project.id,
++          quote.id,
++          project.client_id,
++          artisanProfile?.full_name || 'L\'artisan',
++          'modified',
++          revision.id
++        );
++      }
++
+       success('Nouveau devis créé. Le client sera notifié.');
+       setShowQuoteForm(false);
+       onSuccess();

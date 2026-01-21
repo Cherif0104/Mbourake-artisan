@@ -1,0 +1,80 @@
+--- a/src/lib/notificationService.ts
++++ b/src/lib/notificationService.ts
+@@ -8,6 +8,8 @@ import { supabase } from './supabase';
+ export type NotificationType = 
+   | 'new_project' 
+   | 'new_quote' 
+   | 'quote_accepted' 
+   | 'quote_rejected' 
+   | 'project_completed' 
+   | 'payment_received' 
+   | 'verification_approved' 
+   | 'verification_rejected' 
+   | 'new_message' 
++  | 'quote_revision_requested'
++  | 'quote_revision_responded'
+   | 'system';
+ 
+@@ -155,6 +157,45 @@ export async function notifyArtisanQuoteRejected(projectId: string, artisanId:
+   });
+ }
+ 
+-// Fonction supprimée : notifyArtisanRevisionRequested
+-// La logique de révision a été remplacée par un refus avec raison optionnelle.
+-// Utiliser notifyArtisanQuoteRejected avec rejectionReason à la place.
++/**
++ * Notifie l'artisan qu'une demande de révision a été faite sur son devis
++ */
++export async function notifyArtisanRevisionRequested(
++  projectId: string,
++  quoteId: string,
++  artisanId: string,
++  clientName: string,
++  revisionId: string
++) {
++  await createNotification({
++    userId: artisanId,
++    type: 'quote_revision_requested',
++    title: 'Nouvelle demande de révision',
++    message: `${clientName} a demandé une révision de votre devis`,
++    data: {
++      project_id: projectId,
++      quote_id: quoteId,
++      revision_id: revisionId,
++    },
++  });
++}
++
++/**
++ * Notifie le client de la réponse de l'artisan à sa demande de révision
++ */
++export async function notifyClientRevisionResponded(
++  projectId: string,
++  quoteId: string,
++  clientId: string,
++  artisanName: string,
++  revisionStatus: 'accepted' | 'rejected' | 'modified',
++  revisionId: string
++) {
++  const statusMessages = {
++    accepted: 'a accepté votre demande de révision',
++    rejected: 'a refusé votre demande de révision',
++    modified: 'a modifié le devis selon votre demande',
++  };
++
++  await createNotification({
++    userId: clientId,
++    type: 'quote_revision_responded',
++    title: 'Réponse à votre demande de révision',
++    message: `${artisanName} ${statusMessages[revisionStatus]}`,
++    data: {
++      project_id: projectId,
++      quote_id: quoteId,
++      revision_id: revisionId,
++      revision_status: revisionStatus,
++    },
++  });
++}
+ 
+ /**
+  * Notifie le client quand les travaux sont terminés

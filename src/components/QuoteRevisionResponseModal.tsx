@@ -48,6 +48,25 @@ export function QuoteRevisionResponseModal({
 
       if (error) throw error;
 
+      // Notifier le client
+      if (project?.client_id) {
+        const { notifyClientRevisionResponded } = await import('../lib/notificationService');
+        const { data: artisanProfile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', quote.artisan_id)
+          .single();
+
+        await notifyClientRevisionResponded(
+          project.id,
+          quote.id,
+          project.client_id,
+          artisanProfile?.full_name || 'L\'artisan',
+          'accepted',
+          revision.id
+        );
+      }
+
       success('Révision acceptée. Le client sera notifié.');
       onSuccess();
       onClose();
@@ -100,6 +119,25 @@ export function QuoteRevisionResponseModal({
         .eq('id', revision.id);
 
       if (error) throw error;
+
+      // Notifier le client
+      if (project?.client_id) {
+        const { notifyClientRevisionResponded } = await import('../lib/notificationService');
+        const { data: artisanProfile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', quote.artisan_id)
+          .single();
+
+        await notifyClientRevisionResponded(
+          project.id,
+          quote.id,
+          project.client_id,
+          artisanProfile?.full_name || 'L\'artisan',
+          'modified',
+          revision.id
+        );
+      }
 
       success('Nouveau devis créé. Le client sera notifié.');
       setShowQuoteForm(false);

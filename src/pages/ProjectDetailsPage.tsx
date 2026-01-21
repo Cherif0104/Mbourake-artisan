@@ -337,10 +337,11 @@ export function ProjectDetailsPage() {
   // Vérifier si une révision est demandée dans l'URL
   useEffect(() => {
     const revisionParam = searchParams.get('revision');
-    if (revisionParam) {
+    if (revisionParam && project && quotes.length > 0 && quoteRevisions.length > 0) {
+      // Attendre que les données soient chargées avant d'ouvrir le modal
       setSelectedRevisionId(revisionParam);
     }
-  }, [searchParams]);
+  }, [searchParams, project, quotes, quoteRevisions]);
 
   // Optimiser le useEffect pour éviter les recharges intempestifs
   useEffect(() => {
@@ -1778,10 +1779,11 @@ export function ProjectDetailsPage() {
                       </div>
                     )}
 
-                    {/* Bouton "Demander une révision" pour le client - Si devis accepté et projet pas encore en cours */}
+                    {/* Bouton "Demander une révision" pour le client - Visible si devis accepté OU si devis en attente */}
                     {isClient 
-                      && quote.status === 'accepted'
-                      && ['quote_accepted', 'payment_pending'].includes(project.status || '')
+                      && (quote.status === 'accepted' || quote.status === 'pending' || quote.status === 'viewed')
+                      && ['open', 'quote_received', 'quote_accepted', 'payment_pending'].includes(project.status || '')
+                      && !quotes.some(q => q.status === 'accepted' && q.id !== quote.id) // Pas d'autre devis accepté
                       && !quoteRevisions.some(r => r.quote_id === quote.id && r.status === 'pending') && (
                       <div className="p-4 border-t border-gray-50">
                         <button
@@ -1792,7 +1794,9 @@ export function ProjectDetailsPage() {
                           Demander une révision
                         </button>
                         <p className="text-xs text-gray-500 text-center mt-2">
-                          Vous pouvez demander une modification du devis avant le début des travaux
+                          {quote.status === 'accepted' 
+                            ? 'Vous pouvez demander une modification du devis avant le début des travaux'
+                            : 'Vous pouvez demander une modification avant d\'accepter le devis'}
                         </p>
                       </div>
                     )}

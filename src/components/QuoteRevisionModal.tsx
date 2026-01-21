@@ -43,7 +43,7 @@ export function QuoteRevisionModal({
       }
 
       // Créer la demande de révision
-      const { error: revisionError } = await supabase
+      const { data: revisionData, error: revisionError } = await supabase
         .from('quote_revisions')
         .insert({
           quote_id: quoteId,
@@ -51,9 +51,37 @@ export function QuoteRevisionModal({
           requested_by: user.id,
           client_comments: comments.trim(),
           status: 'pending'
-        });
+        })
+        .select()
+        .single();
 
       if (revisionError) throw revisionError;
+
+      // Récupérer les infos du devis pour notifier l'artisan
+      const { data: quoteData } = await supabase
+        .from('quotes')
+        .select('artisan_id')
+        .eq('id', quoteId)
+        .single();
+
+      // Récupérer le nom du client
+      const { data: clientProfile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+
+      // Notifier l'artisan
+      if (quoteData?.artisan_id && revisionData) {
+        const { notifyArtisanRevisionRequested } = await import('../lib/notificationService');
+        await notifyArtisanRevisionRequested(
+          projectId,
+          quoteId,
+          quoteData.artisan_id,
+          clientProfile?.full_name || 'Un client',
+          revisionData.id
+        );
+      }
 
       success('Demande de révision envoyée avec succès');
       setComments('');
