@@ -6,6 +6,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useToastContext } from '../contexts/ToastContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { AffiliationSection } from '../components/AffiliationSection';
 import { supabase } from '../lib/supabase';
 
 const MAX_PHOTOS = 10;
@@ -109,7 +110,7 @@ export function EditProfilePage() {
   const { user } = auth;
   const { profile, loading: profileLoading, upsertProfile } = useProfile();
   const { categories } = useDiscovery();
-  const { error: showError } = useToastContext();
+  const { error: showError, success: showSuccess } = useToastContext();
   
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -483,7 +484,8 @@ export function EditProfilePage() {
           .update({ video_urls: updatedUrls })
           .eq('id', user.id);
         
-        success(`${newUrls.length} vidéo(s) uploadée(s) avec succès`);
+        // Utiliser showSuccess du contexte toast
+        showSuccess(`${newUrls.length} vidéo(s) uploadée(s) avec succès`);
       }
     } catch (err: any) {
       console.error('Video upload error:', err);
