@@ -23,18 +23,21 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Policy: Permettre l'upload aux utilisateurs authentifiés
+DROP POLICY IF EXISTS "Users can upload videos" ON storage.objects;
 CREATE POLICY "Users can upload videos"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'videos');
 
 -- Policy: Permettre la lecture publique
+DROP POLICY IF EXISTS "Public can read videos" ON storage.objects;
 CREATE POLICY "Public can read videos"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'videos');
 
 -- Policy: Permettre la suppression aux utilisateurs authentifiés (leurs propres fichiers)
+DROP POLICY IF EXISTS "Users can delete their own videos" ON storage.objects;
 CREATE POLICY "Users can delete their own videos"
 ON storage.objects FOR DELETE
 TO authenticated
