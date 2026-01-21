@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, Check, Clock, XCircle, Building2, FileText, Loader2 } from 'lucide-react';
+import { X, Check, Clock, XCircle, Building2, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 
@@ -8,6 +8,8 @@ interface Affiliation {
   affiliation_type: 'chambre' | 'incubateur' | 'sae' | 'autre';
   affiliation_name: string | null;
   affiliation_number: string | null;
+  ninea: string | null;
+  rccm: string | null;
   certificate_url: string | null;
   status: 'pending' | 'verified' | 'rejected';
   verified_at: string | null;
@@ -20,10 +22,9 @@ interface AffiliationSectionProps {
 }
 
 export function AffiliationSection({ artisanId }: AffiliationSectionProps) {
-  const { showSuccess, showError } = useToastContext();
+  const { success: showSuccess, error: showError } = useToastContext();
   const [affiliations, setAffiliations] = useState<Affiliation[]>([]);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null);
   
   // Formulaire pour nouvelle affiliation
   const [showForm, setShowForm] = useState(false);
@@ -72,44 +73,30 @@ export function AffiliationSection({ artisanId }: AffiliationSectionProps) {
     }
   };
 
-  const handleCertificateUpload = async (file: File): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${artisanId}/${Date.now()}.${fileExt}`;
-      const filePath = `affiliations/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file, { upsert: false });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
-
-      return data.publicUrl;
-    } catch (err: any) {
-      console.error('Error uploading certificate:', err);
-      throw err;
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!artisanId) return;
 
+    // Validation pour chambre de métier
+    if (affiliationType === 'chambre') {
+      if (!selectedChambre) {
+        showError('Veuillez sélectionner une chambre de métier');
+        return;
+      }
+      if (!ninea.trim()) {
+        showError('Le NINEA est obligatoire pour les chambres de métier');
+        return;
+      }
+      if (!rccm.trim()) {
+        showError('Le RCCM est obligatoire pour les chambres de métier');
+        return;
+      }
+    }
+
     setLoading(true);
-    setUploading('certificate');
 
     try {
-      let certificateUrl: string | null = null;
-
-      // Upload du certificat si fourni
-      if (certificateFile) {
-        certificateUrl = await handleCertificateUpload(certificateFile);
-      }
-
       // Déterminer le nom de l'affiliation
       let finalAffiliationName = affiliationName;
       if (affiliationType === 'chambre' && selectedChambre) {
@@ -125,7 +112,9 @@ export function AffiliationSection({ artisanId }: AffiliationSectionProps) {
           affiliation_type: affiliationType,
           affiliation_name: finalAffiliationName || null,
           affiliation_number: affiliationNumber || null,
-          certificate_url: certificateUrl,
+          ninea: ninea.trim() || null,
+          rccm: rccm.trim() || null,
+          certificate_url: null, // Plus besoin de certificat
           chambre_id: affiliationType === 'chambre' ? selectedChambre || null : null,
           status: 'pending',
         });
@@ -141,7 +130,6 @@ export function AffiliationSection({ artisanId }: AffiliationSectionProps) {
       showError(err.message || 'Erreur lors de la soumission de l\'affiliation');
     } finally {
       setLoading(false);
-      setUploading(null);
     }
   };
 
@@ -149,7 +137,8 @@ export function AffiliationSection({ artisanId }: AffiliationSectionProps) {
     setAffiliationType('chambre');
     setAffiliationName('');
     setAffiliationNumber('');
-    setCertificateFile(null);
+    setNinea('');
+    setRccm('');
     setSelectedChambre('');
   };
 
@@ -223,6 +212,12 @@ export function AffiliationSection({ artisanId }: AffiliationSectionProps) {
                   )}
                   {aff.affiliation_number && (
                     <p className="text-xs text-gray-500">N° {aff.affiliation_number}</p>
+                  )}
+                  {aff.ninea && (
+                    <p className="text-xs text-gray-500">NINEA: {aff.ninea}</p>
+                  )}
+                  {aff.rccm && (
+                    <p className="text-xs text-gray-500">RCCM: {aff.rccm}</p>
                   )}
                 </div>
                 {getStatusBadge(aff.status)}
@@ -415,10 +410,10 @@ export function AffiliationSection({ artisanId }: AffiliationSectionProps) {
               disabled={loading}
               className="flex-1 px-4 py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {loading && uploading ? (
+              {loading ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  Upload...
+                  Envoi...
                 </>
               ) : (
                 'Soumettre'
