@@ -136,17 +136,6 @@ export function ArtisanPublicProfilePage() {
         } : null
       });
 
-      // Fetch verified affiliations
-      const { data: affiliationsData } = await supabase
-        .from('artisan_affiliations')
-        .select('affiliation_type, affiliation_name')
-        .eq('artisan_id', id)
-        .eq('status', 'verified');
-
-      if (affiliationsData) {
-        setAffiliations(affiliationsData);
-      }
-
       // Fetch reviews for this artisan
       const { data: reviewsData } = await supabase
         .from('reviews')
@@ -187,6 +176,17 @@ export function ArtisanPublicProfilePage() {
         
         const tier = getTier(projectsCount || 0);
         setReviewStats({ count, avg: avg || 0, projectsCount: projectsCount || 0, tier });
+      }
+
+      // Charger les affiliations vérifiées
+      const { data: affiliationsData } = await supabase
+        .from('artisan_affiliations')
+        .select('affiliation_type, affiliation_name')
+        .eq('artisan_id', id)
+        .eq('status', 'verified');
+
+      if (affiliationsData) {
+        setAffiliations(affiliationsData);
       }
       
       setLoading(false);
