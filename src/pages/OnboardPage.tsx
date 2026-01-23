@@ -57,8 +57,11 @@ export function OnboardPage() {
   }, [searchParams, authMode]);
 
   const handleBack = () => {
-    // Toujours rediriger vers la landing page
-    navigate('/');
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
   };
 
   const handleRoleSelect = (selectedRole: ProfileRole) => {

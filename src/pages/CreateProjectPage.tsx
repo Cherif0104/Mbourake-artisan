@@ -191,38 +191,13 @@ export function CreateProjectPage() {
 
       // 2. Upload Video
       if (videoFile) {
-        const fileExt = videoFile.name.split('.').pop()?.toLowerCase() || 'mp4';
-        const fileName = `${auth.user.id}/projects/${Date.now()}-video.${fileExt}`;
-        
-        // Déterminer le contentType selon le type de fichier
-        let contentType = videoFile.type;
-        if (!contentType || contentType === 'application/octet-stream') {
-          // Déterminer le type MIME selon l'extension
-          const mimeTypes: Record<string, string> = {
-            'mp4': 'video/mp4',
-            'mov': 'video/quicktime',
-            'avi': 'video/x-msvideo',
-            'wmv': 'video/x-ms-wmv',
-            'webm': 'video/webm',
-            'ogg': 'video/ogg',
-            '3gp': 'video/3gpp',
-            'mkv': 'video/x-matroska',
-          };
-          contentType = mimeTypes[fileExt] || 'video/mp4';
-        }
-        
+        const fileName = `${auth.user.id}/projects/${Date.now()}-video.${videoFile.name.split('.').pop()}`;
         const { data: videoData, error: videoError } = await supabase.storage
-          .from('videos')
-          .upload(fileName, videoFile, {
-            contentType: contentType,
-            upsert: false
-          });
+          .from('photos')
+          .upload(fileName, videoFile);
         
-        if (videoError) {
-          console.error('Video upload error:', videoError);
-          throw new Error(`Erreur lors de l'upload de la vidéo: ${videoError.message}`);
-        }
-        videoUrl = supabase.storage.from('videos').getPublicUrl(videoData.path).data.publicUrl;
+        if (videoError) throw videoError;
+        videoUrl = supabase.storage.from('photos').getPublicUrl(videoData.path).data.publicUrl;
       }
 
       // 3. Upload Photos

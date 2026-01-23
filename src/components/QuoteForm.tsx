@@ -123,57 +123,31 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
 
       // Préparer les données du devis
       // S'assurer que tous les champs numériques sont bien des nombres
-      const quoteData: any = {
+      const quoteData = {
         project_id: projectId,
         artisan_id: artisanId,
         amount: Number(totalAmount) || 0,
         labor_cost: Number(labor) || 0,
         materials_cost: Number(materials) || 0,
         urgent_surcharge_percent: isUrgent ? Number(urgentSurchargePercent) : 0,
-        message: message?.trim() || null,
-        estimated_duration: estimatedDuration?.trim() || null,
-        validity_hours: validityHours ? Number(validityHours) : 48,
-        proposed_date: proposedDate?.trim() || null,
-        proposed_time_start: proposedTimeStart?.trim() || null,
-        proposed_time_end: proposedTimeEnd?.trim() || null,
+        message: message || null,
+        estimated_duration: estimatedDuration || null,
+        validity_hours: Number(validityHours) || 48,
+        proposed_date: proposedDate || null,
+        proposed_time_start: proposedTimeStart || null,
+        proposed_time_end: proposedTimeEnd || null,
         audio_message_url: audioUrl || null,
         proforma_url: proformaUrl || null,
-        status: 'pending',
+        status: 'pending' as const,
       };
-      
-      // Nettoyer les valeurs null/undefined pour éviter les erreurs
-      Object.keys(quoteData).forEach(key => {
-        if (quoteData[key] === undefined) {
-          delete quoteData[key];
-        }
-      });
 
       // Essayer d'insérer un nouveau devis
       let quoteId: string | null = null;
-      
-      // Log des données avant insertion pour debug
-      console.log('[DEBUG QuoteForm] Inserting quote with data:', {
-        project_id: quoteData.project_id,
-        artisan_id: quoteData.artisan_id,
-        amount: quoteData.amount,
-        status: quoteData.status
-      });
-      
       const { data: insertedQuote, error: insertError } = await supabase
         .from('quotes')
         .insert(quoteData)
         .select('id')
         .single();
-
-      // Log de l'erreur si présente
-      if (insertError) {
-        console.error('[DEBUG QuoteForm] Insert error:', {
-          code: insertError.code,
-          message: insertError.message,
-          details: insertError.details,
-          hint: insertError.hint
-        });
-      }
 
       // Si erreur 409 (conflit/contrainte unique), mettre à jour le devis existant le plus récent
       if (insertError && (insertError.code === '23505' || insertError.code === '409' || 
@@ -257,27 +231,11 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
           return; // Sortir sans erreur
         }
       } else if (insertError) {
-        // Autres erreurs - logger les détails et les laisser passer normalement
-        console.error('[DEBUG QuoteForm] Insert failed with error:', {
-          code: insertError.code,
-          message: insertError.message,
-          details: insertError.details,
-          hint: insertError.hint,
-          quoteData: quoteData
-        });
-        
-        // Améliorer le message d'erreur pour l'utilisateur
-        const errorMessage = insertError.message || 'Erreur inconnue';
-        const userFriendlyMessage = insertError.code === '23503' 
-          ? 'Erreur de référence : Le projet ou l\'artisan n\'existe pas'
-          : insertError.code === '23514'
-          ? 'Erreur de validation : Les données ne respectent pas les contraintes'
-          : insertError.hint || errorMessage;
-        
-        throw new Error(`Erreur lors de la création du devis: ${userFriendlyMessage}`);
-      } else if (!insertError && insertedQuote) {
+        // Autres erreurs - les laisser passer normalement
+        throw insertError;
+      } else {
         // Insertion réussie
-        quoteId = insertedQuote.id;
+        quoteId = insertedQuote?.id || null;
         console.log('[DEBUG QuoteForm] Quote created successfully:', quoteId);
       }
 

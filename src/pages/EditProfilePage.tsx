@@ -6,7 +6,6 @@ import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useToastContext } from '../contexts/ToastContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { AffiliationSection } from '../components/AffiliationSection';
 import { supabase } from '../lib/supabase';
 
 const MAX_PHOTOS = 10;
@@ -110,7 +109,7 @@ export function EditProfilePage() {
   const { user } = auth;
   const { profile, loading: profileLoading, upsertProfile } = useProfile();
   const { categories } = useDiscovery();
-  const { error: showError, success: showSuccess } = useToastContext();
+  const { error: showError } = useToastContext();
   
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -423,50 +422,19 @@ export function EditProfilePage() {
           continue;
         }
         
-        // Vérifier que c'est bien une vidéo (mais accepter même si le type n'est pas détecté)
-        const isVideo = file.type.startsWith('video/') || 
-                       /\.(mp4|mov|avi|wmv|webm|ogg|3gp|mkv)$/i.test(file.name);
+        if (!file.type.startsWith('video/')) continue;
         
-        if (!isVideo) {
-          showError(`Le fichier "${file.name}" n'est pas une vidéo valide`);
-          continue;
-        }
-        
-        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+        const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/videos/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
         
-        // Déterminer le contentType selon le type de fichier
-        let contentType = file.type;
-        if (!contentType || contentType === 'application/octet-stream') {
-          // Déterminer le type MIME selon l'extension
-          const mimeTypes: Record<string, string> = {
-            'mp4': 'video/mp4',
-            'mov': 'video/quicktime',
-            'avi': 'video/x-msvideo',
-            'wmv': 'video/x-ms-wmv',
-            'webm': 'video/webm',
-            'ogg': 'video/ogg',
-            '3gp': 'video/3gpp',
-            'mkv': 'video/x-matroska',
-          };
-          contentType = mimeTypes[fileExt] || 'video/mp4';
-        }
-        
         const { error } = await supabase.storage
-          .from('videos')
-          .upload(fileName, file, {
-            contentType: contentType,
-            upsert: false
-          });
+          .from('photos')
+          .upload(fileName, file);
         
-        if (error) {
-          console.error('Video upload error:', error);
-          showError(`Erreur lors de l'upload de "${file.name}": ${error.message}`);
-          continue;
-        }
+        if (error) continue;
         
         const { data: urlData } = supabase.storage
-          .from('videos')
+          .from('photos')
           .getPublicUrl(fileName);
         
         if (urlData?.publicUrl) {
@@ -483,13 +451,9 @@ export function EditProfilePage() {
           .from('artisans')
           .update({ video_urls: updatedUrls })
           .eq('id', user.id);
-        
-        // Utiliser showSuccess du contexte toast
-        showSuccess(`${newUrls.length} vidéo(s) uploadée(s) avec succès`);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Video upload error:', err);
-      showError(`Erreur: ${err.message || 'Impossible d\'uploader les vidéos'}`);
     }
     
     setUploadingVideo(false);
