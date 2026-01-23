@@ -5,7 +5,7 @@ import {
   Briefcase, Home, Settings, LogOut, CheckCircle, FileText,
   Send, Star, Search, Menu, X, Image, Video,
   MessageSquare, CreditCard, AlertCircle, Check, Eye,
-  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Receipt, Heart
+  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Receipt, Wallet
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -529,87 +529,68 @@ export function Dashboard() {
         {activeTab === 'home' && (
           <div className="space-y-5 animate-in fade-in duration-300">
             
-            {/* Alerte profil incomplet - Priorité 1 - Minimaliste */}
+            {/* Alertes simplifiées - Design minimaliste */}
             {needsProfileCompletion && (
               <button
                 onClick={() => navigate('/edit-profile?mode=onboarding')}
-                className="w-full bg-gradient-to-r from-brand-50 via-orange-50 to-brand-50 border border-brand-200 rounded-xl p-3.5 flex items-center gap-3 hover:shadow-md hover:shadow-brand-200/30 transition-all active:scale-[0.98]"
+                className="w-full bg-white border-2 border-brand-200 rounded-xl p-3 flex items-center gap-3 hover:border-brand-300 transition-all active:scale-[0.98]"
               >
-                <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm shadow-brand-200/30">
-                  <User size={18} className="text-white" />
+                <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <User size={16} className="text-brand-600" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-black text-gray-900 text-sm">
-                    Complétez votre profil
-                  </p>
-                  <p className="text-xs text-gray-600 mt-0.5">
-                    Ajoutez vos informations essentielles
-                  </p>
+                  <p className="font-bold text-gray-900 text-sm">Complétez votre profil</p>
                 </div>
-                <ChevronRight size={16} className="text-brand-400 flex-shrink-0" />
+                <ChevronRight size={14} className="text-gray-400" />
               </button>
             )}
             
-            {/* Alerte urgente (si applicable) - Priorité 2 - Minimaliste */}
             {urgentCount > 0 && !needsProfileCompletion && (
               <button 
                 onClick={() => setActiveTab('activity')}
-                className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-3.5 flex items-center gap-3 hover:shadow-sm transition-all active:scale-[0.98]"
+                className="w-full bg-white border-2 border-yellow-200 rounded-xl p-3 flex items-center gap-3 hover:border-yellow-300 transition-all active:scale-[0.98]"
               >
-                <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <AlertCircle size={18} className="text-yellow-600" />
+                <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertCircle size={16} className="text-yellow-600" />
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-bold text-gray-900 text-sm">
                     {urgentCount} action{urgentCount > 1 ? 's' : ''} en attente
                   </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {isArtisan ? 'Devis à consulter' : 'Devis à consulter'}
-                  </p>
                 </div>
-                <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+                <ChevronRight size={14} className="text-gray-400" />
               </button>
             )}
 
-            {/* Alerte vérification (artisans non vérifiés) - Priorité 3 - Minimaliste */}
             {isArtisan && verificationStatus === 'unverified' && !needsProfileCompletion && urgentCount === 0 && (
               <button 
                 onClick={() => navigate('/verification')}
-                className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex items-center gap-3 hover:shadow-sm transition-all active:scale-[0.98]"
+                className="w-full bg-white border-2 border-blue-200 rounded-xl p-3 flex items-center gap-3 hover:border-blue-300 transition-all active:scale-[0.98]"
               >
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Shield size={18} className="text-blue-600" />
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Shield size={16} className="text-blue-600" />
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-bold text-gray-900 text-sm">Faites-vous certifier</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Gagnez en confiance</p>
                 </div>
-                <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+                <ChevronRight size={14} className="text-gray-400" />
               </button>
             )}
 
-            {/* Carte solde de crédits (pour artisans uniquement) - Minimaliste - Affichée seulement si < 20 crédits */}
             {isArtisan && creditBalance !== null && creditBalance < 20 && (
               <button
                 onClick={() => navigate('/credits')}
-                className="w-full bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 rounded-xl p-3.5 shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+                className="w-full bg-white border-2 border-purple-200 rounded-xl p-3 flex items-center gap-3 hover:border-purple-300 transition-all active:scale-[0.98]"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-purple-500/30">
-                      <CreditCard size={18} className="text-white" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-0.5">Crédits</p>
-                      <p className="text-lg font-black text-gray-900">
-                        {creditBalance} <span className="text-xs font-bold text-gray-600">restants</span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="px-3 py-1.5 bg-white text-purple-600 rounded-lg font-bold text-xs shadow-sm border border-purple-200">
-                    Recharger
-                  </div>
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <CreditCard size={16} className="text-purple-600" />
                 </div>
+                <div className="flex-1 text-left">
+                  <p className="font-bold text-gray-900 text-sm">
+                    {creditBalance} crédit{creditBalance > 1 ? 's' : ''} restant{creditBalance > 1 ? 's' : ''}
+                  </p>
+                </div>
+                <ChevronRight size={14} className="text-gray-400" />
               </button>
             )}
 
@@ -639,55 +620,37 @@ export function Dashboard() {
               </button>
             </div>
 
-            {/* Stats essentielles (2 maximum) - Modernisées - Mobile-first avec icônes plus grandes - Simplifiées - Cliquables */}
+            {/* Stats simplifiées - Design minimaliste */}
             {(activeCount > 0 || completedCount > 0) && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setActiveTab('activity')}
-                  className="bg-white rounded-3xl p-5 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all active:scale-[0.98] text-left min-h-[120px]"
+                  className="bg-white rounded-xl p-4 border border-gray-100 hover:border-brand-200 hover:shadow-sm transition-all active:scale-[0.98] text-left"
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-14 h-14 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center shadow-md shadow-brand-200/50">
-                      {isArtisan ? <Send size={24} className="text-white" /> : <Briefcase size={24} className="text-white" />}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
+                      {isArtisan ? <Send size={16} className="text-brand-600" /> : <Briefcase size={16} className="text-brand-600" />}
                     </div>
                   </div>
-                  <p className="text-3xl font-black text-gray-900 mb-1">{activeCount}</p>
-                  <p className="text-sm font-bold text-gray-600">
+                  <p className="text-2xl font-black text-gray-900 mb-1">{activeCount}</p>
+                  <p className="text-xs font-medium text-gray-600">
                     {isArtisan ? 'Devis actifs' : 'En cours'}
                   </p>
-                  {/* Barre de progression visuelle */}
-                  {activeCount > 0 && (
-                    <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min((activeCount / (activeCount + completedCount)) * 100, 100)}%` }}
-                      />
-                    </div>
-                  )}
                 </button>
                 
                 <button
                   onClick={() => setActiveTab('activity')}
-                  className="bg-white rounded-3xl p-5 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all active:scale-[0.98] text-left min-h-[120px]"
+                  className="bg-white rounded-xl p-4 border border-gray-100 hover:border-green-200 hover:shadow-sm transition-all active:scale-[0.98] text-left"
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-14 h-14 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center shadow-md shadow-green-200/50">
-                      <CheckCircle size={24} className="text-white" />
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                      <CheckCircle size={16} className="text-green-600" />
                     </div>
                   </div>
-                  <p className="text-3xl font-black text-gray-900 mb-1">{completedCount}</p>
-                  <p className="text-sm font-bold text-gray-600">
+                  <p className="text-2xl font-black text-gray-900 mb-1">{completedCount}</p>
+                  <p className="text-xs font-medium text-gray-600">
                     {isArtisan ? 'Acceptés' : 'Terminés'}
                   </p>
-                  {/* Barre de progression visuelle */}
-                  {completedCount > 0 && (
-                    <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min((completedCount / (activeCount + completedCount)) * 100, 100)}%` }}
-                      />
-                    </div>
-                  )}
                 </button>
               </div>
             )}
@@ -1138,32 +1101,18 @@ export function Dashboard() {
             );
           })}
 
-          {/* Boutons supplémentaires : Favoris, Dépenses, Factures */}
+          {/* Boutons supplémentaires : Messagerie, Finances */}
           <button
             type="button"
-            onClick={() => navigate('/favorites')}
+            onClick={() => navigate('/conversations')}
             className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
-            aria-label="Favoris"
+            aria-label="Messagerie"
           >
             <div className="relative scale-100 transition-transform duration-200">
-              <Heart size={22} strokeWidth={2} className="text-gray-400" />
+              <MessageSquare size={22} strokeWidth={2} className="text-gray-400" />
             </div>
             <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
-              Favoris
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate('/expenses')}
-            className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
-            aria-label="Dépenses"
-          >
-            <div className="relative scale-100 transition-transform duration-200">
-              <Receipt size={22} strokeWidth={2} className="text-gray-400" />
-            </div>
-            <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
-              Dépenses
+              Messages
             </span>
           </button>
 
@@ -1171,13 +1120,13 @@ export function Dashboard() {
             type="button"
             onClick={() => navigate('/invoices')}
             className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
-            aria-label="Factures"
+            aria-label="Finances"
           >
             <div className="relative scale-100 transition-transform duration-200">
-              <FileText size={22} strokeWidth={2} className="text-gray-400" />
+              <Wallet size={22} strokeWidth={2} className="text-gray-400" />
             </div>
             <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
-              Factures
+              Finances
             </span>
           </button>
         </div>
