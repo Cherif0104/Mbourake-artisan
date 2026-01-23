@@ -421,16 +421,6 @@ export function Dashboard() {
             {/* Actions rapides - Toujours visibles - Mobile-first (min 44px) */}
             <div className="flex items-center gap-2">
               <NotificationBell />
-              
-              {/* Bouton Explorer - Agrandi pour mobile-first */}
-              <button 
-                onClick={() => navigate('/')}
-                className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-brand-100 hover:text-brand-600 active:scale-95 transition-all shadow-sm"
-                aria-label="Explorer"
-                title="Explorer les projets/artisans"
-              >
-                <Search size={22} />
-              </button>
 
               {/* Bouton Paramètres/Profil - Agrandi pour mobile-first */}
               <div className="relative">
