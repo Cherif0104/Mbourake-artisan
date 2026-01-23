@@ -923,7 +923,12 @@ export function Dashboard() {
                           </div>
                           <div className="flex gap-2">
                             <button
-                              onClick={() => navigate('/revisions')}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigate('/revisions');
+                              }}
                               className="flex-1 bg-brand-500 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-brand-600 transition-colors flex items-center justify-center gap-2"
                             >
                               <FileText size={14} />
