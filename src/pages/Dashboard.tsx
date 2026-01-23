@@ -418,28 +418,28 @@ export function Dashboard() {
               </div>
             </div>
 
-            {/* Actions rapides - Toujours visibles */}
+            {/* Actions rapides - Toujours visibles - Mobile-first (min 44px) */}
             <div className="flex items-center gap-2">
               <NotificationBell />
               
-              {/* Bouton Explorer - Agrandi */}
+              {/* Bouton Explorer - Agrandi pour mobile-first */}
               <button 
                 onClick={() => navigate('/')}
-                className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-brand-100 hover:text-brand-600 transition-all shadow-sm"
+                className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-brand-100 hover:text-brand-600 active:scale-95 transition-all shadow-sm"
                 aria-label="Explorer"
                 title="Explorer les projets/artisans"
               >
-                <Search size={20} />
+                <Search size={22} />
               </button>
 
-              {/* Bouton Paramètres/Profil - Agrandi */}
+              {/* Bouton Paramètres/Profil - Agrandi pour mobile-first */}
               <div className="relative">
                 <button 
                   onClick={() => setShowMenu(!showMenu)}
-                  className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-all shadow-sm"
+                  className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 active:scale-95 transition-all shadow-sm"
                   aria-label="Options"
                 >
-                  {showMenu ? <X size={20} /> : <Settings size={20} />}
+                  {showMenu ? <X size={22} /> : <Settings size={22} />}
                 </button>
                 
                 {/* Menu simplifié - Seulement les actions importantes */}
@@ -475,45 +475,45 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Ligne 2: Actions rapides principales - UNIQUEMENT pour les artisans */}
+          {/* Ligne 2: Actions rapides principales - UNIQUEMENT pour les artisans - Mobile-first */}
           {isArtisan && (
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100/50">
-              {/* Bouton Vérification (pour artisans non vérifiés) */}
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100/50 overflow-x-auto pb-1">
+              {/* Bouton Vérification (pour artisans non vérifiés) - Agrandi */}
               {verificationStatus === 'unverified' && (
                 <button
                   onClick={() => navigate('/verification')}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors whitespace-nowrap flex-shrink-0 border border-blue-200 shadow-sm"
+                  className="flex items-center gap-2 px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-100 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 border border-blue-200 shadow-sm min-h-[44px]"
                 >
-                  <Shield size={18} />
+                  <Shield size={20} />
                   Se vérifier
                 </button>
               )}
 
-              {/* Bouton Portfolio (pour artisans) */}
+              {/* Bouton Portfolio (pour artisans) - Agrandi */}
               <button
                 onClick={() => navigate('/edit-profile?tab=portfolio')}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors whitespace-nowrap flex-shrink-0 shadow-sm"
+                className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 shadow-sm min-h-[44px]"
               >
-                <Image size={18} />
+                <Image size={20} />
                 Portfolio
               </button>
 
-              {/* Bouton Explorer (toujours visible) */}
+              {/* Bouton Explorer (toujours visible) - Agrandi */}
               <button
                 onClick={() => navigate('/')}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors whitespace-nowrap flex-shrink-0 shadow-sm"
+                className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 shadow-sm min-h-[44px]"
               >
-                <Search size={18} />
+                <Search size={20} />
                 Explorer
               </button>
 
-              {/* Menu "Plus" pour les actions secondaires */}
+              {/* Menu "Plus" pour les actions secondaires - Agrandi */}
               <div className="relative">
                 <button
                   onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors whitespace-nowrap flex-shrink-0 shadow-sm"
+                  className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 shadow-sm min-h-[44px]"
                 >
-                  <MoreVertical size={18} />
+                  <MoreVertical size={20} />
                   Plus
                 </button>
 
@@ -547,14 +547,14 @@ export function Dashboard() {
             </div>
           )}
 
-          {/* Bouton Créer projet pour clients - Intégré dans le header */}
+          {/* Bouton Créer projet pour clients - Intégré dans le header - Mobile-first */}
           {!isArtisan && (
             <div className="mt-3 pt-3 border-t border-gray-100/50">
               <button
                 onClick={() => navigate('/create-project')}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors shadow-md shadow-brand-500/30"
+                className="w-full flex items-center justify-center gap-2 px-5 py-4 bg-brand-500 text-white rounded-xl font-bold text-base hover:bg-brand-600 active:scale-95 transition-all shadow-md shadow-brand-500/30 min-h-[48px]"
               >
-                <PlusCircle size={20} />
+                <PlusCircle size={22} />
                 Nouveau projet
               </button>
             </div>
@@ -580,14 +580,14 @@ export function Dashboard() {
         {activeTab === 'home' && (
           <div className="space-y-6 animate-in fade-in duration-300">
             
-            {/* Alerte profil incomplet - Modernisée */}
+            {/* Alerte profil incomplet - Modernisée - Mobile-first avec icône plus grande */}
             {needsProfileCompletion && (
               <button
                 onClick={() => navigate('/edit-profile?mode=onboarding')}
                 className="w-full bg-gradient-to-r from-brand-50 via-orange-50 to-brand-50 border-2 border-brand-200 rounded-3xl p-5 flex items-center gap-4 hover:shadow-xl hover:shadow-brand-200/50 transition-all active:scale-[0.98]"
               >
-                <div className="w-14 h-14 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md shadow-brand-200/50">
-                  <User size={24} className="text-white" />
+                <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md shadow-brand-200/50">
+                  <User size={28} className="text-white" />
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-black text-gray-900 text-base">
@@ -597,82 +597,79 @@ export function Dashboard() {
                     Ajoutez vos informations essentielles pour profiter pleinement de Mbouraké.
                   </p>
                 </div>
-                <ChevronRight size={22} className="text-brand-400" />
+                <ChevronRight size={24} className="text-brand-400 flex-shrink-0" />
               </button>
             )}
             
-            {/* Alerte urgente (si applicable) */}
+            {/* Alerte urgente (si applicable) - Mobile-first avec icône plus grande */}
             {urgentCount > 0 && (
               <button 
                 onClick={() => setActiveTab('activity')}
-                className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl p-4 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
+                className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
               >
-                <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <AlertCircle size={24} className="text-yellow-600" />
+                <div className="w-14 h-14 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <AlertCircle size={28} className="text-yellow-600" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-bold text-gray-900">
+                  <p className="font-bold text-gray-900 text-base">
                     {urgentCount} action{urgentCount > 1 ? 's' : ''} en attente
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 mt-0.5">
                     {isArtisan ? 'Devis à consulter' : 'Devis à consulter'}
                   </p>
                 </div>
-                <ChevronRight size={20} className="text-gray-400" />
+                <ChevronRight size={22} className="text-gray-400 flex-shrink-0" />
               </button>
             )}
 
-            {/* Alerte vérification (artisans non vérifiés) */}
+            {/* Alerte vérification (artisans non vérifiés) - Mobile-first avec icône plus grande */}
             {isArtisan && verificationStatus === 'unverified' && (
               <button 
                 onClick={() => navigate('/verification')}
-                className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
+                className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
               >
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Shield size={24} className="text-blue-600" />
+                <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Shield size={28} className="text-blue-600" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-bold text-gray-900">Faites-vous certifier</p>
-                  <p className="text-sm text-gray-500">Gagnez en confiance et avantages</p>
+                  <p className="font-bold text-gray-900 text-base">Faites-vous certifier</p>
+                  <p className="text-sm text-gray-500 mt-0.5">Gagnez en confiance et avantages</p>
                 </div>
-                <ChevronRight size={20} className="text-gray-400" />
+                <ChevronRight size={22} className="text-gray-400 flex-shrink-0" />
               </button>
             )}
 
-            {/* Carte solde de crédits (pour artisans uniquement) - Modernisée */}
-            {isArtisan && creditBalance !== null && (
-              <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-200 rounded-3xl p-6 shadow-lg shadow-purple-200/30 hover:shadow-xl hover:shadow-purple-200/50 transition-all">
-                <div className="flex items-center justify-between mb-4">
+            {/* Carte solde de crédits (pour artisans uniquement) - Modernisée - Simplifiée */}
+            {isArtisan && creditBalance !== null && creditBalance < 20 && (
+              <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-200 rounded-3xl p-5 shadow-lg shadow-purple-200/30 hover:shadow-xl hover:shadow-purple-200/50 transition-all active:scale-[0.98]">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/40">
-                      <CreditCard size={24} className="text-white" />
+                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/40">
+                      <CreditCard size={28} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-purple-600 uppercase tracking-wide mb-1">Solde de crédits</p>
-                      <p className="text-3xl font-black text-gray-900">
-                        {creditBalance} <span className="text-base font-bold text-gray-600">crédits</span>
+                      <p className="text-xs font-bold text-purple-600 uppercase tracking-wide mb-1">Crédits</p>
+                      <p className="text-2xl font-black text-gray-900">
+                        {creditBalance} <span className="text-sm font-bold text-gray-600">restants</span>
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => navigate('/credits')}
-                    className="px-5 py-2.5 bg-white text-purple-600 rounded-xl font-bold text-sm hover:bg-purple-50 transition-colors shadow-md border border-purple-200"
+                    className="px-4 py-3 bg-white text-purple-600 rounded-xl font-bold text-sm hover:bg-purple-50 active:scale-95 transition-all shadow-md border border-purple-200 min-h-[44px]"
                   >
                     Recharger
                   </button>
                 </div>
-                <p className="text-xs text-gray-600 mt-2 font-medium">
-                  10 crédits consommés par projet accepté. Les crédits ne sont pas remboursables.
-                </p>
               </div>
             )}
 
-            {/* Stats essentielles (2 maximum) - Modernisées */}
+            {/* Stats essentielles (2 maximum) - Modernisées - Mobile-first avec icônes plus grandes */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center shadow-md shadow-brand-200/50">
-                    {isArtisan ? <Send size={20} className="text-white" /> : <Briefcase size={20} className="text-white" />}
+              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all active:scale-[0.98]">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-14 h-14 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center shadow-md shadow-brand-200/50">
+                    {isArtisan ? <Send size={24} className="text-white" /> : <Briefcase size={24} className="text-white" />}
                   </div>
                 </div>
                 <p className="text-3xl font-black text-gray-900">{activeCount}</p>
@@ -681,10 +678,10 @@ export function Dashboard() {
                 </p>
               </div>
               
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center shadow-md shadow-green-200/50">
-                    <CheckCircle size={20} className="text-white" />
+              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all active:scale-[0.98]">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-14 h-14 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center shadow-md shadow-green-200/50">
+                    <CheckCircle size={24} className="text-white" />
                   </div>
                 </div>
                 <p className="text-3xl font-black text-gray-900">{completedCount}</p>
@@ -694,19 +691,21 @@ export function Dashboard() {
               </div>
             </div>
 
-            {/* Section principale selon le rôle */}
+            {/* Section principale selon le rôle - Simplifiée */}
             {isArtisan ? (
               /* ===== ARTISAN: Projets disponibles ===== */
               <section>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Projets disponibles</h2>
-                  <button 
-                    onClick={() => navigate('/artisans')}
-                    className="text-sm text-brand-500 font-bold flex items-center gap-1"
-                  >
-                    Voir plus
-                    <ArrowRight size={14} />
-                  </button>
+                  <h2 className="text-lg font-black text-gray-900">Nouveaux projets</h2>
+                  {projects.length > 3 && (
+                    <button 
+                      onClick={() => navigate('/')}
+                      className="text-sm text-brand-500 font-bold flex items-center gap-1.5 min-h-[32px] px-2"
+                    >
+                      Voir tout
+                      <ArrowRight size={16} />
+                    </button>
+                  )}
                 </div>
                 
                 {loading ? (
@@ -733,7 +732,7 @@ export function Dashboard() {
                           document.body.scrollTop = 0;
                           navigate(`/projects/${project.id}`);
                         }}
-                        className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99]"
+                        className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99] min-h-[120px]"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <span className="px-3 py-1.5 bg-gradient-to-r from-brand-50 to-brand-100 text-brand-700 text-xs font-black rounded-xl border border-brand-200">
@@ -743,10 +742,10 @@ export function Dashboard() {
                             {new Date(project.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
                           </span>
                         </div>
-                        <h3 className="font-black text-gray-900 mb-3 line-clamp-1 text-base">{project.title}</h3>
+                        <h3 className="font-black text-gray-900 mb-3 line-clamp-2 text-base leading-tight">{project.title}</h3>
                         <div className="flex items-center gap-3 text-sm text-gray-600">
                           <span className="flex items-center gap-1.5 font-medium">
-                            <MapPin size={16} className="text-brand-500" />
+                            <MapPin size={18} className="text-brand-500" />
                             {project.location || 'Sénégal'}
                           </span>
                         </div>
@@ -759,14 +758,14 @@ export function Dashboard() {
               /* ===== CLIENT: Mes projets ===== */
               <section>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Mes projets</h2>
-                  {projects.length > 0 && (
+                  <h2 className="text-lg font-black text-gray-900">Mes projets</h2>
+                  {projects.length > 3 && (
                     <button 
                       onClick={() => setActiveTab('activity')}
-                      className="text-sm text-brand-500 font-bold flex items-center gap-1"
+                      className="text-sm text-brand-500 font-bold flex items-center gap-1.5 min-h-[32px] px-2"
                     >
                       Tout voir
-                      <ArrowRight size={14} />
+                      <ArrowRight size={16} />
                     </button>
                   )}
                 </div>
@@ -799,26 +798,26 @@ export function Dashboard() {
                           document.body.scrollTop = 0;
                           navigate(`/projects/${project.id}`);
                         }}
-                          className="w-full bg-white rounded-2xl p-4 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99]"
+                          className="w-full bg-white rounded-2xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99] min-h-[120px]"
                         >
                           <div className="flex items-start justify-between mb-3">
-                            <span className="px-3 py-1 bg-brand-50 text-brand-700 text-xs font-bold rounded-lg">
+                            <span className="px-3 py-1.5 bg-brand-50 text-brand-700 text-xs font-bold rounded-lg">
                               {project.categories?.name}
                             </span>
-                            <span className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${status.color}`}>
+                            <span className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 ${status.color}`}>
                               {status.icon}
                               {status.label}
                             </span>
                           </div>
-                          <h3 className="font-bold text-gray-900 mb-2 line-clamp-1">{project.title}</h3>
+                          <h3 className="font-bold text-gray-900 mb-3 line-clamp-2 text-base leading-tight">{project.title}</h3>
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-500 flex items-center gap-1">
-                              <Calendar size={14} />
+                            <span className="text-gray-500 flex items-center gap-1.5">
+                              <Calendar size={16} />
                               {new Date(project.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
                             </span>
                             {hasQuotes && (
-                              <span className="text-purple-600 font-bold flex items-center gap-1">
-                                <FileText size={14} />
+                              <span className="text-purple-600 font-bold flex items-center gap-1.5">
+                                <FileText size={16} />
                                 {project.quotes.length} devis
                               </span>
                             )}
@@ -974,7 +973,7 @@ export function Dashboard() {
                               document.body.scrollTop = 0;
                               navigate(`/projects/${quote.project_id}`);
                             }}
-                          className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99]"
+                          className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99] min-h-[140px]"
                         >
                           <div className="flex items-start justify-between mb-3">
                             <span className="text-xs text-gray-500 font-mono bg-gray-100 px-3 py-1.5 rounded-xl font-bold">
@@ -985,7 +984,7 @@ export function Dashboard() {
                               {status.label}
                             </span>
                           </div>
-                          <h3 className="font-black text-gray-900 mb-3 text-base">{quote.projects?.title}</h3>
+                          <h3 className="font-black text-gray-900 mb-3 text-base leading-tight line-clamp-2">{quote.projects?.title}</h3>
                           {quote.status === 'rejected' && quote.rejection_reason && (
                             <div className="mb-3 flex items-start gap-2 bg-red-50 border-2 border-red-200 rounded-xl p-3">
                               <span className="text-xs font-black text-red-700">❌ Refusé</span>
@@ -1210,7 +1209,7 @@ export function Dashboard() {
 
       {/* ============== BOTTOM NAVIGATION MODERNISÉE AGRANDIE ============== */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200/50 z-30 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-        <div className="max-w-lg mx-auto px-4 py-3.5 flex items-center justify-around">
+        <div className="max-w-lg mx-auto px-4 py-3.5 flex items-center justify-around bg-white border-t border-gray-100">
           {[
             { id: 'home' as TabId, icon: Home, label: 'Accueil' },
             { id: 'activity' as TabId, icon: isArtisan ? Send : Briefcase, label: isArtisan ? 'Devis' : 'Projets', badge: urgentCount },
