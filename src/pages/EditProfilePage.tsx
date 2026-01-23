@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search } from 'lucide-react';
+import { Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
@@ -844,16 +844,10 @@ export function EditProfilePage() {
         <div className="max-w-lg mx-auto px-4 py-4">
           <div className="flex items-center gap-4 mb-4">
             <button 
-              onClick={() => {
-                if (isOnboarding) {
-                  navigate('/');
-                } else {
-                  navigate('/dashboard');
-                }
-              }}
-              className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
+              onClick={() => navigate('/dashboard')}
+              className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
             >
-              <ArrowLeft size={20} />
+              <User size={20} />
             </button>
             <h1 className="font-bold text-gray-900 flex-1">
               {isOnboarding
