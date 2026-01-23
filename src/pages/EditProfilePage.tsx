@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search, Building2 } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
@@ -177,7 +177,6 @@ export function EditProfilePage() {
         { id: 2, title: 'Localisation', icon: MapPin },
         { id: 3, title: 'Informations professionnelles', icon: Briefcase },
         { id: 4, title: 'Portfolio', icon: Image },
-        { id: 5, title: 'Affiliation', icon: Building2 },
       ];
     } else {
       return [
@@ -642,12 +641,18 @@ export function EditProfilePage() {
         localStorage.removeItem('mbourake_pending_mode');
       }
       
+      // Rediriger vers l'accueil (dashboard) après sauvegarde
       // Utiliser window.location au lieu de navigate pour éviter l'erreur removeChild
       // lors de la navigation après sauvegarde
       setTimeout(() => {
         try {
           if (isMounted && typeof window !== 'undefined') {
-            window.location.href = '/dashboard';
+            // Si on vient de l'étape Portfolio (onboarding), rediriger vers l'accueil
+            if (isOnboarding && currentStep === 4) {
+              window.location.href = '/dashboard';
+            } else {
+              window.location.href = '/dashboard';
+            }
           }
         } catch (e) {
           console.warn('[EditProfilePage] Erreur lors de la navigation:', e);
@@ -704,8 +709,6 @@ export function EditProfilePage() {
         return !!categoryId;
       case 4: // Portfolio (artisan uniquement, optionnel)
         return true;
-      case 5: // Affiliation (artisan uniquement, optionnel)
-        return true;
       default:
         return true;
     }
@@ -716,7 +719,15 @@ export function EditProfilePage() {
 
   const handleNext = () => {
     if (!isMounted) return; // Éviter les actions si le composant est en train de se démonter
-    if (!canGoToNextStep || currentStep >= totalSteps) return;
+    if (!canGoToNextStep) return;
+    
+    // Si on est à l'étape Portfolio (étape 4) pour un artisan, sauvegarder et rediriger vers l'accueil
+    if (currentStep === 4 && isArtisan) {
+      handleSubmit();
+      return;
+    }
+    
+    if (currentStep >= totalSteps) return;
     
     try {
       // Fermer le dropdown de recherche avant de changer d'étape
@@ -1358,13 +1369,6 @@ export function EditProfilePage() {
             </div>
           )}
 
-          {/* ÉTAPE 5 : Affiliation (artisan uniquement) */}
-          {currentStep === 5 && isArtisan && isMounted && user?.id && (
-            <div key="step-5" className="animate-in fade-in slide-in-from-right-4">
-              <h2 className="text-xl font-black text-gray-900 mb-6">Affiliation</h2>
-              <AffiliationSection artisanId={user.id} />
-            </div>
-          )}
 
           {/* Boutons de navigation */}
           <ErrorBoundary>
@@ -1384,11 +1388,20 @@ export function EditProfilePage() {
                   <button
                     type="button"
                     onClick={handleNext}
-                    disabled={!canGoToNextStep}
+                    disabled={!canGoToNextStep || loading}
                     className="flex-1 flex items-center justify-center gap-2 bg-brand-500 text-white rounded-xl py-3 font-bold hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Suivant
-                    <ChevronRight size={20} />
+                    {loading && currentStep === 4 && isArtisan ? (
+                      <>
+                        <Loader2 size={20} className="animate-spin" />
+                        Enregistrement...
+                      </>
+                    ) : (
+                      <>
+                        Suivant
+                        <ChevronRight size={20} />
+                      </>
+                    )}
                   </button>
                 ) : (
                 <button
