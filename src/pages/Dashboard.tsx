@@ -570,84 +570,84 @@ export function Dashboard() {
         {activeTab === 'home' && (
           <div className="space-y-5 animate-in fade-in duration-300">
             
-            {/* Alerte profil incomplet - Priorité 1 - Mobile-first avec icône plus grande */}
+            {/* Alerte profil incomplet - Priorité 1 - Minimaliste */}
             {needsProfileCompletion && (
               <button
                 onClick={() => navigate('/edit-profile?mode=onboarding')}
-                className="w-full bg-gradient-to-r from-brand-50 via-orange-50 to-brand-50 border-2 border-brand-200 rounded-3xl p-5 flex items-center gap-4 hover:shadow-xl hover:shadow-brand-200/50 transition-all active:scale-[0.98]"
+                className="w-full bg-gradient-to-r from-brand-50 via-orange-50 to-brand-50 border border-brand-200 rounded-xl p-3.5 flex items-center gap-3 hover:shadow-md hover:shadow-brand-200/30 transition-all active:scale-[0.98]"
               >
-                <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md shadow-brand-200/50">
-                  <User size={28} className="text-white" />
+                <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm shadow-brand-200/30">
+                  <User size={18} className="text-white" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-black text-gray-900 text-base">
+                  <p className="font-black text-gray-900 text-sm">
                     Complétez votre profil
                   </p>
-                  <p className="text-sm text-gray-600 mt-0.5">
+                  <p className="text-xs text-gray-600 mt-0.5">
                     Ajoutez vos informations essentielles
                   </p>
                 </div>
-                <ChevronRight size={24} className="text-brand-400 flex-shrink-0" />
+                <ChevronRight size={16} className="text-brand-400 flex-shrink-0" />
               </button>
             )}
             
-            {/* Alerte urgente (si applicable) - Priorité 2 - Mobile-first avec icône plus grande */}
+            {/* Alerte urgente (si applicable) - Priorité 2 - Minimaliste */}
             {urgentCount > 0 && !needsProfileCompletion && (
               <button 
                 onClick={() => setActiveTab('activity')}
-                className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
+                className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-3.5 flex items-center gap-3 hover:shadow-sm transition-all active:scale-[0.98]"
               >
-                <div className="w-14 h-14 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <AlertCircle size={28} className="text-yellow-600" />
+                <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertCircle size={18} className="text-yellow-600" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-bold text-gray-900 text-base">
+                  <p className="font-bold text-gray-900 text-sm">
                     {urgentCount} action{urgentCount > 1 ? 's' : ''} en attente
                   </p>
-                  <p className="text-sm text-gray-500 mt-0.5">
+                  <p className="text-xs text-gray-500 mt-0.5">
                     {isArtisan ? 'Devis à consulter' : 'Devis à consulter'}
                   </p>
                 </div>
-                <ChevronRight size={22} className="text-gray-400 flex-shrink-0" />
+                <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
               </button>
             )}
 
-            {/* Alerte vérification (artisans non vérifiés) - Priorité 3 - Mobile-first avec icône plus grande */}
+            {/* Alerte vérification (artisans non vérifiés) - Priorité 3 - Minimaliste */}
             {isArtisan && verificationStatus === 'unverified' && !needsProfileCompletion && urgentCount === 0 && (
               <button 
                 onClick={() => navigate('/verification')}
-                className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
+                className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex items-center gap-3 hover:shadow-sm transition-all active:scale-[0.98]"
               >
-                <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Shield size={28} className="text-blue-600" />
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Shield size={18} className="text-blue-600" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-bold text-gray-900 text-base">Faites-vous certifier</p>
-                  <p className="text-sm text-gray-500 mt-0.5">Gagnez en confiance</p>
+                  <p className="font-bold text-gray-900 text-sm">Faites-vous certifier</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Gagnez en confiance</p>
                 </div>
-                <ChevronRight size={22} className="text-gray-400 flex-shrink-0" />
+                <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
               </button>
             )}
 
-            {/* Carte solde de crédits (pour artisans uniquement) - Modernisée - Simplifiée - Affichée seulement si < 20 crédits */}
+            {/* Carte solde de crédits (pour artisans uniquement) - Minimaliste - Affichée seulement si < 20 crédits */}
             {isArtisan && creditBalance !== null && creditBalance < 20 && (
               <button
                 onClick={() => navigate('/credits')}
-                className="w-full bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-200 rounded-3xl p-5 shadow-lg shadow-purple-200/30 hover:shadow-xl hover:shadow-purple-200/50 transition-all active:scale-[0.98]"
+                className="w-full bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 rounded-xl p-3.5 shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/40">
-                      <CreditCard size={28} className="text-white" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-purple-500/30">
+                      <CreditCard size={18} className="text-white" />
                     </div>
                     <div className="text-left">
-                      <p className="text-xs font-bold text-purple-600 uppercase tracking-wide mb-1">Crédits</p>
-                      <p className="text-2xl font-black text-gray-900">
-                        {creditBalance} <span className="text-sm font-bold text-gray-600">restants</span>
+                      <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-0.5">Crédits</p>
+                      <p className="text-lg font-black text-gray-900">
+                        {creditBalance} <span className="text-xs font-bold text-gray-600">restants</span>
                       </p>
                     </div>
                   </div>
-                  <div className="px-4 py-2 bg-white text-purple-600 rounded-xl font-bold text-sm shadow-md border border-purple-200">
+                  <div className="px-3 py-1.5 bg-white text-purple-600 rounded-lg font-bold text-xs shadow-sm border border-purple-200">
                     Recharger
                   </div>
                 </div>
