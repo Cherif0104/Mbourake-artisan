@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Star, MapPin, Phone, Mail, Shield, CheckCircle,
   Heart, Share2, MessageSquare, Calendar, Clock, Image, Video,
@@ -54,6 +54,7 @@ interface ArtisanProfile {
 export function ArtisanPublicProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { profile: currentUserProfile } = useProfile();
   const { success, error: showError } = useToastContext();
@@ -249,6 +250,24 @@ export function ArtisanPublicProfilePage() {
   const portfolioVideos = artisan?.artisan?.video_urls || [];
   const isClient = currentUserProfile?.role === 'client';
 
+  // Si on arrive avec ?focus=portfolio, scroller vers la section portfolio après chargement.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const focus = params.get('focus');
+    if (focus !== 'portfolio') return;
+    if (loading) return;
+
+    // Attendre un tick pour que le DOM soit prêt
+    const t = window.setTimeout(() => {
+      const el = document.getElementById('portfolio');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+
+    return () => window.clearTimeout(t);
+  }, [location.search, loading]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -418,7 +437,7 @@ export function ArtisanPublicProfilePage() {
 
         {/* Portfolio Photos */}
         {portfolioPhotos.length > 0 && (
-          <section className="bg-white border-b px-6 py-6">
+          <section id="portfolio" className="bg-white border-b px-6 py-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900 flex items-center gap-2">
                 <Image size={18} className="text-brand-500" />
@@ -448,7 +467,7 @@ export function ArtisanPublicProfilePage() {
 
         {/* Portfolio Videos */}
         {portfolioVideos.length > 0 && (
-          <section className="bg-white border-b px-6 py-6">
+          <section id={portfolioPhotos.length === 0 ? 'portfolio' : undefined} className="bg-white border-b px-6 py-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900 flex items-center gap-2">
                 <Video size={18} className="text-brand-500" />

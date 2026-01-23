@@ -5,7 +5,7 @@ import {
   Briefcase, Home, Settings, LogOut, CheckCircle, FileText,
   Send, Star, Search, Menu, X, Image, Video,
   MessageSquare, CreditCard, AlertCircle, Check, Eye,
-  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Heart, Receipt, MoreVertical
+  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Receipt, Heart
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -63,7 +63,6 @@ export function Dashboard() {
   const [artisanData, setArtisanData] = useState<any>(null);
   const [categoryName, setCategoryName] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
   const [togglingAvailability, setTogglingAvailability] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
@@ -443,7 +442,7 @@ export function Dashboard() {
                     </button>
                     {isArtisan && (
                       <button 
-                        onClick={() => { navigate('/edit-profile?tab=portfolio'); setShowMenu(false); }}
+                        onClick={() => { navigate(`/artisans/${profile.id}?focus=portfolio`); setShowMenu(false); }}
                         className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
                       >
                         <Image size={18} className="text-gray-400" />
@@ -480,7 +479,7 @@ export function Dashboard() {
 
               {/* Bouton Portfolio (pour artisans) - Agrandi */}
               <button
-                onClick={() => navigate('/edit-profile?tab=portfolio')}
+                onClick={() => navigate(`/artisans/${profile.id}?focus=portfolio`)}
                 className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 shadow-sm min-h-[44px]"
               >
                 <Image size={20} />
@@ -495,44 +494,6 @@ export function Dashboard() {
                 <Search size={20} />
                 Explorer
               </button>
-
-              {/* Menu "Plus" pour les actions secondaires - Agrandi */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 shadow-sm min-h-[44px]"
-                >
-                  <MoreVertical size={20} />
-                  Plus
-                </button>
-
-                {/* Dropdown menu pour actions secondaires */}
-                {showMoreMenu && (
-                  <div className="absolute right-0 top-12 w-52 bg-white rounded-2xl shadow-2xl border border-gray-100/50 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <button 
-                      onClick={() => { navigate('/favorites'); setShowMoreMenu(false); }}
-                      className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
-                    >
-                      <Heart size={18} className="text-gray-400" />
-                      <span className="font-medium text-gray-700">Favoris</span>
-                    </button>
-                    <button 
-                      onClick={() => { navigate('/expenses'); setShowMoreMenu(false); }}
-                      className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
-                    >
-                      <Receipt size={18} className="text-gray-400" />
-                      <span className="font-medium text-gray-700">Dépenses</span>
-                    </button>
-                    <button 
-                      onClick={() => { navigate('/invoices'); setShowMoreMenu(false); }}
-                      className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
-                    >
-                      <FileText size={18} className="text-gray-400" />
-                      <span className="font-medium text-gray-700">Factures</span>
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -551,12 +512,11 @@ export function Dashboard() {
         </div>
 
         {/* Overlay pour fermer les menus */}
-        {(showMenu || showMoreMenu) && (
+        {showMenu && (
           <div 
             className="fixed inset-0 z-20" 
             onClick={() => {
               setShowMenu(false);
-              setShowMoreMenu(false);
             }} 
           />
         )}
@@ -652,6 +612,32 @@ export function Dashboard() {
                 </div>
               </button>
             )}
+
+            {/* Finances & Dépenses (dashboard) */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/invoices')}
+                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-[0.99] text-left min-h-[92px]"
+              >
+                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center mb-3">
+                  <FileText size={18} className="text-brand-600" />
+                </div>
+                <p className="text-sm font-black text-gray-900">Finances</p>
+                <p className="text-xs text-gray-500 mt-0.5">Factures</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/expenses')}
+                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-[0.99] text-left min-h-[92px]"
+              >
+                <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
+                  <Receipt size={18} className="text-gray-600" />
+                </div>
+                <p className="text-sm font-black text-gray-900">Dépenses</p>
+                <p className="text-xs text-gray-500 mt-0.5">Suivi</p>
+              </button>
+            </div>
 
             {/* Stats essentielles (2 maximum) - Modernisées - Mobile-first avec icônes plus grandes - Simplifiées - Cliquables */}
             {(activeCount > 0 || completedCount > 0) && (
@@ -1155,7 +1141,7 @@ export function Dashboard() {
 
       {/* ============== BOTTOM NAVIGATION MODERNISÉE AGRANDIE ============== */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200/50 z-30 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-        <div className="max-w-lg mx-auto px-4 py-3.5 flex items-center justify-around bg-white border-t border-gray-100">
+        <div className="max-w-lg mx-auto px-2 py-3.5 flex items-center justify-around bg-white border-t border-gray-100 overflow-x-auto">
           {[
             { id: 'home' as TabId, icon: Home, label: 'Accueil' },
             { id: 'activity' as TabId, icon: isArtisan ? Send : Briefcase, label: isArtisan ? 'Devis' : 'Projets', badge: urgentCount },
@@ -1168,7 +1154,7 @@ export function Dashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex flex-col items-center justify-center gap-1.5 py-3 px-5 min-w-[80px] rounded-2xl transition-all duration-200 ${
+                className={`relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 ${
                   isActive 
                     ? 'text-brand-600' 
                     : 'text-gray-400 hover:text-gray-600'
@@ -1184,13 +1170,13 @@ export function Dashboard() {
                 {/* Icône avec effet de scale pour l'actif - Agrandie */}
                 <div className={`relative ${isActive ? 'scale-110' : 'scale-100'} transition-transform duration-200`}>
                   <Icon 
-                    size={24} 
+                    size={22} 
                     strokeWidth={isActive ? 2.5 : 2} 
                     className={isActive ? 'text-brand-600' : 'text-gray-400'}
                   />
                   {/* Badge de notification - Agrandi */}
                   {tab.badge && tab.badge > 0 && (
-                    <span className={`absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full text-[11px] font-black text-white ${
+                    <span className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full text-[10px] font-black text-white ${
                       isActive ? 'bg-brand-500' : 'bg-red-500'
                     } animate-pulse shadow-md`}>
                       {tab.badge > 9 ? '9+' : tab.badge}
@@ -1199,7 +1185,7 @@ export function Dashboard() {
                 </div>
                 
                 {/* Label avec animation - Agrandi */}
-                <span className={`text-xs font-bold transition-all duration-200 ${
+                <span className={`text-[10px] font-bold transition-all duration-200 ${
                   isActive 
                     ? 'text-brand-600 scale-105' 
                     : 'text-gray-400 scale-100'
@@ -1209,11 +1195,54 @@ export function Dashboard() {
                 
                 {/* Indicateur de position (ligne en bas) - Agrandi */}
                 {isActive && (
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-10 h-1 bg-brand-500 rounded-full shadow-md shadow-brand-500/50" />
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-brand-500 rounded-full shadow-md shadow-brand-500/50" />
                 )}
               </button>
             );
           })}
+
+          {/* Boutons supplémentaires : Favoris, Dépenses, Factures */}
+          <button
+            type="button"
+            onClick={() => navigate('/favorites')}
+            className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            aria-label="Favoris"
+          >
+            <div className="relative scale-100 transition-transform duration-200">
+              <Heart size={22} strokeWidth={2} className="text-gray-400" />
+            </div>
+            <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
+              Favoris
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/expenses')}
+            className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            aria-label="Dépenses"
+          >
+            <div className="relative scale-100 transition-transform duration-200">
+              <Receipt size={22} strokeWidth={2} className="text-gray-400" />
+            </div>
+            <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
+              Dépenses
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/invoices')}
+            className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            aria-label="Factures"
+          >
+            <div className="relative scale-100 transition-transform duration-200">
+              <FileText size={22} strokeWidth={2} className="text-gray-400" />
+            </div>
+            <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
+              Factures
+            </span>
+          </button>
         </div>
       </nav>
     </div>
