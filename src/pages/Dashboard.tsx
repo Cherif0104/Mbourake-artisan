@@ -693,70 +693,7 @@ export function Dashboard() {
             )}
 
             {/* Section principale selon le rôle - Simplifiée */}
-            {isArtisan ? (
-              /* ===== ARTISAN: Projets disponibles ===== */
-              <section>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-black text-gray-900">Nouveaux projets</h2>
-                  {projects.length > 3 && (
-                    <button 
-                      onClick={() => navigate('/')}
-                      className="text-sm text-brand-500 font-bold flex items-center gap-1.5 min-h-[32px] px-2"
-                    >
-                      Voir tout
-                      <ArrowRight size={16} />
-                    </button>
-                  )}
-                </div>
-                
-                {loading ? (
-                  <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-lg">
-                    <div className="w-12 h-12 border-3 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                  </div>
-                ) : projects.length === 0 ? (
-                  <div className="bg-white rounded-3xl p-10 text-center border border-gray-100 shadow-lg">
-                    <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-md">
-                      <Briefcase size={28} className="text-gray-400" />
-                    </div>
-                    <p className="text-gray-600 font-bold text-base">Aucun projet</p>
-                    <p className="text-sm text-gray-400 mt-1">Revenez bientôt</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {projects.slice(0, 3).map((project, index) => (
-                      <button
-                        key={project.id}
-                        onClick={() => {
-                          // Forcer le scroll en haut avant la navigation
-                          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                          document.documentElement.scrollTop = 0;
-                          document.body.scrollTop = 0;
-                          navigate(`/projects/${project.id}`);
-                        }}
-                        className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99] min-h-[120px]"
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <span className="px-3 py-1.5 bg-gradient-to-r from-brand-50 to-brand-100 text-brand-700 text-xs font-black rounded-xl border border-brand-200">
-                            {project.categories?.name}
-                          </span>
-                          <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded-lg">
-                            {new Date(project.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                          </span>
-                        </div>
-                        <h3 className="font-black text-gray-900 mb-3 line-clamp-2 text-base leading-tight">{project.title}</h3>
-                        <div className="flex items-center gap-3 text-sm text-gray-600">
-                          <span className="flex items-center gap-1.5 font-medium">
-                            <MapPin size={18} className="text-brand-500" />
-                            {project.location || 'Sénégal'}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </section>
-            ) : (
+            {!isArtisan && (
               /* ===== CLIENT: Mes projets ===== */
               <section>
                 <div className="flex items-center justify-between mb-4">
