@@ -66,7 +66,6 @@ export function Dashboard() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
   const [togglingAvailability, setTogglingAvailability] = useState(false);
-  const [quoteFilter, setQuoteFilter] = useState<string>('Tous'); // Pour filtrer les devis
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [initializingProfile, setInitializingProfile] = useState(false);
   
@@ -859,22 +858,6 @@ export function Dashboard() {
                 {isArtisan ? 'Mes devis' : 'Mes projets'}
               </h1>
               
-              {/* Filtres par statut pour les artisans */}
-              {isArtisan && myQuotes.length > 0 && (
-                <div className="flex gap-2">
-                  {['Tous', 'En attente', 'Acceptés', 'Refusés', 'Expirés'].map((filter) => (
-                    <button
-                      key={filter}
-                      className="px-3 py-1 text-xs font-bold rounded-lg bg-gray-100 text-gray-600 hover:bg-brand-100 hover:text-brand-600 transition-colors"
-                      onClick={() => {
-                        // TODO: Implémenter le filtrage
-                      }}
-                    >
-                      {filter}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             {isArtisan ? (
@@ -952,39 +935,9 @@ export function Dashboard() {
                   </div>
                 ) : (
                   <>
-                    {/* Filtres */}
-                    <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-                      {[
-                        { key: 'Tous', label: 'Tous' },
-                        { key: 'pending', label: 'En attente' },
-                        { key: 'accepted', label: 'Acceptés' },
-                        { key: 'rejected', label: 'Refusés' },
-                        { key: 'expired', label: 'Expirés' },
-                      ].map((filter) => (
-                        <button
-                          key={filter.key}
-                          onClick={() => setQuoteFilter(filter.key)}
-                          className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
-                            quoteFilter === filter.key
-                              ? 'bg-brand-500 text-white shadow-lg'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {filter.label}
-                          {filter.key !== 'Tous' && (
-                            <span className="ml-2 px-1.5 py-0.5 bg-white/20 rounded-full">
-                              {myQuotes.filter(q => q.status === filter.key).length}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                    
-                    {/* Liste des devis filtrés */}
+                    {/* Liste des devis */}
                     <div className="space-y-3">
-                      {myQuotes
-                        .filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter)
-                        .map((quote, index) => {
+                      {myQuotes.map((quote, index) => {
                       const status = STATUS_CONFIG[quote.status] || STATUS_CONFIG.pending;
                       return (
                         <button
@@ -1028,9 +981,9 @@ export function Dashboard() {
                         </button>
                       );
                     })}
-                      {myQuotes.filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter).length === 0 && (
+                      {myQuotes.length === 0 && (
                         <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
-                          <p className="text-gray-400 text-sm">Aucun devis pour ce filtre</p>
+                          <p className="text-gray-400 text-sm">Aucun devis</p>
                         </div>
                       )}
                   </div>
@@ -1049,40 +1002,9 @@ export function Dashboard() {
                 </div>
               ) : (
                 <>
-                  {/* Filtres pour client */}
-                  <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-                    {[
-                      { key: 'Tous', label: 'Tous' },
-                      { key: 'open', label: 'Ouverts' },
-                      { key: 'in_progress', label: 'En cours' },
-                      { key: 'completed', label: 'Terminés' },
-                      { key: 'expired', label: 'Expirés' },
-                      { key: 'cancelled', label: 'Annulés' },
-                    ].map((filter) => (
-                      <button
-                        key={filter.key}
-                        onClick={() => setQuoteFilter(filter.key)}
-                        className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
-                          quoteFilter === filter.key
-                            ? 'bg-brand-500 text-white shadow-lg'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {filter.label}
-                        {filter.key !== 'Tous' && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-white/20 rounded-full">
-                            {projects.filter(p => p.status === filter.key).length}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {/* Liste des projets filtrés */}
+                  {/* Liste des projets */}
                   <div className="space-y-3">
-                    {projects
-                      .filter(project => quoteFilter === 'Tous' || project.status === quoteFilter)
-                      .map((project) => {
+                    {projects.map((project) => {
                     const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.open;
                     return (
                       <button
@@ -1120,11 +1042,11 @@ export function Dashboard() {
                       </button>
                       );
                     })}
-                    {projects.filter(project => quoteFilter === 'Tous' || project.status === quoteFilter).length === 0 && (
-                      <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
-                        <p className="text-gray-400 text-sm">Aucun projet pour ce filtre</p>
-                      </div>
-                    )}
+                    {projects.length === 0 && (
+                        <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+                          <p className="text-gray-400 text-sm">Aucun projet</p>
+                        </div>
+                      )}
                 </div>
                 </>
               )
