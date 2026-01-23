@@ -578,9 +578,9 @@ export function Dashboard() {
         
         {/* ============== HOME TAB ============== */}
         {activeTab === 'home' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="space-y-5 animate-in fade-in duration-300">
             
-            {/* Alerte profil incomplet - Modernisée - Mobile-first avec icône plus grande */}
+            {/* Alerte profil incomplet - Priorité 1 - Mobile-first avec icône plus grande */}
             {needsProfileCompletion && (
               <button
                 onClick={() => navigate('/edit-profile?mode=onboarding')}
@@ -594,18 +594,18 @@ export function Dashboard() {
                     Complétez votre profil
                   </p>
                   <p className="text-sm text-gray-600 mt-0.5">
-                    Ajoutez vos informations essentielles pour profiter pleinement de Mbouraké.
+                    Ajoutez vos informations essentielles
                   </p>
                 </div>
                 <ChevronRight size={24} className="text-brand-400 flex-shrink-0" />
               </button>
             )}
             
-            {/* Alerte urgente (si applicable) - Mobile-first avec icône plus grande */}
-            {urgentCount > 0 && (
+            {/* Alerte urgente (si applicable) - Priorité 2 - Mobile-first avec icône plus grande */}
+            {urgentCount > 0 && !needsProfileCompletion && (
               <button 
                 onClick={() => setActiveTab('activity')}
-                className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
+                className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
               >
                 <div className="w-14 h-14 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
                   <AlertCircle size={28} className="text-yellow-600" />
@@ -622,8 +622,8 @@ export function Dashboard() {
               </button>
             )}
 
-            {/* Alerte vérification (artisans non vérifiés) - Mobile-first avec icône plus grande */}
-            {isArtisan && verificationStatus === 'unverified' && (
+            {/* Alerte vérification (artisans non vérifiés) - Priorité 3 - Mobile-first avec icône plus grande */}
+            {isArtisan && verificationStatus === 'unverified' && !needsProfileCompletion && urgentCount === 0 && (
               <button 
                 onClick={() => navigate('/verification')}
                 className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md transition-all active:scale-[0.98]"
@@ -633,63 +633,89 @@ export function Dashboard() {
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-bold text-gray-900 text-base">Faites-vous certifier</p>
-                  <p className="text-sm text-gray-500 mt-0.5">Gagnez en confiance et avantages</p>
+                  <p className="text-sm text-gray-500 mt-0.5">Gagnez en confiance</p>
                 </div>
                 <ChevronRight size={22} className="text-gray-400 flex-shrink-0" />
               </button>
             )}
 
-            {/* Carte solde de crédits (pour artisans uniquement) - Modernisée - Simplifiée */}
+            {/* Carte solde de crédits (pour artisans uniquement) - Modernisée - Simplifiée - Affichée seulement si < 20 crédits */}
             {isArtisan && creditBalance !== null && creditBalance < 20 && (
-              <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-200 rounded-3xl p-5 shadow-lg shadow-purple-200/30 hover:shadow-xl hover:shadow-purple-200/50 transition-all active:scale-[0.98]">
+              <button
+                onClick={() => navigate('/credits')}
+                className="w-full bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-200 rounded-3xl p-5 shadow-lg shadow-purple-200/30 hover:shadow-xl hover:shadow-purple-200/50 transition-all active:scale-[0.98]"
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/40">
                       <CreditCard size={28} className="text-white" />
                     </div>
-                    <div>
+                    <div className="text-left">
                       <p className="text-xs font-bold text-purple-600 uppercase tracking-wide mb-1">Crédits</p>
                       <p className="text-2xl font-black text-gray-900">
                         {creditBalance} <span className="text-sm font-bold text-gray-600">restants</span>
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => navigate('/credits')}
-                    className="px-4 py-3 bg-white text-purple-600 rounded-xl font-bold text-sm hover:bg-purple-50 active:scale-95 transition-all shadow-md border border-purple-200 min-h-[44px]"
-                  >
+                  <div className="px-4 py-2 bg-white text-purple-600 rounded-xl font-bold text-sm shadow-md border border-purple-200">
                     Recharger
-                  </button>
+                  </div>
                 </div>
-              </div>
+              </button>
             )}
 
-            {/* Stats essentielles (2 maximum) - Modernisées - Mobile-first avec icônes plus grandes */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all active:scale-[0.98]">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-14 h-14 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center shadow-md shadow-brand-200/50">
-                    {isArtisan ? <Send size={24} className="text-white" /> : <Briefcase size={24} className="text-white" />}
+            {/* Stats essentielles (2 maximum) - Modernisées - Mobile-first avec icônes plus grandes - Simplifiées - Cliquables */}
+            {(activeCount > 0 || completedCount > 0) && (
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setActiveTab('activity')}
+                  className="bg-white rounded-3xl p-5 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all active:scale-[0.98] text-left min-h-[120px]"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-14 h-14 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center shadow-md shadow-brand-200/50">
+                      {isArtisan ? <Send size={24} className="text-white" /> : <Briefcase size={24} className="text-white" />}
+                    </div>
                   </div>
-                </div>
-                <p className="text-3xl font-black text-gray-900">{activeCount}</p>
-                <p className="text-sm font-bold text-gray-600 mt-1">
-                  {isArtisan ? 'Devis actifs' : 'Projets en cours'}
-                </p>
-              </div>
-              
-              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all active:scale-[0.98]">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-14 h-14 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center shadow-md shadow-green-200/50">
-                    <CheckCircle size={24} className="text-white" />
+                  <p className="text-3xl font-black text-gray-900 mb-1">{activeCount}</p>
+                  <p className="text-sm font-bold text-gray-600">
+                    {isArtisan ? 'Devis actifs' : 'En cours'}
+                  </p>
+                  {/* Barre de progression visuelle */}
+                  {activeCount > 0 && (
+                    <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min((activeCount / (activeCount + completedCount)) * 100, 100)}%` }}
+                      />
+                    </div>
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('activity')}
+                  className="bg-white rounded-3xl p-5 border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-gray-200/50 transition-all active:scale-[0.98] text-left min-h-[120px]"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-14 h-14 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center shadow-md shadow-green-200/50">
+                      <CheckCircle size={24} className="text-white" />
+                    </div>
                   </div>
-                </div>
-                <p className="text-3xl font-black text-gray-900">{completedCount}</p>
-                <p className="text-sm font-bold text-gray-600 mt-1">
-                  {isArtisan ? 'Acceptés' : 'Terminés'}
-                </p>
+                  <p className="text-3xl font-black text-gray-900 mb-1">{completedCount}</p>
+                  <p className="text-sm font-bold text-gray-600">
+                    {isArtisan ? 'Acceptés' : 'Terminés'}
+                  </p>
+                  {/* Barre de progression visuelle */}
+                  {completedCount > 0 && (
+                    <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min((completedCount / (activeCount + completedCount)) * 100, 100)}%` }}
+                      />
+                    </div>
+                  )}
+                </button>
               </div>
-            </div>
+            )}
 
             {/* Section principale selon le rôle - Simplifiée */}
             {isArtisan ? (
@@ -713,16 +739,16 @@ export function Dashboard() {
                     <div className="w-12 h-12 border-3 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
                   </div>
                 ) : projects.length === 0 ? (
-                  <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-lg">
-                    <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-md">
-                      <Briefcase size={32} className="text-gray-400" />
+                  <div className="bg-white rounded-3xl p-10 text-center border border-gray-100 shadow-lg">
+                    <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-md">
+                      <Briefcase size={28} className="text-gray-400" />
                     </div>
-                    <p className="text-gray-600 font-bold text-base">Aucun projet pour l'instant</p>
-                    <p className="text-sm text-gray-400 mt-2">Revenez bientôt !</p>
+                    <p className="text-gray-600 font-bold text-base">Aucun projet</p>
+                    <p className="text-sm text-gray-400 mt-1">Revenez bientôt</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {projects.slice(0, 3).map((project) => (
+                  <div className="space-y-3">
+                    {projects.slice(0, 3).map((project, index) => (
                       <button
                         key={project.id}
                         onClick={() => {
@@ -733,6 +759,7 @@ export function Dashboard() {
                           navigate(`/projects/${project.id}`);
                         }}
                         className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99] min-h-[120px]"
+                        style={{ animationDelay: `${index * 50}ms` }}
                       >
                         <div className="flex items-start justify-between mb-3">
                           <span className="px-3 py-1.5 bg-gradient-to-r from-brand-50 to-brand-100 text-brand-700 text-xs font-black rounded-xl border border-brand-200">
@@ -779,12 +806,12 @@ export function Dashboard() {
                     <div className="w-16 h-16 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <Sparkles size={28} className="text-brand-500" />
                     </div>
-                    <p className="text-gray-900 font-bold mb-1">Créez votre premier projet</p>
+                    <p className="text-gray-900 font-bold mb-1 text-base">Créez votre premier projet</p>
                     <p className="text-sm text-gray-500">Trouvez l'artisan parfait</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {projects.slice(0, 3).map((project) => {
+                    {projects.slice(0, 3).map((project, index) => {
                       const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.open;
                       const hasQuotes = project.quotes?.length > 0;
                       
@@ -799,6 +826,7 @@ export function Dashboard() {
                           navigate(`/projects/${project.id}`);
                         }}
                           className="w-full bg-white rounded-2xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99] min-h-[120px]"
+                          style={{ animationDelay: `${index * 50}ms` }}
                         >
                           <div className="flex items-start justify-between mb-3">
                             <span className="px-3 py-1.5 bg-brand-50 text-brand-700 text-xs font-bold rounded-lg">
@@ -961,7 +989,7 @@ export function Dashboard() {
                     <div className="space-y-3">
                       {myQuotes
                         .filter(quote => quoteFilter === 'Tous' || quote.status === quoteFilter)
-                        .map((quote) => {
+                        .map((quote, index) => {
                       const status = STATUS_CONFIG[quote.status] || STATUS_CONFIG.pending;
                       return (
                         <button
@@ -974,6 +1002,7 @@ export function Dashboard() {
                               navigate(`/projects/${quote.project_id}`);
                             }}
                           className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99] min-h-[140px]"
+                          style={{ animationDelay: `${index * 50}ms` }}
                         >
                           <div className="flex items-start justify-between mb-3">
                             <span className="text-xs text-gray-500 font-mono bg-gray-100 px-3 py-1.5 rounded-xl font-bold">
