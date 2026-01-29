@@ -5,6 +5,7 @@ import { OfflineBanner } from './components/OfflineBanner';
 import { ScrollToTop } from './components/ScrollToTop';
 import { PageTransition } from './components/PageTransition';
 import { InstallPrompt } from './components/InstallPrompt';
+import { PWAInstallProvider } from './contexts/PWAInstallContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useToastContext } from './contexts/ToastContext';
 import { PrivateRoute } from './components/PrivateRoute';
@@ -145,5 +146,9 @@ function AppContent() {
 }
 
 export default function App() {
-  return <AppContent />;
+  return (
+    <PWAInstallProvider>
+      <AppContent />
+    </PWAInstallProvider>
+  );
 }

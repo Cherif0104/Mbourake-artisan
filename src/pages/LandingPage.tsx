@@ -4,8 +4,9 @@ import {
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
   Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
-  ChevronRight, X
+  ChevronRight, X, Download, Smartphone
 } from 'lucide-react';
+import { usePWAInstall } from '../contexts/PWAInstallContext';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -42,6 +43,8 @@ export function LandingPage() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
+  const pwaInstall = usePWAInstall();
+  const showInstallCTA = pwaInstall?.canInstall ?? false;
   // Map icon names to Lucide components
   const iconMap: Record<string, React.ReactNode> = {
     'hammer': <Hammer size={24} />,
@@ -260,6 +263,15 @@ export function LandingPage() {
 
           {/* CTA Buttons */}
           <div className="flex items-center gap-2 md:gap-3">
+            {showInstallCTA && (
+              <button
+                onClick={() => pwaInstall?.promptInstall()}
+                className="flex items-center gap-2 px-4 md:px-5 py-2 md:py-2.5 bg-white/90 text-gray-800 border border-gray-200 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-wider hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 transition-all shadow-sm"
+              >
+                <Smartphone size={18} />
+                Installer l'app
+              </button>
+            )}
             {isLoggedIn ? (
               <>
                 <button 
@@ -396,6 +408,15 @@ export function LandingPage() {
             )}
           </div>
           
+          {showInstallCTA && (
+            <button
+              onClick={() => pwaInstall?.promptInstall()}
+              className="mt-6 flex items-center justify-center gap-2 px-6 py-3 bg-white/95 text-gray-900 rounded-xl font-bold shadow-lg border-2 border-white/30 hover:bg-brand-50 hover:border-brand-400 transition-all"
+            >
+              <Download size={22} />
+              Télécharger l'app sur mon téléphone
+            </button>
+          )}
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             {['Maçonnerie', 'Plomberie', 'Couture', 'Solaire', 'Mécanique'].map(tag => (
               <button 
