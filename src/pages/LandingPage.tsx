@@ -1,14 +1,34 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
-  Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike
+  Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
+  ChevronRight, X
 } from 'lucide-react';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { LanguageSelector } from '../components/LanguageSelector';
+import { supabase } from '../lib/supabase';
+
+function normalizeForSearch(s: string): string {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+}
+
+interface ArtisanSuggestion {
+  id: string;
+  name: string;
+  specialty: string;
+  category: string;
+  img: string;
+}
+
+const MAX_SUGGESTION_CATEGORIES = 10;
+const MAX_SUGGESTION_ARTISANS = 6;
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -17,6 +37,9 @@ export function LandingPage() {
   const { profile, loading: profileLoading } = useProfile();
   const { categories: dbCategories, loading } = useDiscovery();
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [artisans, setArtisans] = useState<ArtisanSuggestion[]>([]);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
   // Map icon names to Lucide components
@@ -38,18 +61,109 @@ export function LandingPage() {
     'bike': <Bike size={24} />,
   };
 
-  // Afficher seulement 8 catégories populaires sur la landing page
+  // Afficher 12 catégories populaires sur la landing (mieux représentées)
   const popularCategories = useMemo(() => {
-    return dbCategories.slice(0, 8);
+    return dbCategories.slice(0, 12);
   }, [dbCategories]);
 
   const filteredCategories = useMemo(() => {
     if (!searchQuery.trim()) return popularCategories;
-    // Si recherche active, chercher dans toutes les catégories
     return dbCategories.filter(cat => 
       cat.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [popularCategories, dbCategories, searchQuery]);
+
+  // Suggestions pour le dropdown : catégories + artisans (comme page Artisans)
+  const suggestionCategories = useMemo(() => {
+    const q = normalizeForSearch(searchQuery.trim());
+    if (!q) return dbCategories.slice(0, MAX_SUGGESTION_CATEGORIES);
+    return dbCategories
+      .filter(c => normalizeForSearch(c.name).includes(q))
+      .slice(0, MAX_SUGGESTION_CATEGORIES);
+  }, [searchQuery, dbCategories]);
+
+  const suggestionArtisans = useMemo(() => {
+    const q = normalizeForSearch(searchQuery.trim());
+    if (!q || q.length < 2) return [];
+    return artisans
+      .filter(
+        a =>
+          normalizeForSearch(a.name).includes(q) ||
+          normalizeForSearch(a.specialty).includes(q) ||
+          normalizeForSearch(a.category).includes(q)
+      )
+      .slice(0, MAX_SUGGESTION_ARTISANS);
+  }, [searchQuery, artisans]);
+
+  const hasSuggestions = suggestionCategories.length > 0 || suggestionArtisans.length > 0;
+
+  // Charger les artisans pour les suggestions (lecture publique OK pour anon)
+  useEffect(() => {
+    const fetchArtisans = async () => {
+      const { data: artisansData, error } = await supabase
+        .from('artisans')
+        .select('id, specialty, categories(name)')
+        .limit(80);
+
+      if (error || !artisansData?.length) {
+        setArtisans([]);
+        return;
+      }
+
+      const ids = artisansData.map((a: any) => a.id);
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', ids);
+
+      const profilesMap: Record<string, any> = {};
+      if (profilesData) {
+        profilesData.forEach((p: any) => {
+          profilesMap[p.id] = p;
+        });
+      }
+
+      const list: ArtisanSuggestion[] = artisansData.map((a: any) => {
+        const p = profilesMap[a.id];
+        const name = p?.full_name?.trim() || 'Artisan';
+        const img =
+          p?.avatar_url?.trim() ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=F97316&color=fff`;
+        return {
+          id: a.id,
+          name,
+          specialty: a.specialty?.trim() || 'Spécialiste',
+          category: a.categories?.name || 'Autre',
+          img,
+        };
+      });
+      setArtisans(list);
+    };
+    fetchArtisans();
+  }, []);
+
+  // Fermer le dropdown au clic extérieur
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectCategory = (slug: string) => {
+    setShowSuggestions(false);
+    setSearchQuery('');
+    navigate(`/category/${slug}`);
+  };
+
+  const handleSelectArtisan = (id: string) => {
+    setShowSuggestions(false);
+    setSearchQuery('');
+    navigate(`/artisans/${id}`);
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,27 +311,96 @@ export function LandingPage() {
             <span className="text-brand-500">artisans</span> du Sénégal.
           </h1>
           
-          <form onSubmit={handleSearch} className="flex w-full max-w-2xl mx-auto bg-white rounded-2xl overflow-hidden shadow-2xl p-1.5 border-4 border-white/20 backdrop-blur-md transition-all focus-within:ring-4 ring-brand-500/30">
-            <div className="flex-1 flex items-center px-4 gap-3 text-gray-400">
-              <Search size={24} className="text-brand-500" />
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Quel artisan cherchez-vous ? (ex: Maçon, Tailleur...)"
-                className="w-full py-4 outline-none text-gray-700 font-bold text-lg placeholder:font-medium"
-              />
-            </div>
-            <button type="submit" className="bg-brand-500 text-white px-10 py-4 font-black rounded-xl hover:bg-brand-600 transition-all uppercase tracking-widest text-xs shadow-lg shadow-brand-100 active:scale-95">
-              Rechercher
-            </button>
-          </form>
+          <div ref={searchContainerRef} className="w-full max-w-2xl mx-auto relative">
+            <form onSubmit={handleSearch} className="flex w-full bg-white rounded-2xl overflow-hidden shadow-2xl p-1.5 border-4 border-white/20 backdrop-blur-md transition-all focus-within:ring-4 ring-brand-500/30">
+              <div className="flex-1 flex items-center px-4 gap-3 text-gray-400">
+                <Search size={24} className="text-brand-500 shrink-0" />
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  placeholder="Rechercher une catégorie ou un artisan (ex: Maçon, Couture...)"
+                  className="w-full py-4 outline-none text-gray-700 font-bold text-lg placeholder:font-medium min-w-0"
+                  autoComplete="off"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); setShowSuggestions(false); }}
+                    className="p-1 text-gray-400 hover:text-gray-600 shrink-0"
+                    aria-label="Effacer"
+                  >
+                    <X size={20} />
+                  </button>
+                )}
+              </div>
+              <button type="submit" className="bg-brand-500 text-white px-10 py-4 font-black rounded-xl hover:bg-brand-600 transition-all uppercase tracking-widest text-xs shadow-lg shadow-brand-100 active:scale-95">
+                Rechercher
+              </button>
+            </form>
+
+            {/* Dropdown suggestions : catégories + artisans (comme page Artisans) */}
+            {showSuggestions && hasSuggestions && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
+                {suggestionCategories.length > 0 && (
+                  <div className="p-2">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">
+                      Catégories
+                    </p>
+                    {suggestionCategories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => handleSelectCategory(cat.slug || String(cat.id))}
+                        className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl hover:bg-brand-50 text-left transition-colors"
+                      >
+                        <span className="font-bold text-gray-900 truncate">{cat.name}</span>
+                        <ChevronRight size={18} className="text-gray-400 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {suggestionArtisans.length > 0 && (
+                  <div className="p-2 border-t border-gray-100">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">
+                      Artisans
+                    </p>
+                    {suggestionArtisans.map((artisan) => (
+                      <button
+                        key={artisan.id}
+                        type="button"
+                        onClick={() => handleSelectArtisan(artisan.id)}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-brand-50 text-left transition-colors"
+                      >
+                        <img
+                          src={artisan.img}
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-gray-900 truncate">{artisan.name}</p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {artisan.specialty} · {artisan.category}
+                          </p>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-400 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             {['Maçonnerie', 'Plomberie', 'Couture', 'Solaire', 'Mécanique'].map(tag => (
               <button 
                 key={tag} 
-                onClick={() => setSearchQuery(tag)} 
+                onClick={() => { setSearchQuery(tag); setShowSuggestions(true); }} 
                 className="px-4 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white text-[10px] font-black uppercase tracking-widest hover:bg-brand-500 transition-all"
               >
                 {tag}

@@ -228,6 +228,8 @@ export function useAuth() {
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    // Après chaque déconnexion : redirection vers la landing (page d'accueil)
+    window.location.href = '/';
   }, []);
 
   return useMemo(

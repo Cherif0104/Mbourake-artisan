@@ -57,11 +57,7 @@ export function OnboardPage() {
   }, [searchParams, authMode]);
 
   const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/');
-    }
+    navigate('/', { replace: true });
   };
 
   const handleRoleSelect = (selectedRole: ProfileRole) => {

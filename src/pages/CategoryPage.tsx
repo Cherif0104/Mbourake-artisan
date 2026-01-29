@@ -578,13 +578,19 @@ export function CategoryPage() {
                 
                 {/* Content Section */}
                 <div className="p-5">
+                  {/* Métier / catégorie (ex. Couture Prêt-à-porter) */}
+                  {artisan.category && artisan.category !== 'Autre' && (
+                    <p className="text-xs font-black text-brand-600 uppercase tracking-wider mb-1">
+                      {artisan.category}
+                    </p>
+                  )}
                   <h3 className="text-lg font-black text-gray-900 mb-1 flex items-center gap-2">
                     {artisan.name}
                     {artisan.verified && <CheckCircle size={16} className="text-blue-500" />}
                   </h3>
                   
-                  {artisan.specialty && (
-                    <p className="text-sm text-brand-600 font-bold mb-3">
+                  {artisan.specialty && artisan.specialty !== 'Spécialiste' && (
+                    <p className="text-sm text-gray-600 font-bold mb-3">
                       {artisan.specialty}
                     </p>
                   )}

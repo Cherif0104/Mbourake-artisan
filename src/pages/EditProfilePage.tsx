@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search, Building2 } from 'lucide-react';
+import { Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search, Building2, Trash2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
@@ -118,6 +118,8 @@ export function EditProfilePage() {
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [success, setSuccess] = useState(false);
   const [initializingProfile, setInitializingProfile] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   
   // Système d'étapes pour le wizard
   const [currentStep, setCurrentStep] = useState(1);
@@ -720,6 +722,29 @@ export function EditProfilePage() {
 
   const canGoToNextStep = validateStep(currentStep);
   const canGoToPreviousStep = currentStep > 1;
+
+  // Supprimer mon compte et toutes mes données (artisan ou client)
+  const handleDeleteMyAccount = useCallback(async () => {
+    if (!auth.session?.access_token) {
+      showError('Session expirée. Veuillez vous reconnecter.');
+      return;
+    }
+    setDeletingAccount(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-my-account', {
+        headers: { Authorization: `Bearer ${auth.session.access_token}` },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setShowDeleteAccountModal(false);
+      await auth.signOut();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Impossible de supprimer le compte.';
+      showError(message);
+    } finally {
+      setDeletingAccount(false);
+    }
+  }, [auth.session?.access_token, auth.signOut, showError]);
 
   const handleNext = () => {
     if (!isMounted) return; // Éviter les actions si le composant est en train de se démonter
@@ -1380,6 +1405,24 @@ export function EditProfilePage() {
             </div>
           )}
 
+          {/* Paramètres du compte : supprimer mon compte (hors onboarding) */}
+          {!isOnboarding && (
+            <div className="mt-10 pt-8 border-t border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900 mb-2">Paramètres du compte</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Cette action supprime définitivement votre compte, votre profil, vos projets, devis, messages et toutes les données liées à cette adresse email. Elle est irréversible.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowDeleteAccountModal(true)}
+                className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl border-2 border-red-200 bg-red-50 text-red-700 font-bold hover:bg-red-100 transition-colors"
+              >
+                <Trash2 size={20} />
+                Supprimer mon compte et toutes mes données
+              </button>
+            </div>
+          )}
+
           {/* Boutons de navigation */}
           <ErrorBoundary>
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-20">
@@ -1447,6 +1490,42 @@ export function EditProfilePage() {
         </form>
 
       </main>
+
+      {/* Modal de confirmation suppression de compte */}
+      {showDeleteAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertTriangle size={24} className="text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Supprimer mon compte</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Êtes-vous sûr de vouloir supprimer définitivement votre compte et toutes les données liées à cette adresse email ? Cette action est irréversible.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                disabled={deletingAccount}
+                onClick={() => setShowDeleteAccountModal(false)}
+                className="flex-1 py-3 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={deletingAccount}
+                onClick={handleDeleteMyAccount}
+                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deletingAccount ? <Loader2 size={20} className="animate-spin" /> : <Trash2 size={20} />}
+                {deletingAccount ? 'Suppression...' : 'Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

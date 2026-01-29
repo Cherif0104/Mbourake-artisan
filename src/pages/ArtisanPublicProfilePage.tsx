@@ -164,14 +164,25 @@ export function ArtisanPublicProfilePage() {
         return;
       }
 
-      // Ensuite, récupérer le profil avec .maybeSingle() pour éviter l'erreur 406
-      const { data: profileData, error: profileError } = await supabase
+      // Récupérer le profil ; si anon et échec, réessayer avec champs publics uniquement
+      let profileData: any = null;
+      let profileError: any = null;
+      const fullRes = await supabase
         .from('profiles')
-        .select(`
-          id, full_name, email, phone, avatar_url, location, member_id, created_at, role
-        `)
+        .select('id, full_name, email, phone, avatar_url, location, member_id, created_at, role')
         .eq('id', id)
         .maybeSingle();
+      profileData = fullRes.data;
+      profileError = fullRes.error;
+      if ((profileError || !profileData) && !user) {
+        const minRes = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, location')
+          .eq('id', id)
+          .maybeSingle();
+        profileData = minRes.data;
+        profileError = minRes.error;
+      }
 
       if (profileError) {
         console.error('Error fetching profile:', profileError);
@@ -513,10 +524,12 @@ export function ArtisanPublicProfilePage() {
                 <Award size={14} />
                 {reviewStats.tier}
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-bold">
-                <Calendar size={14} />
-                Membre depuis {new Date(artisan.created_at).getFullYear()}
-              </span>
+              {artisan.created_at && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-bold">
+                  <Calendar size={14} />
+                  Membre depuis {new Date(artisan.created_at).getFullYear()}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -752,8 +765,8 @@ export function ArtisanPublicProfilePage() {
                 onClick={handleRequestProject}
                 className="flex-[2] w-full py-4 bg-brand-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-600 active:scale-[0.98] transition-all shadow-lg shadow-brand-200"
               >
-                <Briefcase size={20} />
-                Se connecter pour demander
+                <MessageCircle size={20} />
+                Contacter (s'inscrire ou se connecter)
               </button>
             ) : (
               <>
