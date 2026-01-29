@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Camera, UploadCloud, Users, UserCheck, MapPin, 
   Star, Calendar, Clock, ChevronDown, Search, Mic, X, AlertCircle,
-  Home, Video, TrendingUp, Info
+  Home, Video, TrendingUp, Info, FileText
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useDiscovery } from '../hooks/useDiscovery';
@@ -32,6 +32,7 @@ export function CreateProjectPage() {
   const [categoryId, setCategoryId] = useState<number | undefined>();
   const [location, setLocation] = useState('');
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [textDescription, setTextDescription] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
   const [videoFile, setVideoFile] = useState<File | null>(null);
 
@@ -189,15 +190,16 @@ export function CreateProjectPage() {
         audioUrl = supabase.storage.from('audio').getPublicUrl(audioData.path).data.publicUrl;
       }
 
-      // 2. Upload Video
+      // 2. Upload Video (bucket dédié 'videos' : le bucket 'photos' n'accepte pas video/mp4)
       if (videoFile) {
-        const fileName = `${auth.user.id}/projects/${Date.now()}-video.${videoFile.name.split('.').pop()}`;
+        const ext = videoFile.name.split('.').pop()?.toLowerCase() || 'mp4';
+        const fileName = `${auth.user.id}/projects/${Date.now()}-video.${ext}`;
         const { data: videoData, error: videoError } = await supabase.storage
-          .from('photos')
-          .upload(fileName, videoFile);
+          .from('videos')
+          .upload(fileName, videoFile, { contentType: videoFile.type || 'video/mp4' });
         
         if (videoError) throw videoError;
-        videoUrl = supabase.storage.from('photos').getPublicUrl(videoData.path).data.publicUrl;
+        videoUrl = supabase.storage.from('videos').getPublicUrl(videoData.path).data.publicUrl;
       }
 
       // 3. Upload Photos
@@ -228,6 +230,7 @@ export function CreateProjectPage() {
           client_id: auth.user.id,
           category_id: categoryId,
           title: title || "Projet sans titre",
+          description: (textDescription || '').trim() || null,
           audio_description_url: audioUrl || null,
           video_url: videoUrl || null,
           photos_urls: photoUrls,
@@ -330,46 +333,95 @@ export function CreateProjectPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
-        <button 
-          onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)} 
-          className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-lg font-bold text-gray-900">Publier un Projet</h1>
-          <p className="text-xs text-gray-400">Étape {step} sur 3</p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+      {/* Header moderne — aligné dashboard */}
+      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-lg border-b border-gray-100/50 shadow-sm">
+        <div className="max-w-lg mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)} 
+              className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+              aria-label="Retour"
+            >
+              <ArrowLeft size={22} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-black text-gray-900">Publier un projet</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs font-bold text-gray-500">Étape {step} sur 3</span>
+                <div className="flex gap-1">
+                  {[1, 2, 3].map((s) => (
+                    <span
+                      key={s}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        s === step ? 'bg-brand-500 scale-110' : s < step ? 'bg-brand-300' : 'bg-gray-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Barre de progression */}
+        <div className="h-1 bg-gray-100">
+          <div 
+            className="h-full bg-gradient-to-r from-brand-500 to-brand-600 rounded-r-full transition-all duration-300 ease-out"
+            style={{ width: `${(step / 3) * 100}%` }}
+          />
         </div>
       </header>
-
-      {/* Progress Bar */}
-      <div className="h-1 bg-gray-100">
-        <div 
-          className="h-full bg-brand-500 transition-all duration-300"
-          style={{ width: `${(step / 3) * 100}%` }}
-        />
-      </div>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
         <form onSubmit={handleSubmit}>
           
           {/* STEP 1: Description */}
           {step === 1 && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Mic size={28} className="text-brand-500" />
+            <div key="create-step-1" className="space-y-5 animate-in fade-in duration-300">
+              {/* Hero étape 1 */}
+              <div className="text-center mb-6">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 p-1 shadow-lg shadow-brand-200/50 inline-flex items-center justify-center mb-4">
+                  <div className="w-full h-full rounded-xl bg-white flex items-center justify-center">
+                    <Mic size={28} className="text-brand-500" />
+                  </div>
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">Décrivez votre besoin</h2>
-                <p className="text-sm text-gray-500 mt-1">Enregistrez un message vocal ou ajoutez des photos</p>
+                <h2 className="text-xl font-black text-gray-900">Décrivez votre besoin</h2>
+                <p className="text-sm text-gray-500 mt-1.5">Message vocal, texte ou photos</p>
               </div>
 
-              {/* Voice Recording */}
-              <div className="bg-white rounded-2xl p-6 border border-gray-100">
-                <h3 className="font-bold text-gray-900 mb-4 text-center">Message vocal</h3>
+              {/* Description écrite (optionnel) */}
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
+                    <FileText size={16} className="text-brand-600" />
+                  </span>
+                  Description écrite (optionnel)
+                </h3>
+                <textarea
+                  value={textDescription}
+                  onChange={(e) => { setTextDescription(e.target.value); if (error) setError(null); }}
+                  placeholder="Décrivez votre besoin par écrit si vous préférez ne pas enregistrer de message vocal..."
+                  rows={4}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none text-gray-900 placeholder:text-gray-400 resize-y min-h-[100px]"
+                />
+                <p className="text-xs text-gray-500 mt-2">Vous pouvez écrire, enregistrer un vocal ou les deux.</p>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+                  <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-600 font-medium">{error}</p>
+                </div>
+              )}
+
+              {/* Message vocal */}
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center justify-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
+                    <Mic size={16} className="text-brand-600" />
+                  </span>
+                  Message vocal
+                </h3>
                 <AudioRecorder 
                   onRecordingComplete={(blob) => setAudioBlob(blob)} 
                   onDelete={() => setAudioBlob(null)} 
@@ -377,48 +429,58 @@ export function CreateProjectPage() {
               </div>
 
               {/* Photos */}
-              <div className="bg-white rounded-2xl p-6 border border-gray-100">
-                <h3 className="font-bold text-gray-900 mb-4">Photos (max 5)</h3>
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
+                    <Camera size={16} className="text-brand-600" />
+                  </span>
+                  Photos (max 5)
+                </h3>
                 <div className="flex gap-3 flex-wrap">
                   {photos.map((photo, i) => (
-                    <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden">
+                    <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-white shadow-md">
                       <img src={URL.createObjectURL(photo)} alt="" className="w-full h-full object-cover" />
                       <button 
                         type="button" 
                         onClick={() => removePhoto(i)}
-                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+                        className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow"
                       >
                         <X size={12} />
                       </button>
                     </div>
                   ))}
                   {photos.length < 5 && (
-                    <label className="w-20 h-20 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-brand-300 transition-colors">
-                      <Camera size={20} className="text-gray-400" />
-                      <span className="text-[9px] text-gray-400 font-bold mt-1">PHOTO</span>
+                    <label className="w-20 h-20 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-brand-300 hover:bg-brand-50/30 transition-colors">
+                      <Camera size={22} className="text-gray-400" />
+                      <span className="text-[9px] text-gray-500 font-bold mt-1">PHOTO</span>
                       <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoChange} />
                     </label>
                   )}
                 </div>
               </div>
 
-              {/* Video */}
-              <div className="bg-white rounded-2xl p-6 border border-gray-100">
-                <h3 className="font-bold text-gray-900 mb-4">Vidéo (optionnel)</h3>
+              {/* Vidéo (optionnel) */}
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <Video size={16} className="text-gray-600" />
+                  </span>
+                  Vidéo (optionnel)
+                </h3>
                 {videoFile ? (
-                  <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3">
-                    <div className="flex items-center gap-3">
-                      <Video size={20} className="text-brand-500" />
-                      <span className="text-sm text-gray-600 truncate max-w-[200px]">{videoFile.name}</span>
+                  <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Video size={20} className="text-brand-500 flex-shrink-0" />
+                      <span className="text-sm text-gray-600 truncate">{videoFile.name}</span>
                     </div>
-                    <button type="button" onClick={() => setVideoFile(null)} className="text-red-500">
+                    <button type="button" onClick={() => setVideoFile(null)} className="text-red-500 flex-shrink-0 p-1">
                       <X size={18} />
                     </button>
                   </div>
                 ) : (
-                  <label className="block w-full border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-brand-300 transition-colors">
+                  <label className="block w-full border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-brand-300 hover:bg-brand-50/20 transition-colors">
                     <Video size={24} className="mx-auto text-gray-400 mb-2" />
-                    <p className="text-sm text-gray-500">Ajouter une vidéo</p>
+                    <p className="text-sm text-gray-500 font-medium">Ajouter une vidéo</p>
                     <input type="file" accept="video/*" className="hidden" onChange={handleVideoChange} />
                   </label>
                 )}
@@ -426,8 +488,16 @@ export function CreateProjectPage() {
 
               <button
                 type="button"
-                onClick={() => setStep(2)}
-                className="w-full bg-brand-500 text-white rounded-xl py-4 font-bold hover:bg-brand-600 transition-colors"
+                onClick={() => {
+                  const hasDescription = !!audioBlob || (textDescription || '').trim().length > 0 || photos.length > 0;
+                  if (!hasDescription) {
+                    setError('Décrivez votre besoin : message vocal, texte ou au moins une photo.');
+                    return;
+                  }
+                  setError(null);
+                  setStep(2);
+                }}
+                className="w-full bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 text-white rounded-xl py-4 font-bold shadow-cta hover:shadow-cta-hover hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-cta-active transition-all duration-200"
               >
                 Continuer
               </button>
@@ -436,25 +506,30 @@ export function CreateProjectPage() {
 
           {/* STEP 2: Category & Location */}
           {step === 2 && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold text-gray-900">Détails du projet</h2>
-                <p className="text-sm text-gray-500 mt-1">Catégorie, localisation et préférences</p>
+            <div className="space-y-5 animate-in fade-in duration-300">
+              <div className="text-center mb-6">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 p-1 shadow-lg shadow-brand-200/50 inline-flex items-center justify-center mb-4">
+                  <div className="w-full h-full rounded-xl bg-white flex items-center justify-center">
+                    <Search size={28} className="text-brand-500" />
+                  </div>
+                </div>
+                <h2 className="text-xl font-black text-gray-900">Détails du projet</h2>
+                <p className="text-sm text-gray-500 mt-1.5">Catégorie, localisation et préférences</p>
               </div>
 
-              {/* Title */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+              {/* Titre */}
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Titre du projet</label>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:outline-none"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none"
                   placeholder="Ex: Réparation évier cuisine"
                 />
               </div>
 
-              {/* Category Search */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+              {/* Catégorie */}
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Catégorie *</label>
                 <div className="relative">
                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -465,7 +540,7 @@ export function CreateProjectPage() {
                       setShowCategoryDropdown(true);
                     }}
                     onFocus={() => setShowCategoryDropdown(true)}
-                    className="w-full rounded-xl border border-gray-200 pl-12 pr-4 py-3 focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-xl border border-gray-200 pl-12 pr-4 py-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none"
                     placeholder="Rechercher un métier..."
                   />
                   {selectedCategory && (
@@ -539,16 +614,18 @@ export function CreateProjectPage() {
                 )}
               </div>
 
-              {/* Location */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                  <MapPin size={12} className="inline mr-1" />
+              {/* Localisation */}
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg bg-brand-100 flex items-center justify-center">
+                    <MapPin size={14} className="text-brand-600" />
+                  </span>
                   Localisation
                 </label>
                 <select
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:outline-none appearance-none"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none appearance-none"
                 >
                   <option value="">Sélectionnez une région</option>
                   {senegalRegions.map(region => (
@@ -557,20 +634,20 @@ export function CreateProjectPage() {
                 </select>
               </div>
 
-              {/* Date & Time Preferences */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 space-y-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase">
-                  <Calendar size={12} className="inline mr-1" />
+              {/* Date et horaires */}
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass space-y-4">
+                <label className="block text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg bg-brand-100 flex items-center justify-center">
+                    <Calendar size={14} className="text-brand-600" />
+                  </span>
                   Date et horaires souhaités
                 </label>
-                
                 <input
                   type="date"
                   value={preferredDate}
                   onChange={(e) => setPreferredDate(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:outline-none"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none"
                 />
-                
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] text-gray-400 font-bold">De</label>
@@ -594,11 +671,10 @@ export function CreateProjectPage() {
                     />
                   </div>
                 </div>
-
                 {isUrgent && (
-                  <div className="bg-yellow-50 rounded-xl p-3 flex items-start gap-2">
-                    <AlertCircle size={16} className="text-yellow-600 mt-0.5" />
-                    <p className="text-xs text-yellow-700">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                    <AlertCircle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-800 font-medium">
                       Intervention hors horaires normaux (8h-19h). Des frais supplémentaires peuvent s'appliquer.
                     </p>
                   </div>
@@ -609,7 +685,7 @@ export function CreateProjectPage() {
                 type="button"
                 onClick={() => setStep(3)}
                 disabled={!categoryId}
-                className="w-full bg-brand-500 text-white rounded-xl py-4 font-bold hover:bg-brand-600 transition-colors disabled:opacity-50"
+                className="w-full bg-brand-500 text-white rounded-xl py-4 font-bold hover:bg-brand-600 active:scale-[0.99] transition-all shadow-md shadow-brand-500/30 disabled:opacity-50 disabled:shadow-none"
               >
                 Continuer
               </button>
@@ -618,47 +694,50 @@ export function CreateProjectPage() {
 
           {/* STEP 3: Criteria */}
           {step === 3 && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold text-gray-900">Type de demande</h2>
-                <p className="text-sm text-gray-500 mt-1">Ouverte à tous ou ciblée</p>
+            <div key="create-step-3" className="space-y-5 animate-in fade-in duration-300">
+              <div className="text-center mb-6">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 p-1 shadow-lg shadow-brand-200/50 inline-flex items-center justify-center mb-4">
+                  <div className="w-full h-full rounded-xl bg-white flex items-center justify-center">
+                    <Users size={28} className="text-brand-500" />
+                  </div>
+                </div>
+                <h2 className="text-xl font-black text-gray-900">Type de demande</h2>
+                <p className="text-sm text-gray-500 mt-1.5">Ouverte à tous ou ciblée</p>
               </div>
 
-              {/* Request Type */}
+              {/* Type de demande */}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setIsOpen(true)}
-                  className={`p-4 rounded-2xl border-2 transition-all ${
+                  className={`p-5 rounded-2xl border-2 transition-all text-left shadow-sm ${
                     isOpen 
-                      ? 'border-brand-500 bg-brand-50' 
-                      : 'border-gray-200 bg-white hover:border-gray-300'
+                      ? 'border-brand-500 bg-brand-50 shadow-brand-200/30' 
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/50'
                   }`}
                 >
-                  <Users size={24} className={`mx-auto mb-2 ${isOpen ? 'text-brand-500' : 'text-gray-400'}`} />
-                  <p className={`font-bold text-sm ${isOpen ? 'text-brand-600' : 'text-gray-700'}`}>Demande ouverte</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Tous les artisans peuvent répondre</p>
+                  <Users size={26} className={`mb-2 ${isOpen ? 'text-brand-500' : 'text-gray-400'}`} />
+                  <p className={`font-bold text-sm ${isOpen ? 'text-brand-700' : 'text-gray-700'}`}>Demande ouverte</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Tous les artisans peuvent répondre</p>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className={`p-4 rounded-2xl border-2 transition-all ${
+                  className={`p-5 rounded-2xl border-2 transition-all text-left shadow-sm ${
                     !isOpen 
-                      ? 'border-brand-500 bg-brand-50' 
-                      : 'border-gray-200 bg-white hover:border-gray-300'
+                      ? 'border-brand-500 bg-brand-50 shadow-brand-200/30' 
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/50'
                   }`}
                 >
-                  <UserCheck size={24} className={`mx-auto mb-2 ${!isOpen ? 'text-brand-500' : 'text-gray-400'}`} />
-                  <p className={`font-bold text-sm ${!isOpen ? 'text-brand-600' : 'text-gray-700'}`}>Artisan spécifique</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Choisir un artisan précis</p>
+                  <UserCheck size={26} className={`mb-2 ${!isOpen ? 'text-brand-500' : 'text-gray-400'}`} />
+                  <p className={`font-bold text-sm ${!isOpen ? 'text-brand-700' : 'text-gray-700'}`}>Artisan spécifique</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Choisir un artisan précis</p>
                 </button>
               </div>
 
-              {/* Criteria for Open Requests */}
               {isOpen && (
                 <div className="space-y-4">
-                  {/* Distance Filter */}
-                  <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-3">
                       Distance maximum
                     </label>
@@ -687,8 +766,8 @@ export function CreateProjectPage() {
                     </div>
                   </div>
 
-                  {/* Rating Filter */}
-                  <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                  {/* Note minimum */}
+                  <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-3">
                       Note minimum
                     </label>
@@ -720,17 +799,18 @@ export function CreateProjectPage() {
                 </div>
               )}
 
-              {/* Property Details (optional) */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <Home size={16} className="text-gray-400" />
-                  <label className="text-xs font-bold text-gray-500 uppercase">Détails du logement (optionnel)</label>
-                </div>
-                
+              {/* Détails logement (optionnel) */}
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <Home size={14} className="text-gray-600" />
+                  </span>
+                  Détails du logement (optionnel)
+                </label>
                 <select
                   value={propertyDetails.type}
                   onChange={(e) => setPropertyDetails({ ...propertyDetails, type: e.target.value })}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:outline-none appearance-none mb-3"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none appearance-none mb-3"
                 >
                   <option value="">Type de bien</option>
                   <option value="appartement">Appartement</option>
@@ -744,31 +824,31 @@ export function CreateProjectPage() {
                   <input
                     value={propertyDetails.accessNotes}
                     onChange={(e) => setPropertyDetails({ ...propertyDetails, accessNotes: e.target.value })}
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none"
                     placeholder="Notes d'accès (code, étage, etc.)"
                   />
                 )}
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-                  <AlertCircle size={20} className="text-red-500 flex-shrink-0" />
-                  <p className="text-sm text-red-600">{error}</p>
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+                  <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-600 font-medium">{error}</p>
                 </div>
               )}
 
               <button
                 type="submit"
                 disabled={loading || projectLoading || !categoryId}
-                className="w-full flex items-center justify-center gap-3 bg-brand-500 text-white rounded-xl py-4 font-bold hover:bg-brand-600 transition-colors disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-3 bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 text-white rounded-xl py-4 font-bold shadow-cta hover:shadow-cta-hover hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-cta-active transition-all duration-200 disabled:opacity-50 disabled:shadow-none disabled:translate-y-0"
               >
-                {loading ? (
+                {loading || projectLoading ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <>
-                    <UploadCloud size={20} />
+                  <span className="inline-flex items-center justify-center gap-3">
+                    <UploadCloud size={22} />
                     Publier ma demande
-                  </>
+                  </span>
                 )}
               </button>
             </div>

@@ -1,31 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   User, Plus, PlusCircle, MapPin, Clock, ChevronRight, Shield, 
   Briefcase, Home, Settings, LogOut, CheckCircle, FileText,
   Send, Star, Search, Menu, X, Image, Video,
   MessageSquare, CreditCard, AlertCircle, Check, Eye,
-  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Receipt, Wallet
+  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Receipt, Wallet, Megaphone, Award, Bell
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
-import { NotificationBell } from '../components/NotificationBell';
-import { SkeletonScreen } from '../components/SkeletonScreen';
+import { useNotifications } from '../hooks/useNotifications';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 import { supabase } from '../lib/supabase';
+import { NotificationBell } from '../components/NotificationBell';
 
 type TabId = 'home' | 'activity' | 'profile';
 
-// Statuts simplifiés pour l'affichage
+// Statuts projet et devis pour l'affichage (cohérence liste / détail)
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   open: { label: 'En attente', color: 'bg-blue-100 text-blue-700', icon: <Clock size={14} /> },
   quote_received: { label: 'Devis reçu', color: 'bg-purple-100 text-purple-700', icon: <FileText size={14} /> },
   quote_accepted: { label: 'Accepté', color: 'bg-green-100 text-green-700', icon: <Check size={14} /> },
+  payment_pending: { label: 'Paiement en attente', color: 'bg-amber-100 text-amber-700', icon: <CreditCard size={14} /> },
   in_progress: { label: 'En cours', color: 'bg-brand-100 text-brand-700', icon: <TrendingUp size={14} /> },
+  completion_requested: { label: 'À finaliser', color: 'bg-orange-100 text-orange-700', icon: <CheckCircle size={14} /> },
   completed: { label: 'Terminé', color: 'bg-green-100 text-green-700', icon: <CheckCircle size={14} /> },
   pending: { label: 'En attente', color: 'bg-blue-100 text-blue-700', icon: <Clock size={14} /> },
   accepted: { label: 'Accepté', color: 'bg-green-100 text-green-700', icon: <Check size={14} /> },
+  rejected: { label: 'Refusé', color: 'bg-red-100 text-red-700', icon: <X size={14} /> },
   expired: { label: 'Expiré', color: 'bg-gray-100 text-gray-500', icon: <Clock size={14} /> },
   cancelled: { label: 'Annulé', color: 'bg-gray-100 text-gray-500', icon: <X size={14} /> },
+  abandoned: { label: 'Clôturé', color: 'bg-gray-100 text-gray-500', icon: <X size={14} /> },
 };
 
 // Salutations selon l'heure
@@ -41,6 +46,7 @@ export function Dashboard() {
   const location = useLocation();
   const auth = useAuth();
   const { profile, loading: profileLoading, upsertProfile } = useProfile();
+  const { unreadMessageCount } = useNotifications();
   
   // Vérifier si le profil est complet
   const isProfileComplete = (profile: any): boolean => {
@@ -58,6 +64,7 @@ export function Dashboard() {
   const [projects, setProjects] = useState<any[]>([]);
   const [myQuotes, setMyQuotes] = useState<any[]>([]);
   const [quoteRevisions, setQuoteRevisions] = useState<any[]>([]);
+  const [quoteRevisionsResponded, setQuoteRevisionsResponded] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [artisanData, setArtisanData] = useState<any>(null);
@@ -67,6 +74,9 @@ export function Dashboard() {
   const [togglingAvailability, setTogglingAvailability] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [initializingProfile, setInitializingProfile] = useState(false);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [activityFilter, setActivityFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [activitySubTab, setActivitySubTab] = useState<'demandes' | 'devis' | 'revisions_attente' | 'revisions_envoyees'>('demandes');
   
   const { signOut } = auth;
 
@@ -215,7 +225,7 @@ export function Dashboard() {
         
         setMyQuotes(quotes || []);
 
-        // Récupérer les demandes de révision en attente pour les devis de l'artisan
+        // Récupérer les demandes de révision (en attente + déjà répondues) pour les devis de l'artisan
         if (quotes && quotes.length > 0) {
           const quoteIds = quotes.map(q => q.id);
           const { data: revisions } = await supabase
@@ -229,8 +239,20 @@ export function Dashboard() {
             .in('quote_id', quoteIds)
             .eq('status', 'pending')
             .order('created_at', { ascending: false });
-          
           setQuoteRevisions(revisions || []);
+
+          const { data: respondedRevisions } = await supabase
+            .from('quote_revisions')
+            .select(`
+              *,
+              quotes!quote_revisions_quote_id_fkey(*),
+              projects!quote_revisions_project_id_fkey(id, title),
+              profiles!quote_revisions_requested_by_fkey(id, full_name, avatar_url)
+            `)
+            .in('quote_id', quoteIds)
+            .neq('status', 'pending')
+            .order('responded_at', { ascending: false });
+          setQuoteRevisionsResponded(respondedRevisions || []);
         }
       } else {
         // Récupérer les projets du client, exclure les projets annulés pour l'affichage principal
@@ -249,6 +271,13 @@ export function Dashboard() {
     
     fetchData();
   }, [profile, location.pathname]); // Rafraîchir aussi quand on arrive sur la page
+
+  // Scroll en haut à chaque changement d'onglet
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab]);
 
   const handleLogout = async () => {
     await signOut();
@@ -272,18 +301,39 @@ export function Dashboard() {
     setTogglingAvailability(false);
   };
 
-  if (!profile) {
-    // Si le profil est encore en chargement, afficher un squelette classique
-    if (profileLoading) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-          <SkeletonScreen type="header" className="sticky top-0 z-30" />
-          <div className="max-w-lg mx-auto px-5 py-6 space-y-4">
-            <SkeletonScreen type="card" />
-            <SkeletonScreen type="list" />
-          </div>
-        </div>
+  const isArtisan = profile?.role === 'artisan';
+  const rawName = profile?.full_name || (auth.user?.user_metadata?.full_name as string) || (auth.user?.user_metadata?.name as string) || '';
+  const firstName = rawName.trim().split(/\s+/)[0] || auth.user?.email?.split('@')[0] || 'Utilisateur';
+  const isVerified = verificationStatus === 'verified';
+  const needsProfileCompletion = profile ? !isProfileComplete(profile) : false;
+
+  const filteredProjects = useMemo(() => {
+    if (activityFilter === 'active') {
+      return projects.filter(p =>
+        ['open', 'quote_received', 'quote_accepted', 'payment_pending', 'payment_received', 'in_progress', 'completion_requested'].includes(p.status)
       );
+    }
+    if (activityFilter === 'completed') return projects.filter(p => p.status === 'completed');
+    return projects;
+  }, [projects, activityFilter]);
+
+  const filteredMyQuotes = useMemo(() => {
+    if (activityFilter === 'active') return myQuotes.filter(q => q.projects?.status !== 'completed' && q.projects?.status !== 'expired' && q.projects?.status !== 'cancelled');
+    if (activityFilter === 'completed') return myQuotes.filter(q => q.projects?.status === 'completed');
+    return myQuotes;
+  }, [myQuotes, activityFilter]);
+
+  // Nouvelles demandes (projets ouverts dans sa catégorie auxquels l'artisan n'a pas encore répondu)
+  const newRequestProjects = useMemo(() => {
+    if (!isArtisan) return [];
+    const quotedProjectIds = new Set(myQuotes.map(q => q.project_id));
+    return projects.filter(p => p.status === 'open' && !quotedProjectIds.has(p.id));
+  }, [isArtisan, projects, myQuotes]);
+
+  if (!profile) {
+    // Si le profil est encore en chargement, afficher l'overlay de chargement validé
+    if (profileLoading) {
+      return <LoadingOverlay />;
     }
 
     // Utilisateur connecté mais sans ligne de profil encore créée :
@@ -320,7 +370,7 @@ export function Dashboard() {
               </p>
               <button
                 onClick={() => navigate('/edit-profile?mode=onboarding')}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-500 text-white font-black py-3 shadow-md hover:bg-brand-600 active:scale-[0.98] transition-all text-sm"
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 text-white font-black py-3 shadow-cta hover:shadow-cta-hover hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-cta-active transition-all duration-200 text-sm"
               >
                 <User size={18} />
                 Compléter mon profil
@@ -332,22 +382,23 @@ export function Dashboard() {
     );
   }
 
-  const isArtisan = profile.role === 'artisan';
-  const isVerified = verificationStatus === 'verified';
-  const firstName = profile.full_name?.split(' ')[0] || 'Utilisateur';
-  const needsProfileCompletion = !isProfileComplete(profile);
-
   // Counts
   const urgentCount = isArtisan 
     ? myQuotes.filter(q => q.status === 'pending' && !q.is_read).length
     : projects.filter(p => p.quotes?.length > 0 && p.status === 'open').length;
   
+  // Comptes basés sur le statut du projet (cohérence avec l'affichage liste)
   const activeCount = isArtisan
-    ? myQuotes.filter(q => ['pending', 'accepted'].includes(q.status)).length
-    : projects.filter(p => ['open', 'in_progress'].includes(p.status)).length;
+    ? myQuotes.filter(q => {
+        const ps = q.projects?.status;
+        return ps !== 'completed' && ps !== 'expired' && ps !== 'cancelled' && ['pending', 'accepted'].includes(q.status);
+      }).length
+    : projects.filter(p =>
+        ['open', 'quote_received', 'quote_accepted', 'payment_pending', 'payment_received', 'in_progress', 'completion_requested'].includes(p.status)
+      ).length;
     
   const completedCount = isArtisan
-    ? myQuotes.filter(q => q.status === 'accepted').length
+    ? myQuotes.filter(q => q.projects?.status === 'completed').length
     : projects.filter(p => p.status === 'completed').length;
 
   // Recent activity (combined and sorted)
@@ -356,16 +407,7 @@ export function Dashboard() {
     : projects.slice(0, 5);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-        <SkeletonScreen type="header" className="sticky top-0 z-30" />
-        <div className="max-w-lg mx-auto px-5 py-6 space-y-4">
-          <SkeletonScreen type="card" />
-          <SkeletonScreen type="list" />
-          <SkeletonScreen type="card" />
-        </div>
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -377,7 +419,13 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button 
-                onClick={() => setActiveTab('profile')}
+                onClick={() => {
+                  if (isArtisan && profile?.id) {
+                    navigate(`/artisans/${profile.id}?focus=portfolio`);
+                  } else {
+                    setActiveTab('profile');
+                  }
+                }}
                 className="relative"
               >
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 p-0.5 shadow-lg shadow-brand-200/50">
@@ -418,6 +466,18 @@ export function Dashboard() {
 
             {/* Actions rapides - Toujours visibles - Mobile-first (min 44px) */}
             <div className="flex items-center gap-2">
+              {!isArtisan && (
+                <button
+                  onClick={() => navigate('/create-project')}
+                  className="text-sm font-bold text-brand-600 hover:text-brand-700 flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 p-2 sm:p-0 rounded-lg sm:rounded-none active:bg-brand-50/80 sm:active:bg-transparent"
+                  aria-label="Nouveau projet"
+                >
+                  <PlusCircle size={20} className="flex-shrink-0" />
+                  <span className="hidden sm:inline">Nouveau projet</span>
+                </button>
+              )}
+              
+              {/* Cloche notifications (même emplacement que le repo d'origine) */}
               <NotificationBell />
 
               {/* Bouton Paramètres/Profil - Agrandi pour mobile-first */}
@@ -430,23 +490,33 @@ export function Dashboard() {
                   {showMenu ? <X size={22} /> : <Settings size={22} />}
                 </button>
                 
-                {/* Menu simplifié - Seulement les actions importantes */}
+                {/* Menu simplifié - Portfolio + Modifier profil (artisan) ou Mon profil (client) */}
                 {showMenu && (
-                  <div className="absolute right-0 top-14 w-52 bg-white rounded-2xl shadow-2xl border border-gray-100/50 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute right-0 top-14 w-52 bg-white/90 backdrop-blur-xl rounded-2xl shadow-glass-hover border border-white/60 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {isArtisan ? (
+                      <>
+                        <button 
+                          onClick={() => { navigate(`/artisans/${profile.id}?focus=portfolio`); setShowMenu(false); }}
+                          className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <Image size={18} className="text-gray-400" />
+                          <span className="font-medium text-gray-700">Mon portfolio</span>
+                        </button>
                     <button 
                       onClick={() => { navigate('/edit-profile'); setShowMenu(false); }}
                       className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
                     >
                       <User size={18} className="text-gray-400" />
-                      <span className="font-medium text-gray-700">Mon profil</span>
+                          <span className="font-medium text-gray-700">Modifier mon profil</span>
                     </button>
-                    {isArtisan && (
+                      </>
+                    ) : (
                       <button 
-                        onClick={() => { navigate(`/artisans/${profile.id}?focus=portfolio`); setShowMenu(false); }}
+                        onClick={() => { navigate('/edit-profile'); setShowMenu(false); }}
                         className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
                       >
-                        <Image size={18} className="text-gray-400" />
-                        <span className="font-medium text-gray-700">Portfolio</span>
+                        <User size={18} className="text-gray-400" />
+                        <span className="font-medium text-gray-700">Mon profil</span>
                       </button>
                     )}
                     <div className="h-px bg-gray-100 my-1" />
@@ -462,53 +532,6 @@ export function Dashboard() {
               </div>
             </div>
           </div>
-
-          {/* Ligne 2: Actions rapides principales - UNIQUEMENT pour les artisans - Mobile-first */}
-          {isArtisan && (
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100/50 overflow-x-auto pb-1">
-              {/* Bouton Vérification (pour artisans non vérifiés) - Agrandi */}
-              {verificationStatus === 'unverified' && (
-                <button
-                  onClick={() => navigate('/verification')}
-                  className="flex items-center gap-2 px-4 py-3 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-100 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 border border-blue-200 shadow-sm min-h-[44px]"
-                >
-                  <Shield size={20} />
-                  Se vérifier
-                </button>
-              )}
-
-              {/* Bouton Portfolio (pour artisans) - Agrandi */}
-              <button
-                onClick={() => navigate(`/artisans/${profile.id}?focus=portfolio`)}
-                className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 shadow-sm min-h-[44px]"
-              >
-                <Image size={20} />
-                Portfolio
-              </button>
-
-              {/* Bouton Explorer (toujours visible) - Agrandi */}
-              <button
-                onClick={() => navigate('/')}
-                className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all whitespace-nowrap flex-shrink-0 shadow-sm min-h-[44px]"
-              >
-                <Search size={20} />
-                Explorer
-              </button>
-            </div>
-          )}
-
-          {/* Bouton Créer projet pour clients - Intégré dans le header - Mobile-first */}
-          {!isArtisan && (
-            <div className="mt-3 pt-3 border-t border-gray-100/50">
-              <button
-                onClick={() => navigate('/create-project')}
-                className="w-full flex items-center justify-center gap-2 px-5 py-4 bg-brand-500 text-white rounded-xl font-bold text-base hover:bg-brand-600 active:scale-95 transition-all shadow-md shadow-brand-500/30 min-h-[48px]"
-              >
-                <PlusCircle size={22} />
-                Nouveau projet
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Overlay pour fermer les menus */}
@@ -533,7 +556,7 @@ export function Dashboard() {
             {needsProfileCompletion && (
               <button
                 onClick={() => navigate('/edit-profile?mode=onboarding')}
-                className="w-full bg-white border-2 border-brand-200 rounded-xl p-3 flex items-center gap-3 hover:border-brand-300 transition-all active:scale-[0.98]"
+                className="w-full bg-white/85 backdrop-blur-xl border border-white/60 rounded-xl p-3 flex items-center gap-3 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] border-brand-200/80"
               >
                 <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <User size={16} className="text-brand-600" />
@@ -545,61 +568,54 @@ export function Dashboard() {
               </button>
             )}
             
-            {urgentCount > 0 && !needsProfileCompletion && (
+            {isArtisan && !needsProfileCompletion && (verificationStatus === 'unverified' || (creditBalance !== null && creditBalance < 20)) && (() => {
+              const showCertif = verificationStatus === 'unverified';
+              const showCredits = creditBalance !== null && creditBalance < 20;
+              const both = showCertif && showCredits;
+              return (
+                <div className="grid grid-cols-2 gap-3">
+                  {showCertif && (
               <button 
-                onClick={() => setActiveTab('activity')}
-                className="w-full bg-white border-2 border-yellow-200 rounded-xl p-3 flex items-center gap-3 hover:border-yellow-300 transition-all active:scale-[0.98]"
-              >
-                <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <AlertCircle size={16} className="text-yellow-600" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="font-bold text-gray-900 text-sm">
-                    {urgentCount} action{urgentCount > 1 ? 's' : ''} en attente
-                  </p>
-                </div>
-                <ChevronRight size={14} className="text-gray-400" />
-              </button>
-            )}
-
-            {isArtisan && verificationStatus === 'unverified' && !needsProfileCompletion && urgentCount === 0 && (
-              <button 
+                      type="button"
                 onClick={() => navigate('/verification')}
-                className="w-full bg-white border-2 border-blue-200 rounded-xl p-3 flex items-center gap-3 hover:border-blue-300 transition-all active:scale-[0.98]"
+                      className={`bg-white/85 backdrop-blur-xl border border-white/60 rounded-xl p-3 flex items-center gap-3 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[72px] border-brand-200/80 ${!both ? 'col-span-2' : ''}`}
               >
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Shield size={16} className="text-blue-600" />
+                      <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Shield size={16} className="text-brand-600" />
                 </div>
-                <div className="flex-1 text-left">
+                      <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm">Faites-vous certifier</p>
                 </div>
-                <ChevronRight size={14} className="text-gray-400" />
+                      <ChevronRight size={14} className="text-brand-500 flex-shrink-0" />
               </button>
             )}
-
-            {isArtisan && creditBalance !== null && creditBalance < 20 && (
+                  {showCredits && (
               <button
+                      type="button"
                 onClick={() => navigate('/credits')}
-                className="w-full bg-white border-2 border-purple-200 rounded-xl p-3 flex items-center gap-3 hover:border-purple-300 transition-all active:scale-[0.98]"
+                      className={`bg-white/85 backdrop-blur-xl border border-white/60 rounded-xl p-3 flex items-center gap-3 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[72px] border-brand-200/80 ${!both ? 'col-span-2' : ''}`}
               >
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <CreditCard size={16} className="text-purple-600" />
+                      <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <CreditCard size={16} className="text-brand-600" />
                 </div>
-                <div className="flex-1 text-left">
+                      <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm">
                     {creditBalance} crédit{creditBalance > 1 ? 's' : ''} restant{creditBalance > 1 ? 's' : ''}
                   </p>
                 </div>
-                <ChevronRight size={14} className="text-gray-400" />
+                      <ChevronRight size={14} className="text-brand-500 flex-shrink-0" />
               </button>
             )}
+                </div>
+              );
+            })()}
 
             {/* Finances & Dépenses (dashboard) */}
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => navigate('/invoices')}
-                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-[0.99] text-left min-h-[92px]"
+                className="bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[92px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center mb-3">
                   <FileText size={18} className="text-brand-600" />
@@ -610,7 +626,7 @@ export function Dashboard() {
               <button
                 type="button"
                 onClick={() => navigate('/expenses')}
-                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-[0.99] text-left min-h-[92px]"
+                className="bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[92px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
                   <Receipt size={18} className="text-gray-600" />
@@ -625,7 +641,7 @@ export function Dashboard() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setActiveTab('activity')}
-                  className="bg-white rounded-xl p-4 border border-gray-100 hover:border-brand-200 hover:shadow-sm transition-all active:scale-[0.98] text-left"
+                  className="bg-white/85 backdrop-blur-xl rounded-xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
@@ -634,13 +650,13 @@ export function Dashboard() {
                   </div>
                   <p className="text-2xl font-black text-gray-900 mb-1">{activeCount}</p>
                   <p className="text-xs font-medium text-gray-600">
-                    {isArtisan ? 'Devis actifs' : 'En cours'}
+                    {isArtisan ? 'Projets en cours' : 'En cours'}
                   </p>
                 </button>
                 
                 <button
                   onClick={() => setActiveTab('activity')}
-                  className="bg-white rounded-xl p-4 border border-gray-100 hover:border-green-200 hover:shadow-sm transition-all active:scale-[0.98] text-left"
+                  className="bg-white/85 backdrop-blur-xl rounded-xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
@@ -649,7 +665,7 @@ export function Dashboard() {
                   </div>
                   <p className="text-2xl font-black text-gray-900 mb-1">{completedCount}</p>
                   <p className="text-xs font-medium text-gray-600">
-                    {isArtisan ? 'Acceptés' : 'Terminés'}
+                    {isArtisan ? 'Projets terminés' : 'Terminés'}
                   </p>
                 </button>
               </div>
@@ -672,12 +688,8 @@ export function Dashboard() {
                   )}
                 </div>
                 
-                {loading ? (
-                  <div className="bg-white rounded-2xl p-10 text-center border border-gray-100">
-                    <div className="w-10 h-10 border-3 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                  </div>
-                ) : projects.length === 0 ? (
-                  <div className="bg-white rounded-2xl p-10 text-center border border-gray-100">
+                {projects.length === 0 ? (
+                  <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-10 text-center border border-white/60 shadow-glass">
                     <div className="w-16 h-16 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <Sparkles size={28} className="text-brand-500" />
                     </div>
@@ -700,7 +712,7 @@ export function Dashboard() {
                           document.body.scrollTop = 0;
                           navigate(`/projects/${project.id}`);
                         }}
-                          className="w-full bg-white rounded-2xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99] min-h-[120px]"
+                          className="w-full bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[120px]"
                           style={{ animationDelay: `${index * 50}ms` }}
                         >
                           <div className="flex items-start justify-between mb-3">
@@ -736,206 +748,277 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* ============== ACTIVITY TAB ============== */}
+        {/* ============== ACTIVITY TAB — Projets (devis = partie du projet) ============== */}
         {activeTab === 'activity' && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="flex items-center justify-between">
-              <h1 className="text-xl font-bold text-gray-900">
-                {isArtisan ? 'Mes devis' : 'Mes projets'}
+            <div>
+              <h1 className="text-xl font-black text-gray-900 tracking-tight">
+                {isArtisan ? 'Projets' : 'Mes projets'}
               </h1>
-              
+              <p className="text-sm text-gray-500 mt-0.5">
+                {isArtisan ? 'Projets sur lesquels vous avez répondu' : 'Vos projets et les devis reçus'}
+              </p>
             </div>
 
+            {/* Artisan: sous-pages Projets (Nouvelles demandes | Mes devis | Révisions) */}
             {isArtisan ? (
               <>
-                {/* Section Révisions en attente */}
-                {quoteRevisions.length > 0 && (
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                        <AlertCircle size={20} className="text-yellow-600" />
-                        Révisions en attente
-                        <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">
-                          {quoteRevisions.length}
-                        </span>
-                      </h3>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 scrollbar-hide">
+                  {([
+                    { id: 'demandes' as const, label: 'Nouvelles demandes', badge: newRequestProjects.length },
+                    { id: 'devis' as const, label: 'Mes devis', badge: undefined },
+                    { id: 'revisions_attente' as const, label: 'Révisions en attente', badge: quoteRevisions.length },
+                    { id: 'revisions_envoyees' as const, label: 'Révisions envoyées', badge: quoteRevisionsResponded.length },
+                  ]).map((tab) => (
                       <button
-                        onClick={() => navigate('/revisions')}
-                        className="text-xs font-bold text-brand-600 hover:text-brand-700"
-                      >
-                        Voir tout
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActivitySubTab(tab.id)}
+                      className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                        activitySubTab === tab.id
+                          ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-cta'
+                          : 'bg-white/90 backdrop-blur-sm text-gray-600 border border-gray-200 hover:border-brand-200'
+                      }`}
+                    >
+                      {tab.label}
+                      {tab.badge != null && tab.badge > 0 && (
+                        <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">{tab.badge}</span>
+                      )}
                       </button>
+                  ))}
                     </div>
+
+                {activitySubTab === 'demandes' && (
                     <div className="space-y-3">
-                      {quoteRevisions.map((revision) => (
-                        <div
-                          key={revision.id}
-                          className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 hover:shadow-lg transition-all"
+                    {newRequestProjects.length === 0 ? (
+                      <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-10 text-center border border-white/60 shadow-glass">
+                        <Briefcase size={40} className="mx-auto text-gray-300 mb-3" />
+                        <p className="font-bold text-gray-800">Aucune nouvelle demande</p>
+                        <p className="text-sm text-gray-500 mt-1">Les demandes de votre catégorie apparaîtront ici et dans vos notifications</p>
+                      </div>
+                    ) : (
+                      newRequestProjects.map((project, index) => (
+                        <button
+                          key={project.id}
+                          type="button"
+                          onClick={() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); navigate(`/projects/${project.id}`); }}
+                          className="w-full bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left"
+                          style={{ animationDelay: `${index * 40}ms` }}
                         >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <p className="text-xs font-bold text-yellow-800 mb-1">Demande de révision</p>
-                              <p className="text-sm font-black text-gray-900">
-                                {revision.projects?.title || 'Projet'}
-                              </p>
-                              <p className="text-xs text-gray-600 mt-1">
-                                Devis: {revision.quotes?.quote_number || revision.quote_id.slice(0, 8).toUpperCase()}
-                              </p>
+                          <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-lg uppercase tracking-wide">
+                            Nouvelle demande
+                          </span>
+                          <span className="px-2.5 py-1 bg-brand-50 text-brand-700 text-[10px] font-bold rounded-lg ml-2">
+                            {project.categories?.name}
+                          </span>
+                          <h3 className="font-black text-gray-900 text-base leading-snug line-clamp-2 mt-3 mb-2">{project.title}</h3>
+                          <p className="text-xs text-gray-500 flex items-center gap-1">
+                            <Calendar size={12} />
+                            {new Date(project.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                          </p>
+                          <span className="inline-flex items-center gap-1 mt-2 text-sm font-bold text-brand-600">Voir la demande <ChevronRight size={14} /></span>
+                        </button>
+                      ))
+                    )}
                             </div>
-                            <span className="text-xs text-gray-500">
-                              {new Date(revision.requested_at).toLocaleDateString('fr-FR')}
-                            </span>
-                          </div>
-                          <div className="bg-white rounded-xl p-3 mb-3">
-                            <p className="text-xs font-bold text-gray-700 mb-1">Commentaires du client :</p>
-                            <p className="text-sm text-gray-600">{revision.client_comments}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                navigate('/revisions');
-                              }}
-                              className="flex-1 bg-brand-500 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-brand-600 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <FileText size={14} />
-                              Voir toutes les révisions
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 )}
 
-                {/* Artisan: Liste des devis */}
-                {myQuotes.length === 0 ? (
-                  <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
-                    <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <Send size={28} className="text-gray-300" />
+                {activitySubTab === 'devis' && (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {(['all', 'active', 'completed'] as const).map((key) => (
+                            <button
+                          key={key}
+                              type="button"
+                          onClick={() => setActivityFilter(key)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                            activityFilter === key ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {key === 'all' && 'Tous'}
+                          {key === 'active' && 'En cours'}
+                          {key === 'completed' && 'Terminés'}
+                            </button>
+                      ))}
                     </div>
-                    <p className="text-gray-500 font-medium">Aucun devis envoyé</p>
-                    <p className="text-sm text-gray-400 mt-1">Consultez les projets disponibles</p>
+                    {filteredMyQuotes.length === 0 ? (
+                      <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-12 text-center border border-white/60 shadow-glass">
+                        <Briefcase size={24} className="mx-auto text-gray-400 mb-4" />
+                        <p className="font-bold text-gray-900 text-base">Aucun devis</p>
+                        <p className="text-sm text-gray-500 mt-1">Répondez à des demandes pour les retrouver ici</p>
                   </div>
                 ) : (
-                  <>
-                    {/* Liste des devis */}
                     <div className="space-y-3">
-                      {myQuotes.map((quote, index) => {
-                      const status = STATUS_CONFIG[quote.status] || STATUS_CONFIG.pending;
+                        {filteredMyQuotes.map((quote, index) => {
+                          const projectStatus = quote.projects?.status;
+                          const status = STATUS_CONFIG[projectStatus] || STATUS_CONFIG.pending;
+                          const quoteStatusLabel = (STATUS_CONFIG[quote.status] || STATUS_CONFIG.pending).label;
                       return (
                         <button
                           key={quote.id}
-                            onClick={() => {
-                              // Forcer le scroll en haut avant la navigation
-                              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                              document.documentElement.scrollTop = 0;
-                              document.body.scrollTop = 0;
-                              navigate(`/projects/${quote.project_id}`);
-                            }}
-                          className="w-full bg-white rounded-3xl p-5 border border-gray-100 text-left hover:border-brand-200 hover:shadow-lg hover:shadow-gray-200/50 transition-all active:scale-[0.99] min-h-[140px]"
-                          style={{ animationDelay: `${index * 50}ms` }}
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <span className="text-xs text-gray-500 font-mono bg-gray-100 px-3 py-1.5 rounded-xl font-bold">
-                              {quote.quote_number}
-                            </span>
-                            <span className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 ${status.color} border`}>
-                              {status.icon}
-                              {status.label}
-                            </span>
+                              type="button"
+                              onClick={() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); navigate(`/projects/${quote.project_id}`); }}
+                              className="w-full bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left"
+                              style={{ animationDelay: `${index * 40}ms` }}
+                            >
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <span className="px-2.5 py-1 bg-brand-50 text-brand-700 text-[10px] font-bold rounded-lg uppercase tracking-wide">{quote.projects?.categories?.name || 'Projet'}</span>
+                                <span className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 ${status.color}`}>{status.icon}{status.label}</span>
                           </div>
-                          <h3 className="font-black text-gray-900 mb-3 text-base leading-tight line-clamp-2">{quote.projects?.title}</h3>
-                          {quote.status === 'rejected' && quote.rejection_reason && (
-                            <div className="mb-3 flex items-start gap-2 bg-red-50 border-2 border-red-200 rounded-xl p-3">
-                              <span className="text-xs font-black text-red-700">❌ Refusé</span>
-                              <span className="text-xs text-red-700 line-clamp-2 flex-1 font-medium">
-                                : {quote.rejection_reason}
-                              </span>
+                              <h3 className="font-black text-gray-900 text-base leading-snug line-clamp-2 mb-3">{quote.projects?.title}</h3>
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-500">Mon devis : <span className="font-semibold text-gray-700">{quoteStatusLabel}</span> · {quote.amount?.toLocaleString('fr-FR')} FCFA</span>
+                                <span className="text-xs text-gray-400">{new Date(quote.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
                             </div>
-                          )}
-                          <div className="flex items-center justify-between">
-                            <span className="text-xl font-black text-brand-600">
-                              {quote.amount?.toLocaleString('fr-FR')} FCFA
-                            </span>
-                            <span className="text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded-lg">
-                              {new Date(quote.created_at).toLocaleDateString('fr-FR')}
-                            </span>
-                          </div>
+                              {quote.status === 'rejected' && quote.rejection_reason && (
+                                <p className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 line-clamp-2">{quote.rejection_reason}</p>
+                              )}
                         </button>
                       );
                     })}
-                      {myQuotes.length === 0 && (
-                        <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
-                          <p className="text-gray-400 text-sm">Aucun devis</p>
                         </div>
                       )}
-                  </div>
                   </>
                 )}
-              </>
-            ) : (
-              /* Client: Liste des projets */
-              projects.length === 0 ? (
-                <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
-                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Briefcase size={28} className="text-gray-300" />
+
+                {activitySubTab === 'revisions_attente' && (
+                  <div className="space-y-3">
+                    {quoteRevisions.length === 0 ? (
+                      <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-10 text-center border border-white/60 shadow-glass">
+                        <AlertCircle size={32} className="mx-auto text-gray-300 mb-3" />
+                        <p className="font-bold text-gray-800">Aucune révision en attente</p>
+                      </div>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => navigate('/revisions')} className="text-sm font-bold text-brand-600 hover:underline mb-2">Voir tout sur la page Révisions</button>
+                        {quoteRevisions.map((revision) => (
+                          <div key={revision.id} className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
+                            <p className="text-sm font-bold text-gray-900 line-clamp-1">{revision.projects?.title || 'Projet'}</p>
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-2">{revision.client_comments}</p>
+                            <button
+                              type="button"
+                              onClick={() => { const pid = revision.project_id || revision.projects?.id; if (pid) navigate(`/projects/${pid}?revision=${revision.id}`); else navigate('/revisions'); }}
+                              className="mt-3 w-full bg-gradient-to-br from-brand-400 to-brand-600 text-white font-bold py-2 rounded-xl text-sm shadow-cta hover:shadow-cta-hover active:scale-[0.99]"
+                            >
+                              Répondre
+                            </button>
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
-                  <p className="text-gray-500 font-medium">Aucun projet</p>
-                  <p className="text-sm text-gray-400 mt-1">Créez votre premier projet</p>
+                )}
+
+                {activitySubTab === 'revisions_envoyees' && (
+                  <div className="space-y-3">
+                    {quoteRevisionsResponded.length === 0 ? (
+                      <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-10 text-center border border-white/60 shadow-glass">
+                        <FileText size={32} className="mx-auto text-gray-300 mb-3" />
+                        <p className="font-bold text-gray-800">Aucune révision envoyée</p>
+                        <p className="text-sm text-gray-500 mt-1">Vos réponses aux demandes de révision apparaîtront ici</p>
+                      </div>
+                    ) : (
+                      quoteRevisionsResponded.map((revision) => (
+                        <button
+                          key={revision.id}
+                          type="button"
+                          onClick={() => { const pid = revision.project_id || revision.projects?.id; if (pid) navigate(`/projects/${pid}?revision=${revision.id}`); }}
+                          className="w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 text-left"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-gray-900 text-sm line-clamp-1">{revision.projects?.title || 'Projet'}</p>
+                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${revision.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {revision.status === 'accepted' ? 'Acceptée' : 'Réponse envoyée'}
+                            </span>
+                  </div>
+                          {revision.responded_at && (
+                            <p className="text-xs text-gray-500 mt-1">{new Date(revision.responded_at).toLocaleDateString('fr-FR')}</p>
+                          )}
+                        </button>
+                      ))
+                    )}
                 </div>
+                )}
+              </>
               ) : (
                 <>
-                  {/* Liste des projets */}
+                {/* Filtres rapides — Client */}
+                <div className="flex flex-wrap gap-2">
+                  {(['all', 'active', 'completed'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setActivityFilter(key)}
+                      className={`px-4 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${
+                        activityFilter === key ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-cta' : 'bg-white/90 backdrop-blur-sm text-gray-600 border border-gray-200 hover:border-brand-200'
+                      }`}
+                    >
+                      {key === 'all' && 'Tous'}
+                      {key === 'active' && 'En cours'}
+                      {key === 'completed' && 'Terminés'}
+                    </button>
+                  ))}
+                </div>
+                {/* Client: Liste des projets — projet + nombre de devis */}
+                {projects.length === 0 ? (
+                <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-12 text-center border border-white/60 shadow-glass">
+                  <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Briefcase size={24} className="text-gray-400" />
+                  </div>
+                  <p className="font-bold text-gray-900 text-base">Aucun projet</p>
+                  <p className="text-sm text-gray-500 mt-1">Créez votre premier projet</p>
+                </div>
+              ) : filteredProjects.length === 0 ? (
+                <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-10 text-center border border-white/60 shadow-glass">
+                  <p className="text-gray-500 text-sm">Aucun projet dans cette catégorie</p>
+                </div>
+              ) : (
                   <div className="space-y-3">
-                    {projects.map((project) => {
+                  {filteredProjects.map((project, index) => {
                     const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.open;
+                    const quoteCount = project.quotes?.length ?? 0;
                     return (
                       <button
                         key={project.id}
+                        type="button"
                         onClick={() => {
-                          // Forcer le scroll en haut avant la navigation
                           window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                          document.documentElement.scrollTop = 0;
-                          document.body.scrollTop = 0;
                           navigate(`/projects/${project.id}`);
                         }}
-                        className="w-full bg-white rounded-2xl p-4 border border-gray-100 text-left hover:border-brand-200 hover:shadow-md transition-all active:scale-[0.99]"
+                        className="w-full bg-white/85 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 text-left active:scale-[0.99]"
+                        style={{ animationDelay: `${index * 40}ms` }}
                       >
-                        <div className="flex items-start justify-between mb-3">
-                          <span className="text-xs text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded">
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <span className="text-[10px] font-mono text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg uppercase tracking-wide">
                             {project.project_number}
                           </span>
-                          <span className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${status.color}`}>
+                          <span className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 ${status.color}`}>
                             {status.icon}
                             {status.label}
                           </span>
                         </div>
-                        <h3 className="font-bold text-gray-900 mb-2">{project.title}</h3>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500 flex items-center gap-1">
-                            <MapPin size={14} />
+                        <h3 className="font-black text-gray-900 text-base leading-snug line-clamp-2 mb-3">
+                          {project.title}
+                        </h3>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500 flex items-center gap-1.5">
+                            <MapPin size={14} className="shrink-0" />
                             {project.location || 'Sénégal'}
                           </span>
-                          {project.quotes?.length > 0 && (
-                            <span className="text-sm text-purple-600 font-bold">
-                              {project.quotes.length} devis
+                          {quoteCount > 0 && (
+                            <span className="text-brand-600 font-bold flex items-center gap-1.5">
+                              <FileText size={14} />
+                              {quoteCount} devis
                             </span>
                           )}
                         </div>
                       </button>
                       );
                     })}
-                    {projects.length === 0 && (
-                        <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
-                          <p className="text-gray-400 text-sm">Aucun projet</p>
                         </div>
-                      )}
-                </div>
-                </>
               )
+            }
+              </>
             )}
           </div>
         )}
@@ -1028,24 +1111,12 @@ export function Dashboard() {
         )}
       </main>
 
-      {/* ============== FAB (Floating Action Button) - Modernisé ============== */}
-      {!isArtisan && activeTab !== 'profile' && (
-        <button
-          onClick={() => navigate('/create-project')}
-          className="fixed bottom-28 right-5 w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl shadow-2xl shadow-brand-500/40 flex items-center justify-center text-white hover:from-brand-600 hover:to-brand-700 active:scale-95 transition-all z-20"
-          aria-label="Nouveau projet"
-        >
-          <Plus size={28} strokeWidth={2.5} />
-        </button>
-      )}
-
       {/* ============== BOTTOM NAVIGATION MODERNISÉE AGRANDIE ============== */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200/50 z-30 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <div className="max-w-lg mx-auto px-2 py-3.5 flex items-center justify-around bg-white border-t border-gray-100 overflow-x-auto">
           {[
             { id: 'home' as TabId, icon: Home, label: 'Accueil' },
-            { id: 'activity' as TabId, icon: isArtisan ? Send : Briefcase, label: isArtisan ? 'Devis' : 'Projets', badge: urgentCount },
-            { id: 'profile' as TabId, icon: User, label: 'Profil' },
+            { id: 'activity' as TabId, icon: isArtisan ? Send : Briefcase, label: 'Projets', badge: urgentCount > 0 ? urgentCount : undefined },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1101,7 +1172,22 @@ export function Dashboard() {
             );
           })}
 
-          {/* Boutons supplémentaires : Messagerie, Finances */}
+          {/* Recherche : Explorer les artisans (liste des profils publics) */}
+          <button
+            type="button"
+            onClick={() => navigate('/artisans')}
+            className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            aria-label="Recherche"
+          >
+            <div className="relative scale-100 transition-transform duration-200">
+              <Search size={22} strokeWidth={2} className="text-gray-400" />
+            </div>
+            <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
+              Recherche
+            </span>
+          </button>
+
+          {/* Messagerie, Finances */}
           <button
             type="button"
             onClick={() => navigate('/conversations')}
@@ -1110,6 +1196,11 @@ export function Dashboard() {
           >
             <div className="relative scale-100 transition-transform duration-200">
               <MessageSquare size={22} strokeWidth={2} className="text-gray-400" />
+              {unreadMessageCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                  {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                </span>
+              )}
             </div>
             <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
               Messages

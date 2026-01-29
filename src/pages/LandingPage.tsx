@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
@@ -12,6 +12,7 @@ import { LanguageSelector } from '../components/LanguageSelector';
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const auth = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { categories: dbCategories, loading } = useDiscovery();
@@ -80,7 +81,10 @@ export function LandingPage() {
     }
 
     // Si l'utilisateur a un profil complet, rediriger vers le dashboard
-    // (ceci évite que les utilisateurs connectés voient la landing page)
+    // sauf s'il arrive depuis le bouton Recherche (?recherche=1) pour voir la landing (localhost ou mbourake.com)
+    const fromRecherche = searchParams.get('recherche') === '1' || (typeof window !== 'undefined' && window.location.search.includes('recherche=1'));
+    if (fromRecherche) return;
+
     const requiredFields = ['role', 'full_name', 'location'];
     const hasRequiredFields = requiredFields.every(
       field => profile[field] && profile[field].toString().trim().length > 0
@@ -91,7 +95,7 @@ export function LandingPage() {
     if (isProfileComplete) {
       navigate('/dashboard', { replace: true });
     }
-  }, [auth.loading, profileLoading, auth.user, profile, navigate]);
+  }, [auth.loading, profileLoading, auth.user, profile, navigate, searchParams]);
 
   if (auth.loading || profileLoading) {
     return (

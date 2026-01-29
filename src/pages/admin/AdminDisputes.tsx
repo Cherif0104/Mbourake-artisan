@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useToastContext } from '../../contexts/ToastContext';
 import { supabase } from '../../lib/supabase';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 
 interface DisputedProject {
   id: string;
@@ -264,11 +265,7 @@ export function AdminDisputes() {
 
       {/* Disputes List */}
       <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-        {loading ? (
-          <div className="px-6 py-12 text-center">
-            <Loader2 size={32} className="text-brand-500 animate-spin mx-auto" />
-          </div>
-        ) : filteredDisputes.length === 0 ? (
+        {filteredDisputes.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <AlertTriangle size={48} className="text-gray-200 mx-auto mb-4" />
             <p className="text-gray-500 font-medium">Aucun litige en cours</p>

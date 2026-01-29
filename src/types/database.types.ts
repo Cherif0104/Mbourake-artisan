@@ -317,6 +317,7 @@ export type Database = {
         Row: {
           audio_description_url: string | null
           category_id: number | null
+          client_confirmed_closure_at: string | null
           client_id: string | null
           created_at: string | null
           expires_at: string | null
@@ -341,6 +342,7 @@ export type Database = {
         Insert: {
           audio_description_url?: string | null
           category_id?: number | null
+          client_confirmed_closure_at?: string | null
           client_id?: string | null
           created_at?: string | null
           expires_at?: string | null
@@ -365,6 +367,7 @@ export type Database = {
         Update: {
           audio_description_url?: string | null
           category_id?: number | null
+          client_confirmed_closure_at?: string | null
           client_id?: string | null
           created_at?: string | null
           expires_at?: string | null
@@ -649,6 +652,9 @@ export type Database = {
         | "project_completed"
         | "payment_received"
         | "dispute_raised"
+        | "quote_revision_requested"
+        | "quote_revision_responded"
+        | "system"
       project_status: 
         | "draft"
         | "open"

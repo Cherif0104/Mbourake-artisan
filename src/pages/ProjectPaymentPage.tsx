@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShieldCheck, CreditCard, AlertTriangle, Check, Info, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ShieldCheck, CreditCard, AlertTriangle, Check, Info, CheckCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useEscrow } from '../hooks/useEscrow';
 import { useToastContext } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
-import { SkeletonScreen } from '../components/SkeletonScreen';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
 import {
   BYPASS_MODE,
@@ -59,7 +59,7 @@ export function ProjectPaymentPage() {
           return;
         }
 
-        // Fetch escrow
+        // Fetch escrow (si présent)
         const { data: eData, error: eError } = await supabase
           .from('escrows')
           .select('*')
@@ -67,26 +67,56 @@ export function ProjectPaymentPage() {
           .maybeSingle();
 
         if (eError) throw eError;
-        
-        if (!eData) {
-          showError('Aucun escrow trouvé pour ce projet.');
-          navigate(`/projects/${id}`);
-          return;
-        }
-        setEscrow(eData);
-        setAmount(Number(eData.total_amount) || 0);
+        setEscrow(eData || null);
 
-        // Fetch accepted quote
+        // 1) Récupérer le devis accepté SANS jointure (évite échec RLS/FK) pour avoir le montant
         const { data: qData, error: qError } = await supabase
           .from('quotes')
-          .select('*, profiles!quotes_artisan_id_fkey(id, full_name, avatar_url)')
+          .select('id, amount, artisan_id, quote_number, created_at')
           .eq('project_id', id)
           .eq('status', 'accepted')
-          .single();
+          .maybeSingle();
 
-        if (!qError && qData) {
+        if (qError) {
+          console.warn('[ProjectPaymentPage] Fetch quote:', qError.message);
+        }
+
+        // 2) Si on a le devis, récupérer le profil artisan pour l'affichage (optionnel)
+        if (qData?.artisan_id) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url')
+            .eq('id', qData.artisan_id)
+            .maybeSingle();
+          setQuote(profileData ? { ...qData, profiles: profileData } : qData);
+        } else if (qData) {
           setQuote(qData);
         }
+
+        // 3) Montant : priorité devis accepté, sinon révision acceptée, sinon escrow
+        let resolvedAmount: number | null = null;
+        if (qData?.amount != null && Number(qData.amount) > 0) {
+          resolvedAmount = Number(qData.amount);
+        }
+        if (resolvedAmount == null) {
+          const { data: revData } = await supabase
+            .from('quote_revisions')
+            .select('suggested_price, additional_fees')
+            .eq('project_id', id)
+            .eq('status', 'accepted')
+            .order('responded_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (revData && (revData.suggested_price != null || revData.additional_fees != null)) {
+            const base = Number(revData.suggested_price ?? 0);
+            const fees = Number(revData.additional_fees ?? 0);
+            if (base > 0 || fees > 0) resolvedAmount = base + fees;
+          }
+        }
+        if (resolvedAmount == null && eData?.total_amount != null && Number(eData.total_amount) > 0) {
+          resolvedAmount = Number(eData.total_amount);
+        }
+        setAmount(resolvedAmount ?? 0);
 
       } catch (err: any) {
         console.error('Error fetching payment data:', err);
@@ -104,26 +134,32 @@ export function ProjectPaymentPage() {
     [methodId]
   );
 
+  // Montant affiché : priorité au devis accepté (évite 0 si quote chargé après amount)
+  const displayAmount = useMemo(() => {
+    const fromQuote = quote?.amount != null && Number(quote.amount) > 0 ? Number(quote.amount) : null;
+    return fromQuote ?? amount ?? 0;
+  }, [quote?.amount, amount]);
+
   const totalWithFees = useMemo(() => {
-    const fees = Math.round(amount * (selectedMethod?.fees || 0) / 100);
-    return amount + fees;
-  }, [amount, selectedMethod]);
+    const fees = Math.round(displayAmount * (selectedMethod?.fees || 0) / 100);
+    return displayAmount + fees;
+  }, [displayAmount, selectedMethod]);
 
   const handlePay = async () => {
-    if (amount <= 0) {
-      setPaymentError('Saisissez un montant supérieur à 0');
+    const amountToPay = displayAmount || amount;
+    if (amountToPay <= 0) {
+      setPaymentError('Le montant du devis accepté est absent. Impossible de procéder au paiement.');
       return;
     }
-    if (!escrow?.id) return;
 
     setPaymentLoading(true);
     setPaymentError(null);
     setPaymentResult(null);
     
     try {
-      const payment = await processPayment(amount, methodId, {
-        projectId: escrow.project_id ?? undefined,
-        escrowId: escrow.id,
+      const payment = await processPayment(amountToPay, methodId, {
+        projectId: project?.id ?? undefined,
+        escrowId: escrow?.id,
         phoneNumber: phoneNumber || undefined,
       });
 
@@ -131,14 +167,22 @@ export function ProjectPaymentPage() {
       setPaymentError(payment.success ? null : payment.message);
 
       if (payment.success) {
-        // Confirmer le dépôt dans l'escrow
-        await confirmDeposit(escrow.id, methodId);
-        success('Paiement confirmé avec succès ! L\'artisan a été notifié.');
-        
-        // Rediriger vers la page de travaux en cours après un délai
+        if (escrow?.id) {
+          // Cas avec escrow actif : confirmer le dépôt
+          await confirmDeposit(escrow.id, methodId);
+        } else if (project?.id) {
+          // Mode BYPASS sans escrow : marquer directement le projet comme payé
+          await supabase
+            .from('projects')
+            .update({ status: 'payment_received' })
+            .eq('id', project.id);
+        }
+
+        success('Paiement confirmé ! Redirection...');
+        // Page « Merci » visible puis auto-redirect vers la section travaux
         setTimeout(() => {
-          navigate(`/projects/${id}/work`);
-        }, 2000);
+          navigate(`/projects/${id}/thank-you`);
+        }, 400);
       }
     } catch (error: any) {
       console.error('Error processing payment:', error);
@@ -149,10 +193,12 @@ export function ProjectPaymentPage() {
   };
 
   if (loading) {
-    return <SkeletonScreen />;
+    return <LoadingOverlay />;
   }
 
-  if (!project || !escrow) {
+  // Si le projet est introuvable, on affiche une erreur.
+  // En mode BYPASS, l'absence d'escrow ne doit PAS bloquer l'accès à la page.
+  if (!project) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="text-center">
@@ -170,18 +216,29 @@ export function ProjectPaymentPage() {
     );
   }
 
-  const isPaid = escrow.status === 'held' || escrow.status === 'advance_paid' || escrow.status === 'released';
-  const isPending = escrow.status === 'pending';
+  const isPaid =
+    !!escrow &&
+    (escrow.status === 'held' || escrow.status === 'advance_paid' || escrow.status === 'released');
+  // Si aucun escrow n'existe encore, on considère simplement que le paiement est "en attente"
+  const isPending = !isPaid;
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
-        <HomeButton />
+        <button
+          type="button"
+          onClick={() => navigate(`/projects/${id}`)}
+          className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200"
+          aria-label="Retour au projet"
+        >
+          <ArrowLeft size={20} />
+        </button>
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-gray-900 truncate">Paiement sécurisé</h1>
           <p className="text-xs text-gray-400 font-mono">{project.project_number}</p>
         </div>
+        <HomeButton />
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
@@ -220,84 +277,115 @@ export function ProjectPaymentPage() {
           </div>
         </div>
 
-        {/* Payment Status */}
+        {/* Payment Status - Paiement effectué */}
         {isPaid && (
           <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-6 mb-6 text-center">
             <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <Check size={32} className="text-white" />
             </div>
             <h3 className="font-bold text-lg text-green-900 mb-2">Paiement effectué !</h3>
-            <p className="text-sm text-green-700 mb-4">
-              Votre paiement a été confirmé. L'artisan a été notifié et peut maintenant commencer les travaux.
+            <p className="text-sm text-green-700 mb-5">
+              Votre paiement a été confirmé. L&apos;artisan a été notifié et peut maintenant commencer les travaux.
             </p>
-            <button
-              onClick={() => navigate(`/projects/${id}/work`)}
-              className="px-6 py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-colors"
-            >
-              Voir les travaux en cours
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate(`/projects/${id}#suivi`)}
+                className="w-full px-6 py-4 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <ArrowRight size={20} />
+                Voir le suivi du projet
+              </button>
+              <button
+                onClick={() => navigate(`/projects/${id}`)}
+                className="w-full px-6 py-3 bg-white border-2 border-green-300 text-green-800 rounded-xl font-bold hover:bg-green-50 transition-colors"
+              >
+                Voir le détail du projet
+              </button>
+            </div>
           </div>
         )}
 
         {isPending && (
           <>
             {/* Payment Details */}
-            <div className="bg-white rounded-2xl p-5 mb-6 border border-gray-100">
-              <h3 className="font-bold text-lg text-gray-900 mb-4">Détails du paiement</h3>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Montant du devis</span>
-                  <span className="font-bold text-gray-900">
-                    {Number(escrow.base_amount || 0).toLocaleString('fr-FR')} FCFA
-                  </span>
-                </div>
+            {escrow ? (
+              <div className="bg-white rounded-2xl p-5 mb-6 border border-gray-100">
+                <h3 className="font-bold text-lg text-gray-900 mb-4">Détails du paiement</h3>
                 
-                {Number(escrow.urgent_surcharge || 0) > 0 && (
+                <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Majoration urgence</span>
+                    <span className="text-sm text-gray-600">Montant du devis</span>
                     <span className="font-bold text-gray-900">
-                      +{Number(escrow.urgent_surcharge || 0).toLocaleString('fr-FR')} FCFA
+                      {Number(escrow.base_amount || 0).toLocaleString('fr-FR')} FCFA
                     </span>
                   </div>
-                )}
-                
-                <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total à payer</span>
-                  <span className="font-black text-xl text-brand-600">
-                    {Number(escrow.total_amount || 0).toLocaleString('fr-FR')} FCFA
-                  </span>
+                  
+                  {Number(escrow.urgent_surcharge || 0) > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Majoration urgence</span>
+                      <span className="font-bold text-gray-900">
+                        +{Number(escrow.urgent_surcharge || 0).toLocaleString('fr-FR')} FCFA
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
+                    <span className="font-bold text-gray-900">Total à payer</span>
+                    <span className="font-black text-xl text-brand-600">
+                      {Number(escrow.total_amount || 0).toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white rounded-2xl p-5 mb-6 border border-gray-100">
+                <h3 className="font-bold text-lg text-gray-900 mb-4">Détails du paiement</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Montant du devis</span>
+                    <span className="font-bold text-gray-900">
+                      {Number(displayAmount || 0).toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
+                  <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
+                    <span className="font-bold text-gray-900">Total à payer</span>
+                    <span className="font-black text-xl text-brand-600">
+                      {Number(displayAmount || 0).toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            {/* Payment Breakdown */}
-            <div className="bg-gray-50 rounded-2xl p-5 mb-6 border border-gray-200">
-              <h4 className="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2">
-                <Info size={16} className="text-gray-500" />
-                Répartition des fonds
-              </h4>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Paiement artisan</span>
-                  <span className="font-bold text-gray-900">
-                    {Number(escrow.artisan_payout || 0).toLocaleString('fr-FR')} FCFA
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Commission plateforme (10%)</span>
-                  <span className="font-bold text-gray-900">
-                    {Number(escrow.commission_amount || 0).toLocaleString('fr-FR')} FCFA
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">TVA (18%)</span>
-                  <span className="font-bold text-gray-900">
-                    {Number(escrow.tva_amount || 0).toLocaleString('fr-FR')} FCFA
-                  </span>
+            {/* Payment Breakdown (uniquement quand un escrow détaillé existe) */}
+            {escrow && (
+              <div className="bg-gray-50 rounded-2xl p-5 mb-6 border border-gray-200">
+                <h4 className="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2">
+                  <Info size={16} className="text-gray-500" />
+                  Répartition des fonds
+                </h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Paiement artisan</span>
+                    <span className="font-bold text-gray-900">
+                      {Number(escrow.artisan_payout || 0).toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Commission plateforme (10%)</span>
+                    <span className="font-bold text-gray-900">
+                      {Number(escrow.commission_amount || 0).toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">TVA (18%)</span>
+                    <span className="font-bold text-gray-900">
+                      {Number(escrow.tva_amount || 0).toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Bypass Mode Warning */}
             {BYPASS_MODE.enabled && (
@@ -311,19 +399,22 @@ export function ProjectPaymentPage() {
             <div className="bg-white rounded-2xl p-6 mb-6 border border-gray-100">
               <h3 className="font-bold text-lg text-gray-900 mb-4">Mode de paiement</h3>
 
-              {/* Montant */}
+              {/* Montant (verrouillé sur le montant validé du devis / de la révision) */}
               <div className="mb-5 space-y-2">
                 <label className="text-xs font-bold uppercase text-gray-500">Montant à sécuriser</label>
                 <div className="flex items-center gap-3">
                   <input
                     type="number"
                     min={0}
-                    value={amount}
-                    onChange={(event) => setAmount(Number(event.target.value))}
-                    className="flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-lg font-bold text-gray-900 focus:border-brand-500 focus:outline-none"
+                    value={displayAmount}
+                    readOnly
+                    className="flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-lg font-bold text-gray-900 bg-gray-50 cursor-not-allowed"
                   />
                   <span className="text-xs font-black text-gray-500">FCFA</span>
                 </div>
+                <p className="text-[10px] text-gray-500">
+                  Ce montant correspond au devis validé entre le client et l&apos;artisan et ne peut pas être modifié ici.
+                </p>
               </div>
 
               {/* Méthodes de paiement */}
@@ -368,26 +459,6 @@ export function ProjectPaymentPage() {
                     </button>
                   ))}
                 </div>
-                {PAYMENT_METHODS.filter(m => !m.logo && m.available).length > 0 && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {PAYMENT_METHODS.filter(m => !m.logo && m.available).map((method) => (
-                      <button
-                        key={method.id}
-                        type="button"
-                        onClick={() => setMethodId(method.id)}
-                        className={`rounded-2xl border px-4 py-3 text-left transition ${
-                          methodId === method.id
-                            ? 'border-brand-500 bg-brand-50 text-brand-700'
-                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="text-xl mb-2">{method.icon}</div>
-                        <div className="text-sm font-bold">{method.name}</div>
-                        <p className="text-xs text-gray-500">{method.description}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Numéro de téléphone */}
@@ -409,7 +480,7 @@ export function ProjectPaymentPage() {
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm space-y-2 mb-5">
                 <div className="flex justify-between text-gray-500">
                   <span>Frais ({selectedMethod?.fees ?? 0}%)</span>
-                  <span>{Math.round(amount * ((selectedMethod?.fees ?? 0) / 100)).toLocaleString('fr-FR')} FCFA</span>
+                  <span>{Math.round(displayAmount * ((selectedMethod?.fees ?? 0) / 100)).toLocaleString('fr-FR')} FCFA</span>
                 </div>
                 <div className="flex justify-between font-bold text-gray-900">
                   <span>Total</span>

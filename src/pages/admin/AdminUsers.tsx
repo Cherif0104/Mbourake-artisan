@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Filter, MoreVertical, User, Briefcase, Shield, CheckCircle, XCircle, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 
 interface UserProfile {
   id: string;
@@ -94,13 +95,7 @@ export function AdminUsers() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                  <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                </td>
-              </tr>
-            ) : filteredUsers.length === 0 ? (
+            {filteredUsers.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
                   Aucun utilisateur trouvé

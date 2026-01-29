@@ -24,6 +24,6 @@ export function PrivateRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to={`/onboard?mode=login&redirect=${encodeURIComponent(currentPath)}`} replace />;
   }
 
-  // Utilisateur authentifié - afficher le contenu
+  // Utilisateur authentifié : affiche directement le contenu protégé
   return <>{children}</>;
 }

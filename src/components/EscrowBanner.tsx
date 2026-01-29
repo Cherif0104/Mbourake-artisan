@@ -10,7 +10,9 @@ import { PaymentModal } from './PaymentModal';
 interface EscrowBannerProps {
   escrow: Escrow;
   isClient: boolean;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
+  /** Appelé après paiement réussi (modal). */
+  onPaymentSuccess?: () => void;
 }
 
 const ESCROW_STATUS_CONFIG: Record<string, { 
@@ -64,7 +66,7 @@ const ESCROW_STATUS_CONFIG: Record<string, {
   },
 };
 
-export function EscrowBanner({ escrow, isClient, onRefresh }: EscrowBannerProps) {
+export function EscrowBanner({ escrow, isClient, onRefresh, onPaymentSuccess }: EscrowBannerProps) {
   const { confirmDeposit, releaseAdvance, loading } = useEscrow();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -77,7 +79,8 @@ export function EscrowBanner({ escrow, isClient, onRefresh }: EscrowBannerProps)
 
   const handlePaymentSuccess = async (methodId: string) => {
     await confirmDeposit(escrow.id, methodId);
-    onRefresh();
+    await Promise.resolve(onRefresh());
+    onPaymentSuccess?.();
   };
 
   const handleReleaseAdvance = async () => {
@@ -300,7 +303,7 @@ export function EscrowBanner({ escrow, isClient, onRefresh }: EscrowBannerProps)
       {escrow.status === 'held' && (advanceAmount === 0 || escrow.is_advance_paid) && (
         <div className="flex items-center justify-center gap-2 text-green-700 font-bold text-sm">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />
-          Fonds sécurisés dans l'escrow
+          Fonds sécurisés dans l&apos;escrow
         </div>
       )}
 

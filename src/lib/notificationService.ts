@@ -155,7 +155,8 @@ export async function notifyArtisanQuoteRejected(projectId: string, artisanId: s
 }
 
 /**
- * Notifie l'artisan qu'une demande de révision a été faite sur son devis
+ * Notifie l'artisan qu'une demande de révision a été faite sur son devis.
+ * Si le type 'quote_revision_requested' est refusé (enum), fallback en 'system' avec kind pour le routage.
  */
 export async function notifyArtisanRevisionRequested(
   projectId: string,
@@ -164,21 +165,36 @@ export async function notifyArtisanRevisionRequested(
   clientName: string,
   revisionId: string
 ) {
-  await createNotification({
-    userId: artisanId,
+  const title = 'Nouvelle demande de révision';
+  const message = `${clientName} a demandé une révision de votre devis`;
+  const data = { project_id: projectId, quote_id: quoteId, revision_id: revisionId, kind: 'quote_revision_requested' as const };
+
+  const { error: err1 } = await supabase.from('notifications').insert({
+    user_id: artisanId,
     type: 'quote_revision_requested',
-    title: 'Nouvelle demande de révision',
-    message: `${clientName} a demandé une révision de votre devis`,
-    data: {
-      project_id: projectId,
-      quote_id: quoteId,
-      revision_id: revisionId,
-    },
+    title,
+    message,
+    data: { project_id: projectId, quote_id: quoteId, revision_id: revisionId },
+    is_read: false,
   });
+  if (err1 && (String(err1.code) === '23514' || /notifications_type_check|invalid enum/i.test(String(err1.message)))) {
+    await supabase.from('notifications').insert({
+      user_id: artisanId,
+      type: 'system',
+      title,
+      message,
+      data,
+      is_read: false,
+    });
+  } else if (err1) {
+    console.error('Error creating notification (revision requested):', err1);
+    throw err1;
+  }
 }
 
 /**
- * Notifie le client de la réponse de l'artisan à sa demande de révision
+ * Notifie le client de la réponse de l'artisan à sa demande de révision.
+ * On utilise 'system' pour éviter les 400 si l'enum n'a pas 'quote_revision_responded'.
  */
 export async function notifyClientRevisionResponded(
   projectId: string,
@@ -194,22 +210,32 @@ export async function notifyClientRevisionResponded(
     modified: 'a modifié le devis selon votre demande',
   };
 
-  await createNotification({
-    userId: clientId,
-    type: 'quote_revision_responded',
-    title: 'Réponse à votre demande de révision',
-    message: `${artisanName} ${statusMessages[revisionStatus]}`,
-    data: {
-      project_id: projectId,
-      quote_id: quoteId,
-      revision_id: revisionId,
-      revision_status: revisionStatus,
-    },
-  });
+  const title = 'Réponse à votre demande de révision';
+  const message = `${artisanName} ${statusMessages[revisionStatus]}`;
+  const data: Record<string, unknown> = {
+    project_id: projectId,
+    quote_id: quoteId,
+    revision_id: revisionId,
+    revision_status: revisionStatus,
+    kind: 'quote_revision_responded',
+  };
+
+  try {
+    await supabase.from('notifications').insert({
+      user_id: clientId,
+      type: 'system',
+      title,
+      message,
+      data,
+      is_read: false,
+    });
+  } catch (err) {
+    console.error('Error creating notification (revision responded):', err);
+  }
 }
 
 /**
- * Notifie le client quand les travaux sont terminés
+ * Notifie le client quand l'artisan a demandé la clôture (travaux terminés, à confirmer par le client)
  */
 export async function notifyClientProjectCompleted(projectId: string, clientId: string, projectTitle: string) {
   await createNotification({
@@ -222,7 +248,53 @@ export async function notifyClientProjectCompleted(projectId: string, clientId: 
 }
 
 /**
- * Notifie l'artisan quand le paiement est reçu
+ * Notifie l'artisan quand le client a demandé la clôture (demande côté client, en attente de sa confirmation)
+ */
+export async function notifyArtisanClientRequestedCompletion(projectId: string, artisanId: string, projectTitle: string) {
+  await createNotification({
+    userId: artisanId,
+    type: 'project_completed',
+    title: 'Demande de clôture par le client',
+    message: `Le client a demandé la clôture du projet "${projectTitle}". Il va confirmer et noter votre prestation.`,
+    data: { project_id: projectId },
+  });
+}
+
+/**
+ * Notifie l'artisan quand le client a confirmé la fin des travaux (clôture validée, la plateforme va procéder au paiement)
+ */
+export async function notifyArtisanClientConfirmedClosure(projectId: string, artisanId: string, projectTitle: string) {
+  await createNotification({
+    userId: artisanId,
+    type: 'project_completed',
+    title: 'Clôture confirmée par le client',
+    message: `Le client a confirmé la fin des travaux pour "${projectTitle}". La plateforme va procéder au versement de votre paiement.`,
+    data: { project_id: projectId },
+  });
+}
+
+/**
+ * Notifie le client quand un artisan clôture sa participation (abandon du devis)
+ * Aucun paiement n'est effectué.
+ */
+export async function notifyClientArtisanAbandoned(
+  projectId: string,
+  clientId: string,
+  projectTitle: string,
+  artisanName?: string
+) {
+  const name = artisanName || 'L\'artisan';
+  await createNotification({
+    userId: clientId,
+    type: 'system',
+    title: 'Participation clôturée',
+    message: `${name} a clôturé sa participation au projet "${projectTitle}". Aucun paiement ne sera effectué. Vous pouvez choisir un autre devis.`,
+    data: { project_id: projectId },
+  });
+}
+
+/**
+ * Notifie l'artisan quand le paiement est reçu (montant net uniquement)
  */
 export async function notifyArtisanPaymentReceived(projectId: string, artisanId: string, amount: number) {
   await createNotification({
@@ -230,6 +302,59 @@ export async function notifyArtisanPaymentReceived(projectId: string, artisanId:
     type: 'payment_received',
     title: 'Paiement reçu',
     message: `Vous avez reçu ${amount.toLocaleString('fr-FR')} FCFA. Vous pouvez maintenant commencer les travaux.`,
+    data: { project_id: projectId },
+  });
+}
+
+/**
+ * Notifie l'artisan que le paiement client est sécurisé en escrow, avec rappel CGV et détail reliquat (TVA, commission 10-15%)
+ */
+export async function notifyArtisanPaymentHeldWithBreakdown(
+  projectId: string,
+  artisanId: string,
+  params: {
+    total_amount: number;
+    tva_amount: number;
+    commission_amount: number;
+    artisan_payout: number;
+  }
+) {
+  const { total_amount, tva_amount, commission_amount, artisan_payout } = params;
+  const commissionPercent = total_amount > 0
+    ? Math.round((commission_amount / total_amount) * 100)
+    : 0;
+  const msg = `Paiement du client reçu et sécurisé (${total_amount.toLocaleString('fr-FR')} FCFA). ` +
+    `Après déduction TVA et commission plateforme (${commissionPercent}%), votre reliquat : ${artisan_payout.toLocaleString('fr-FR')} FCFA. ` +
+    `Conformément aux CGV, ce montant vous sera versé à la clôture du projet.`;
+  await createNotification({
+    userId: artisanId,
+    type: 'payment_received',
+    title: 'Paiement reçu et sécurisé',
+    message: msg,
+    data: {
+      project_id: projectId,
+      total_amount,
+      tva_amount,
+      commission_amount,
+      artisan_payout,
+      cgv_reminder: true,
+    },
+  });
+}
+
+/**
+ * Notifie l'autre partie qu'un litige a été signalé sur le projet
+ */
+export async function notifyOtherPartyDisputeRaised(
+  projectId: string,
+  projectTitle: string,
+  recipientId: string
+) {
+  await createNotification({
+    userId: recipientId,
+    type: 'dispute_raised',
+    title: 'Litige signalé',
+    message: `Un litige a été signalé sur le projet "${projectTitle}". Le projet est en attente. L'équipe Mbourake vous contactera.`,
     data: { project_id: projectId },
   });
 }

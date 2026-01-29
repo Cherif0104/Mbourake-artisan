@@ -1,24 +1,30 @@
 # Icônes PWA - Mbourake
 
-## 📋 Tailles requises
+## ⚠️ Obligatoire pour le déploiement
 
-Pour que la PWA fonctionne correctement sur tous les appareils, vous devez générer les icônes suivantes :
+Le `manifest.json` utilise **fond blanc** (`background_color: #FFFFFF`) et attend les fichiers suivants dans ce dossier :
+
+- **`icon-192.png`** (192×192 px) – utilisée par la PWA et `apple-touch-icon`
+- **`icon-512.png`** (512×512 px) – splash / partage réseau / PWA
+
+**Contenu des icônes :** fond **blanc** (#FFFFFF) avec le **logo Mbourake** (ex. `src/pages/LOGO MboURAKE.png`) centré. Pas de fond noir sur l’icône.
+
+Si ces fichiers sont absents, l’installation PWA et le partage de lien peuvent afficher une icône par défaut ou cassée. Générez-les (Figma, GIMP, PWA Builder, etc.) puis placez-les ici.
+
+## 📋 Tailles optionnelles (bonus)
 
 - `icon-72x72.png` - Android (petite)
 - `icon-96x96.png` - Android (moyenne)
 - `icon-128x128.png` - Android (moyenne)
 - `icon-144x144.png` - Windows (moyenne)
 - `icon-152x152.png` - iOS (iPad)
-- `icon-192x192.png` - Android (grande, maskable)
 - `icon-384x384.png` - Android (très grande)
-- `icon-512x512.png` - Android (très grande, maskable)
 
 ## 🎨 Design recommandé
 
-- **Couleur principale** : #FBBF24 (brand-500)
-- **Fond** : Blanc ou dégradé brand
-- **Logo** : Lettre "M" stylisée ou logo complet Mbourake
-- **Style** : Moderne, épuré, reconnaissable même en petite taille
+- **Fond** : Blanc (#FFFFFF) pour l’icône PWA installée
+- **Logo** : Logo Mbourake (deux triangles / identité visuelle) centré
+- **Style** : Moderne, épuré, lisible en petite taille
 
 ## 🛠️ Outils pour générer les icônes
 

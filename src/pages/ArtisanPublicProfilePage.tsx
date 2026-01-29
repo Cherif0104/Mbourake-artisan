@@ -4,14 +4,16 @@ import {
   ArrowLeft, Star, MapPin, Phone, Mail, Shield, CheckCircle,
   Heart, Share2, MessageSquare, Calendar, Clock, Image, Video,
   ChevronLeft, ChevronRight, X, Play, Briefcase, Award, Hash,
-  User, Quote, Building2, MessageCircle, Send
+  User, Quote, Building2, MessageCircle, Send, Pencil, Copy
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useFavorites } from '../hooks/useFavorites';
+import { useToastContext } from '../contexts/ToastContext';
 import { getTier, TIER_COLORS } from '../utils/artisanUtils';
-import { HomeButton } from '../components/HomeButton';
+import { BackButton } from '../components/BackButton';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 
 interface Review {
   id: string;
@@ -77,6 +79,59 @@ export function ArtisanPublicProfilePage() {
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
   const [submittingResponse, setSubmittingResponse] = useState(false);
+  // Projet commun client ↔ artisan (pour afficher "Message" uniquement si un projet les relie)
+  const [sharedProjectId, setSharedProjectId] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  const shareUrl = (typeof window !== 'undefined' && id) ? `${window.location.origin}/artisans/${id}` : '';
+  const shareTitle = artisan ? `${artisan.full_name} | Artisan sur Mbourake` : 'Profil artisan | Mbourake';
+  const shareText = artisan ? `Découvrez le profil de ${artisan.full_name} sur Mbourake` : 'Découvrez ce profil artisan sur Mbourake';
+
+  const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+
+  const handleNativeShare = async () => {
+    if (!canNativeShare || !shareUrl) return;
+    try {
+      await navigator.share({
+        title: shareTitle,
+        text: shareText,
+        url: shareUrl,
+      });
+      setShowShareModal(false);
+      success('Partage réussi');
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name !== 'AbortError') showError?.((e as Error)?.message || 'Partage annulé');
+    }
+  };
+
+  const openShare = (url: string) => {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer,width=600,height=500');
+    setShowShareModal(false);
+    success('Ouverture du partage');
+  };
+
+  const copyShareLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShowShareModal(false);
+      success('Lien copié dans le presse-papiers');
+    } catch {
+      showError?.('Impossible de copier le lien');
+    }
+  };
+
+  const encodedUrl = encodeURIComponent(shareUrl);
+  const encodedText = encodeURIComponent(shareText);
+  const shareLinks = {
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+    whatsapp: `https://wa.me/?text=${encodedText}%20${encodedUrl}`,
+    twitter: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`,
+    linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+    telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`,
+    sms: `sms:?body=${encodedText}%20${encodedUrl}`,
+  };
 
   useEffect(() => {
     const fetchArtisan = async () => {
@@ -249,6 +304,8 @@ export function ArtisanPublicProfilePage() {
   const portfolioPhotos = artisan?.artisan?.portfolio_urls || [];
   const portfolioVideos = artisan?.artisan?.video_urls || [];
   const isClient = currentUserProfile?.role === 'client';
+  const isOwnProfile = Boolean(user && id && user.id === id);
+  const showBottomBar = !isOwnProfile && (!user || isClient);
 
   // Si on arrive avec ?focus=portfolio, scroller vers la section portfolio après chargement.
   useEffect(() => {
@@ -268,15 +325,35 @@ export function ArtisanPublicProfilePage() {
     return () => window.clearTimeout(t);
   }, [location.search, loading]);
 
+  // Projet commun : client connecté + artisan affiché → un projet où ils sont liés (devis accepté/pending/viewed)
+  useEffect(() => {
+    if (!user?.id || !id || currentUserProfile?.role !== 'client') {
+      setSharedProjectId(null);
+      return;
+    }
+    const fetchSharedProject = async () => {
+      const { data: myProjects } = await supabase.from('projects').select('id').eq('client_id', user.id);
+      const myIds = myProjects?.map((p: { id: string }) => p.id) ?? [];
+      if (myIds.length === 0) {
+        setSharedProjectId(null);
+        return;
+      }
+      const { data: quote } = await supabase
+        .from('quotes')
+        .select('project_id')
+        .eq('artisan_id', id)
+        .in('project_id', myIds)
+        .in('status', ['accepted', 'pending', 'viewed'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setSharedProjectId(quote?.project_id ?? null);
+    };
+    fetchSharedProject();
+  }, [user?.id, id, currentUserProfile?.role]);
+
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 font-medium">Chargement du profil...</p>
-        </div>
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (error || !artisan) {
@@ -304,16 +381,33 @@ export function ArtisanPublicProfilePage() {
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-40">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <HomeButton />
+          <BackButton />
           <h1 className="font-bold text-gray-900">Profil artisan</h1>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => id && toggleFavorite(id)}
-              className={`p-2 rounded-xl transition-colors ${isArtisanFavorite ? 'bg-red-50 text-red-500' : 'hover:bg-gray-100 text-gray-400'}`}
+            {isOwnProfile ? (
+              <button
+                type="button"
+                onClick={() => navigate('/edit-profile')}
+                className="p-2 rounded-xl transition-colors hover:bg-brand-50 text-brand-600 flex items-center gap-1.5"
+                aria-label="Modifier le profil"
+              >
+                <Pencil size={18} />
+                <span className="text-xs font-bold hidden sm:inline">Modifier</span>
+              </button>
+            ) : (
+              <button 
+                onClick={() => id && toggleFavorite(id)}
+                className={`p-2 rounded-xl transition-colors ${isArtisanFavorite ? 'bg-red-50 text-red-500' : 'hover:bg-gray-100 text-gray-400'}`}
+              >
+                <Heart size={20} fill={isArtisanFavorite ? 'currentColor' : 'none'} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
+              className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400"
+              aria-label="Partager ce profil"
             >
-              <Heart size={20} fill={isArtisanFavorite ? 'currentColor' : 'none'} />
-            </button>
-            <button className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400">
               <Share2 size={20} />
             </button>
           </div>
@@ -649,22 +743,104 @@ export function ArtisanPublicProfilePage() {
         </section>
       </main>
 
-      {/* Fixed Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-4 z-40">
-        <div className="max-w-2xl mx-auto flex gap-3">
-          <button className="flex-1 py-4 bg-gray-100 text-gray-700 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors">
-            <MessageSquare size={20} />
-            Message
-          </button>
-          <button 
-            onClick={handleRequestProject}
-            className="flex-[2] py-4 bg-brand-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-600 active:scale-[0.98] transition-all shadow-lg shadow-brand-200"
-          >
-            <Briefcase size={20} />
-            {user && currentUserProfile?.role === 'client' ? 'Demander un projet' : 'Se connecter pour demander'}
-          </button>
+      {/* Fixed Bottom CTA : masquée si artisan regarde son profil ou un autre artisan ; sinon selon connecté / client / projet commun */}
+      {showBottomBar && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-4 z-40">
+          <div className="max-w-2xl mx-auto flex gap-3">
+            {!user ? (
+              <button
+                onClick={handleRequestProject}
+                className="flex-[2] w-full py-4 bg-brand-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-600 active:scale-[0.98] transition-all shadow-lg shadow-brand-200"
+              >
+                <Briefcase size={20} />
+                Se connecter pour demander
+              </button>
+            ) : (
+              <>
+                {sharedProjectId && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/chat/${sharedProjectId}`)}
+                    className="flex-1 py-4 bg-gray-100 text-gray-700 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
+                  >
+                    <MessageSquare size={20} />
+                    Message
+                  </button>
+                )}
+                <button
+                  onClick={handleRequestProject}
+                  className={`${sharedProjectId ? 'flex-[2]' : 'flex-1'} py-4 bg-brand-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-600 active:scale-[0.98] transition-all shadow-lg shadow-brand-200`}
+                >
+                  <Briefcase size={20} />
+                  Demander un projet
+                </button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Modal Partager ce profil */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="text-lg font-black text-gray-900">Partager ce profil</h3>
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                aria-label="Fermer"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2 max-h-[70vh] overflow-y-auto">
+              {canNativeShare && (
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  className="w-full py-3 px-4 rounded-xl bg-brand-500 text-white font-bold flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors"
+                >
+                  <Share2 size={20} />
+                  Partager via… (WhatsApp, SMS, Bluetooth, etc.)
+                </button>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => openShare(shareLinks.facebook)} className="py-3 px-3 rounded-xl bg-[#1877F2] text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                  <span aria-hidden>f</span> Facebook
+                </button>
+                <button type="button" onClick={() => openShare(shareLinks.whatsapp)} className="py-3 px-3 rounded-xl bg-[#25D366] text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                  WhatsApp
+                </button>
+                <button type="button" onClick={() => openShare(shareLinks.twitter)} className="py-3 px-3 rounded-xl bg-black text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                  X (Twitter)
+                </button>
+                <button type="button" onClick={() => openShare(shareLinks.linkedin)} className="py-3 px-3 rounded-xl bg-[#0A66C2] text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                  LinkedIn
+                </button>
+                <button type="button" onClick={() => openShare(shareLinks.telegram)} className="py-3 px-3 rounded-xl bg-[#0088cc] text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                  Telegram
+                </button>
+                <button type="button" onClick={() => { window.location.href = shareLinks.sms; setShowShareModal(false); }} className="py-3 px-3 rounded-xl bg-gray-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-700 transition-colors">
+                  SMS
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={copyShareLink}
+                className="w-full py-3 px-4 rounded-xl border-2 border-gray-200 text-gray-700 font-bold flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
+              >
+                <Copy size={18} />
+                Copier le lien
+              </button>
+              <p className="text-xs text-gray-500 text-center pt-1">
+                Instagram, TikTok : collez le lien copié dans l’app.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Gallery Modal */}
       {showGallery && (

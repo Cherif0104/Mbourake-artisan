@@ -8,13 +8,14 @@ import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  draft: { label: 'Brouillon', color: 'bg-gray-100 text-gray-600', icon: <FileText size={16} /> },
-  sent: { label: 'Envoyée', color: 'bg-blue-100 text-blue-600', icon: <Mail size={16} /> },
-  paid: { label: 'Payée', color: 'bg-green-100 text-green-600', icon: <CheckCircle size={16} /> },
-  overdue: { label: 'En retard', color: 'bg-red-100 text-red-600', icon: <AlertCircle size={16} /> },
-  cancelled: { label: 'Annulée', color: 'bg-gray-100 text-gray-500', icon: <X size={16} /> },
+  draft: { label: 'Brouillon', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <FileText size={16} /> },
+  sent: { label: 'Envoyée', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Mail size={16} /> },
+  paid: { label: 'Payée', color: 'bg-green-100 text-green-700 border border-green-200', icon: <CheckCircle size={16} /> },
+  overdue: { label: 'En retard', color: 'bg-red-50 text-red-700 border border-red-100', icon: <AlertCircle size={16} /> },
+  cancelled: { label: 'Annulée', color: 'bg-gray-100 text-gray-500 border border-gray-200', icon: <X size={16} /> },
 };
 
 export function InvoicesPage() {
@@ -122,11 +123,7 @@ export function InvoicesPage() {
     .reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -227,13 +224,13 @@ export function InvoicesPage() {
               return (
                 <div
                   key={invoice.id}
-                  className="bg-white rounded-2xl p-4 border border-gray-100"
+                  className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="font-bold text-gray-900">{invoice.invoice_number}</p>
-                        <span className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${statusConfig.color}`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${statusConfig.color}`}>
                           {statusConfig.icon}
                           {statusConfig.label}
                         </span>

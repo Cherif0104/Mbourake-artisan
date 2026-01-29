@@ -5,6 +5,7 @@ import {
   ChevronRight, Trash2
 } from 'lucide-react';
 import { useFavorites } from '../hooks/useFavorites';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 
 export function FavoritesPage() {
   const navigate = useNavigate();
@@ -14,6 +15,10 @@ export function FavoritesPage() {
     e.stopPropagation();
     await removeFavorite(artisanId);
   };
+
+  if (loading) {
+    return <LoadingOverlay />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -37,11 +42,7 @@ export function FavoritesPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6">
-        {loading ? (
-          <div className="py-12 text-center">
-            <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          </div>
-        ) : favorites.length === 0 ? (
+        {favorites.length === 0 ? (
           <div className="py-12 text-center">
             <div className="w-20 h-20 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
               <Heart size={40} className="text-gray-300" />
@@ -63,7 +64,7 @@ export function FavoritesPage() {
               <div
                 key={fav.id}
                 className="bg-white rounded-2xl p-4 border border-gray-100 hover:shadow-md transition-all cursor-pointer"
-                onClick={() => navigate(`/artisan/${fav.artisan_id}`)}
+                onClick={() => navigate(`/artisans/${fav.artisan_id}`)}
               >
                 <div className="flex items-center gap-4">
                   {/* Avatar */}

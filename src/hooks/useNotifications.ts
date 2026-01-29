@@ -2,6 +2,41 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 
+/** Joue un son de notification : .mp3 si dispo, sinon beep Web Audio. */
+function playNotificationSound() {
+  try {
+    const audio = new Audio('/notification.mp3');
+    audio.volume = 0.3;
+    audio.play().catch(() => {
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.frequency.value = 880;
+        g.gain.setValueAtTime(0.15, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        o.start(ctx.currentTime);
+        o.stop(ctx.currentTime + 0.15);
+      } catch {}
+    });
+  } catch {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.15, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      o.start(ctx.currentTime);
+      o.stop(ctx.currentTime + 0.15);
+    } catch {}
+  }
+}
+
 export interface Notification {
   id: string;
   user_id: string;
@@ -100,6 +135,25 @@ export function useNotifications() {
     }
   }, [user]);
 
+  /** Marquer comme lues toutes les notifications "nouveau message" pour un projet (ex. à l'ouverture du chat) */
+  const markAsReadForProject = useCallback(async (projectId: string) => {
+    if (!user) return;
+    const toMark = notifications.filter(
+      n => !n.is_read && n.type === 'new_message' && n.data?.project_id === projectId
+    );
+    if (toMark.length === 0) return;
+    try {
+      await Promise.all(
+        toMark.map(n => supabase.from('notifications').update({ is_read: true }).eq('id', n.id))
+      );
+      const ids = new Set(toMark.map(n => n.id));
+      setNotifications(prev => prev.map(n => (ids.has(n.id) ? { ...n, is_read: true } : n)));
+      setUnreadCount(c => Math.max(0, c - toMark.length));
+    } catch (err) {
+      console.error('Error marking notifications as read for project:', err);
+    }
+  }, [user, notifications]);
+
   // Subscribe to realtime notifications
   useEffect(() => {
     if (!user) return;
@@ -121,13 +175,7 @@ export function useNotifications() {
           const newNotification = payload.new as Notification;
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
-          
-          // Play notification sound (optional)
-          try {
-            const audio = new Audio('/notification.mp3');
-            audio.volume = 0.3;
-            audio.play().catch(() => {});
-          } catch {}
+          playNotificationSound();
         }
       )
       .subscribe();
@@ -137,12 +185,18 @@ export function useNotifications() {
     };
   }, [user, fetchNotifications]);
 
+  const unreadMessageCount = notifications.filter(
+    n => !n.is_read && n.type === 'new_message'
+  ).length;
+
   return {
     notifications,
     unreadCount,
+    unreadMessageCount,
     loading,
     markAsRead,
     markAllAsRead,
+    markAsReadForProject,
     deleteNotification,
     refresh: fetchNotifications,
   };

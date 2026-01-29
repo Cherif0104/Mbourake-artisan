@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database.types';
-import { notifyNewMessage } from '../lib/notificationService';
 
 export type Message = Database['public']['Tables']['messages']['Row'];
 
@@ -27,7 +26,7 @@ export function useMessages(projectId?: string) {
   useEffect(() => {
     fetchMessages();
 
-    // Subscribe to new messages
+    // Subscribe to new messages (éviter doublon avec envoi optimiste)
     if (!projectId) return;
     const channel = supabase
       .channel(`project-messages-${projectId}`)
@@ -37,7 +36,10 @@ export function useMessages(projectId?: string) {
         table: 'messages',
         filter: `project_id=eq.${projectId}`
       }, (payload) => {
-        setMessages(prev => [...prev, payload.new as Message]);
+        const newMsg = payload.new as Message;
+        setMessages(prev => 
+          prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]
+        );
       })
       .subscribe();
 
@@ -51,9 +53,9 @@ export function useMessages(projectId?: string) {
     sender_id: string;
     content?: string;
     audio_url?: string;
-    type: 'text' | 'audio' | 'image';
+    type: 'text' | 'audio' | 'image' | 'video';
   }) => {
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('messages')
       .insert({
         project_id: data.project_id,
@@ -61,9 +63,14 @@ export function useMessages(projectId?: string) {
         content: data.content,
         audio_url: data.audio_url,
         type: data.type,
-      });
+      })
+      .select()
+      .single();
     
     if (error) throw error;
+    if (inserted) {
+      setMessages(prev => [...prev, inserted as Message]);
+    }
   };
 
   return {

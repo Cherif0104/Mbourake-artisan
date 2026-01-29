@@ -170,6 +170,7 @@ export function AdminDashboard() {
     { id: 'users', path: '/admin/users', icon: <Users size={20} />, label: 'Utilisateurs' },
     { id: 'projects', path: '/admin/projects', icon: <Briefcase size={20} />, label: 'Projets' },
     { id: 'escrows', path: '/admin/escrows', icon: <DollarSign size={20} />, label: 'Paiements' },
+    { id: 'closures', path: '/admin/closures', icon: <CheckCircle size={20} />, label: 'Clôtures' },
     { id: 'verifications', path: '/admin/verifications', icon: <Shield size={20} />, label: 'Vérifications' },
     { id: 'affiliations', path: '/admin/affiliations', icon: <Building2 size={20} />, label: 'Affiliations' },
     { id: 'disputes', path: '/admin/disputes', icon: <AlertTriangle size={20} />, label: 'Litiges' },

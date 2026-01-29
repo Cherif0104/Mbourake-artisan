@@ -10,7 +10,7 @@ import {
   PAYMENT_METHODS,
   processPayment,
 } from '../lib/paymentBypass';
-import { SkeletonScreen } from '../components/SkeletonScreen';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
 import { useToastContext } from '../contexts/ToastContext';
 
@@ -164,7 +164,7 @@ export function CreditsPage() {
 
   // Afficher le skeleton pendant le chargement
   if (auth.loading || profileLoading || loading) {
-    return <SkeletonScreen />;
+    return <LoadingOverlay />;
   }
 
   // Si pas d'utilisateur après chargement complet, afficher null (redirection gérée dans useEffect)

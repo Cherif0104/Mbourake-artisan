@@ -48,7 +48,8 @@ export function QuoteRevisionModal({
         return;
       }
 
-      // Créer la demande de révision
+      // Créer la demande de révision (prix suggéré optionnel)
+      const suggestedPriceNum = suggestedPrice.trim() ? Number(suggestedPrice) : null;
       const { data: revisionData, error: revisionError } = await supabase
         .from('quote_revisions')
         .insert({
@@ -56,7 +57,8 @@ export function QuoteRevisionModal({
           project_id: projectId,
           requested_by: user.id,
           client_comments: comments.trim(),
-          status: 'pending'
+          status: 'pending',
+          ...(suggestedPriceNum != null && suggestedPriceNum > 0 && { suggested_price: suggestedPriceNum }),
         })
         .select()
         .single();
@@ -171,6 +173,27 @@ export function QuoteRevisionModal({
             <p className="text-xs text-gray-500 mt-1">
               {comments.length} / 500 caractères
             </p>
+          </div>
+
+          {/* Prix suggéré (optionnel) */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              Prix suggéré <span className="text-gray-400 font-normal">(optionnel)</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={suggestedPrice}
+                onChange={(e) => setSuggestedPrice(e.target.value)}
+                placeholder="Ex. 150000"
+                className="w-full px-4 py-3 pr-16 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
+                disabled={loading}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">FCFA</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Indiquez un montant si vous souhaitez proposer un prix à l&apos;artisan</p>
           </div>
 
           {/* Actions */}

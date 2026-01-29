@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Send, Mic, Play, Pause, MoreVertical, Image as ImageIcon, 
-  X, Check, User, Phone, Video, Info, Clock, CheckCheck
+  X, Check, User, Phone, PhoneOff, Video, Info, Clock, CheckCheck
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useMessages } from '../hooks/useMessages';
+import { useNotifications } from '../hooks/useNotifications';
+import { useCall } from '../hooks/useCall';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { supabase } from '../lib/supabase';
 import { notifyNewMessage } from '../lib/notificationService';
@@ -29,7 +31,8 @@ export function ChatPage() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { messages, sendMessage, loading } = useMessages(projectId);
-  
+  const { markAsReadForProject } = useNotifications();
+
   const [inputText, setInputText] = useState('');
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [project, setProject] = useState<ProjectInfo | null>(null);
@@ -37,10 +40,37 @@ export function ChatPage() {
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [sending, setSending] = useState(false);
-  
+
+  const myName = auth.user?.user_metadata?.full_name || '';
+  const {
+    status: callStatus,
+    incomingCallFrom,
+    error: callError,
+    remoteStream,
+    localStream,
+    isVideoCall,
+    startCall,
+    endCall,
+    acceptCall,
+    rejectCall,
+  } = useCall(projectId, participant?.id, auth.user?.id, myName);
+
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) remoteVideoRef.current.srcObject = remoteStream;
+  }, [remoteStream]);
+  useEffect(() => {
+    if (localVideoRef.current && localStream) localVideoRef.current.srcObject = localStream;
+  }, [localStream]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /** Hauteurs fixes pour les barres audio (évite le recalcul à chaque render) */
+  const AUDIO_BAR_HEIGHTS = [10, 14, 8, 16, 11, 13, 9, 15, 12, 10, 14, 11];
 
   // Fetch project and participant info
   useEffect(() => {
@@ -51,7 +81,7 @@ export function ChatPage() {
       const { data: projectData } = await supabase
         .from('projects')
         .select(`
-          id, title, client_id,
+          id, title, client_id, target_artisan_id,
           profiles!projects_client_id_fkey (full_name, avatar_url)
         `)
         .eq('id', projectId)
@@ -64,8 +94,8 @@ export function ChatPage() {
         const isClient = projectData.client_id === auth.user.id;
         
         if (isClient) {
-          // Get the artisan who submitted a quote
-          const { data: quoteData } = await supabase
+          // 1) Artisan du devis accepté
+          const { data: acceptedQuote } = await supabase
             .from('quotes')
             .select(`
               artisan_id,
@@ -73,15 +103,53 @@ export function ChatPage() {
             `)
             .eq('project_id', projectId)
             .eq('status', 'accepted')
-            .single();
+            .maybeSingle();
           
-          if (quoteData?.profiles) {
+          if (acceptedQuote?.profiles) {
             setParticipant({
-              id: quoteData.artisan_id,
-              name: quoteData.profiles.full_name,
-              avatar: quoteData.profiles.avatar_url,
+              id: acceptedQuote.artisan_id,
+              name: acceptedQuote.profiles.full_name,
+              avatar: acceptedQuote.profiles.avatar_url,
               role: 'artisan',
             });
+          } else {
+            // 2) Sinon premier artisan ayant un devis sur le projet (en attente ou vu)
+            const { data: quotesList } = await supabase
+              .from('quotes')
+              .select(`
+                artisan_id,
+                profiles!quotes_artisan_id_fkey (full_name, avatar_url)
+              `)
+              .eq('project_id', projectId)
+              .in('status', ['pending', 'viewed'])
+              .order('created_at', { ascending: false })
+              .limit(1);
+            const anyQuote = (quotesList as { artisan_id: string; profiles: { full_name: string | null; avatar_url: string | null } }[] | null)?.[0];
+            
+            if (anyQuote?.profiles) {
+              setParticipant({
+                id: anyQuote.artisan_id,
+                name: anyQuote.profiles.full_name,
+                avatar: anyQuote.profiles.avatar_url,
+                role: 'artisan',
+              });
+            } else if ((projectData as { target_artisan_id?: string }).target_artisan_id) {
+              // 3) Sinon artisan ciblé par le projet
+              const tid = (projectData as { target_artisan_id: string }).target_artisan_id;
+              const { data: targetProfile } = await supabase
+                .from('profiles')
+                .select('id, full_name, avatar_url')
+                .eq('id', tid)
+                .single();
+              if (targetProfile) {
+                setParticipant({
+                  id: targetProfile.id,
+                  name: targetProfile.full_name,
+                  avatar: targetProfile.avatar_url,
+                  role: 'artisan',
+                });
+              }
+            }
           }
         } else {
           // Current user is the artisan, show client info
@@ -102,9 +170,43 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Marquer les notifications "nouveau message" de ce projet comme lues à l'ouverture du chat
   useEffect(() => {
-    scrollToBottom();
+    if (projectId) markAsReadForProject(projectId);
+  }, [projectId, markAsReadForProject]);
+
+  // Scroll vers le bas : au premier chargement, ou si l'utilisateur était déjà proche du bas
+  const prevCountRef = useRef(0);
+  useEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el || messages.length === 0) return;
+    const wasEmpty = prevCountRef.current === 0;
+    prevCountRef.current = messages.length;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (wasEmpty || nearBottom) {
+      requestAnimationFrame(() => scrollToBottom());
+    }
   }, [messages]);
+
+  // Son à la réception d'un nouveau message (type Messenger/WhatsApp) : uniquement pour les messages reçus, pas au chargement initial
+  const prevMessagesLenRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!auth.user?.id || messages.length === 0) return;
+    const prev = prevMessagesLenRef.current;
+    const isNewIncoming =
+      prev !== null &&
+      messages.length > prev &&
+      messages[messages.length - 1]?.sender_id &&
+      messages[messages.length - 1].sender_id !== auth.user.id;
+    prevMessagesLenRef.current = messages.length;
+    if (isNewIncoming) {
+      try {
+        const audio = new Audio('/notification.mp3');
+        audio.volume = 0.4;
+        audio.play().catch(() => {});
+      } catch (_) {}
+    }
+  }, [messages, auth.user?.id]);
 
   // Handle audio playback
   const toggleAudioPlayback = (messageId: string, audioUrl: string) => {
@@ -188,10 +290,12 @@ export function ChatPage() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !projectId || !auth.user) return;
-    
+    const isVideo = file.type.startsWith('video/');
+    const messageType = isVideo ? 'video' : 'image';
+
     setSending(true);
     try {
       const fileName = `${auth.user.id}/${Date.now()}-${file.name}`;
@@ -200,21 +304,20 @@ export function ChatPage() {
         .upload(`messages/${fileName}`, file);
       
       if (error) throw error;
-      const imageUrl = supabase.storage.from('photos').getPublicUrl(data.path).data.publicUrl;
+      const mediaUrl = supabase.storage.from('photos').getPublicUrl(data.path).data.publicUrl;
 
       await sendMessage({
         project_id: projectId,
         sender_id: auth.user.id,
-        content: imageUrl,
-        type: 'image'
+        content: mediaUrl,
+        type: messageType
       });
 
-      // Notifier le destinataire
       if (participant) {
         await notifyNewMessage(projectId, participant.id, auth.user.user_metadata?.full_name || 'Quelqu\'un');
       }
     } catch (err) {
-      console.error("Error sending image:", err);
+      console.error('Error sending media:', err);
     } finally {
       setSending(false);
       if (fileInputRef.current) {
@@ -253,11 +356,11 @@ export function ChatPage() {
             <ArrowLeft size={20} />
           </button>
           
-          {participant && (
+          {(participant || project) && (
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center overflow-hidden">
-                  {participant.avatar ? (
+                  {participant?.avatar ? (
                     <img src={participant.avatar} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <User size={20} className="text-brand-500" />
@@ -266,7 +369,7 @@ export function ChatPage() {
                 <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
               </div>
               <div>
-                <p className="font-bold text-gray-900 text-sm">{participant.name}</p>
+                <p className="font-bold text-gray-900 text-sm">{participant?.name ?? 'Professionnel'}</p>
                 <p className="text-[10px] text-green-500 font-bold uppercase tracking-wider flex items-center gap-1">
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                   En ligne
@@ -276,13 +379,31 @@ export function ChatPage() {
           )}
         </div>
         
-        <div className="flex items-center gap-1">
-          <button className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
-            <Phone size={18} />
-          </button>
-          <button className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
-            <Video size={18} />
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 flex-shrink-0" title="Appels en développement • Bientôt disponible">
+            <span className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-1.5 sm:px-2 py-0.5 whitespace-nowrap">
+              <span className="sm:hidden">Bientôt</span>
+              <span className="hidden sm:inline">En dev • Bientôt</span>
+            </span>
+            <button
+              type="button"
+              disabled
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-300 bg-gray-50 cursor-not-allowed"
+              title="Appel audio — en développement, disponible prochainement"
+              aria-label="Appel audio (bientôt disponible)"
+            >
+              <Phone size={18} />
+            </button>
+            <button
+              type="button"
+              disabled
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-300 bg-gray-50 cursor-not-allowed"
+              title="Appel vidéo — en développement, disponible prochainement"
+              aria-label="Appel vidéo (bientôt disponible)"
+            >
+              <Video size={18} />
+            </button>
+          </div>
           <button 
             onClick={() => setShowMenu(!showMenu)}
             className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"
@@ -317,11 +438,101 @@ export function ChatPage() {
         </div>
       )}
 
+      {/* Barre appel en cours / connecté (audio) */}
+      {(callStatus === 'calling' || callStatus === 'connected') && !isVideoCall && (
+        <div className="px-4 py-3 bg-brand-500 text-white flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
+            <span className="text-sm font-bold truncate">
+              {callStatus === 'calling' && !incomingCallFrom && 'Appel en cours…'}
+              {callStatus === 'connected' && participant && `En appel avec ${participant.name}`}
+              {callStatus === 'calling' && incomingCallFrom && 'Connexion…'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={endCall}
+            className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+            aria-label="Raccrocher"
+          >
+            <PhoneOff size={18} />
+          </button>
+        </div>
+      )}
+
+      {/* Appel vidéo connecté : flux distant + local + raccrocher */}
+      {callStatus === 'connected' && isVideoCall && (
+        <div className="absolute inset-0 z-40 flex flex-col bg-gray-900">
+          <div className="relative flex-1 min-h-0">
+            <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            {localStream && (
+              <div className="absolute bottom-4 right-4 w-32 h-40 rounded-xl overflow-hidden border-2 border-white shadow-lg">
+                <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+              </div>
+            )}
+          </div>
+          <div className="p-4 bg-black/60 flex items-center justify-center gap-4">
+            <span className="text-white text-sm font-medium truncate">
+              En appel avec {participant?.name || '…'}
+            </span>
+            <button
+              type="button"
+              onClick={endCall}
+              className="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 transition-colors"
+              aria-label="Raccrocher"
+            >
+              <PhoneOff size={24} className="text-white" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Appel vidéo en cours de connexion (pas encore connecté) */}
+      {(callStatus === 'calling' && isVideoCall) && (
+        <div className="px-4 py-3 bg-brand-500 text-white flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
+            <span className="text-sm font-bold truncate">
+              Appel vidéo en cours…
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={endCall}
+            className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+            aria-label="Raccrocher"
+          >
+            <PhoneOff size={18} />
+          </button>
+        </div>
+      )}
+
+      {/* Erreur appel */}
+      {callError && (
+        <div className="px-4 py-2 bg-red-50 border-b border-red-100 flex items-center justify-center">
+          <p className="text-sm font-medium text-red-600">{callError}</p>
+        </div>
+      )}
+
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-4 scroll-smooth"
+      >
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          <div className="flex flex-col gap-4 py-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`h-12 rounded-2xl w-[70%] max-w-[240px] animate-pulse ${
+                    i % 2 === 0 ? 'bg-brand-200/50 rounded-br-sm' : 'bg-gray-200 rounded-bl-sm'
+                  }`}
+                />
+              </div>
+            ))}
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -337,7 +548,7 @@ export function ChatPage() {
               <div key={group.date}>
                 {/* Date Separator */}
                 <div className="flex items-center justify-center mb-4">
-                  <span className="px-3 py-1 bg-gray-200 text-gray-500 text-[10px] font-bold uppercase tracking-wider rounded-full">
+                  <span className="px-3 py-1 bg-gray-100 text-gray-500 text-[10px] font-medium uppercase tracking-wider rounded-full">
                     {group.date}
                   </span>
                 </div>
@@ -349,9 +560,9 @@ export function ChatPage() {
                     const isPlaying = playingAudioId === msg.id;
                     
                     return (
-                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
                         <div className={`max-w-[80%] ${isMe ? 'order-2' : 'order-1'}`}>
-                          <div className={`rounded-2xl px-4 py-3 ${
+                          <div className={`rounded-2xl px-4 py-3 transition-all duration-200 ${
                             isMe 
                               ? 'bg-brand-500 text-white rounded-br-sm' 
                               : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
@@ -378,14 +589,14 @@ export function ChatPage() {
                                 </div>
                                 <div className="flex-1">
                                   <div className="flex items-center gap-1">
-                                    {[...Array(12)].map((_, i) => (
+                                    {AUDIO_BAR_HEIGHTS.map((h, i) => (
                                       <div 
                                         key={i} 
                                         className={`w-1 rounded-full ${
                                           isMe ? 'bg-white/60' : 'bg-brand-300'
                                         } ${isPlaying ? 'animate-pulse' : ''}`}
                                         style={{ 
-                                          height: `${8 + Math.random() * 12}px`,
+                                          height: `${h}px`,
                                           animationDelay: `${i * 50}ms`
                                         }}
                                       />
@@ -407,6 +618,17 @@ export function ChatPage() {
                                 alt="Image partagée" 
                                 className="rounded-xl max-w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
                                 onClick={() => window.open(msg.content!, '_blank')}
+                              />
+                            )}
+
+                            {/* Video Message */}
+                            {msg.type === 'video' && msg.content && (
+                              <video
+                                src={msg.content}
+                                controls
+                                className="rounded-xl max-w-full max-h-64 w-full object-contain bg-black"
+                                preload="metadata"
+                                playsInline
                               />
                             )}
                           </div>
@@ -446,18 +668,19 @@ export function ChatPage() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            {/* Image Upload */}
+            {/* Image & Video Upload */}
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
+              accept="image/*,video/*"
+              onChange={handleMediaUpload}
               className="hidden"
             />
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={sending}
-              className="w-12 h-12 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-colors disabled:opacity-50"
+              className="w-12 h-12 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-all duration-200 active:scale-95 disabled:opacity-50"
+              title="Photo ou vidéo"
             >
               <ImageIcon size={20} />
             </button>
@@ -466,7 +689,7 @@ export function ChatPage() {
             <button 
               onClick={() => setShowAudioRecorder(true)}
               disabled={sending}
-              className="w-12 h-12 rounded-xl bg-brand-50 text-brand-500 flex items-center justify-center hover:bg-brand-100 transition-colors disabled:opacity-50"
+              className="w-12 h-12 rounded-xl bg-brand-50 text-brand-500 flex items-center justify-center hover:bg-brand-100 transition-all duration-200 active:scale-95 disabled:opacity-50"
             >
               <Mic size={20} />
             </button>
@@ -485,7 +708,7 @@ export function ChatPage() {
               <button 
                 onClick={handleSendMessage}
                 disabled={!inputText.trim() || sending}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 bg-brand-500 text-white rounded-lg flex items-center justify-center disabled:opacity-50 disabled:bg-gray-300 transition-colors"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 bg-brand-500 text-white rounded-lg flex items-center justify-center disabled:opacity-50 disabled:bg-gray-300 transition-all duration-200 active:scale-95"
               >
                 {sending ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -504,6 +727,37 @@ export function ChatPage() {
           className="fixed inset-0 z-10" 
           onClick={() => setShowMenu(false)} 
         />
+      )}
+
+      {/* Appel entrant (audio ou vidéo) */}
+      {callStatus === 'ringing' && incomingCallFrom && (
+        <>
+          <div className="fixed inset-0 z-20 bg-black/50" aria-hidden="true" />
+          <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-[90%] max-w-sm bg-white rounded-2xl shadow-xl p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+            <p className="text-sm text-gray-500 mb-1">
+              {incomingCallFrom.video ? 'Appel vidéo entrant' : 'Appel entrant'}
+            </p>
+            <h3 className="text-xl font-bold text-gray-900 mb-6">{incomingCallFrom.name} vous appelle</h3>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={rejectCall}
+                className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <PhoneOff size={20} />
+                Refuser
+              </button>
+              <button
+                type="button"
+                onClick={acceptCall}
+                className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+              >
+                {incomingCallFrom.video ? <Video size={20} /> : <Phone size={20} />}
+                Accepter
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

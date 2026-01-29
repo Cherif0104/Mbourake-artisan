@@ -5,8 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
-import { QuoteRevisionResponseModal } from '../components/QuoteRevisionResponseModal';
-import { SkeletonScreen } from '../components/SkeletonScreen';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
 
 export function RevisionsPage() {
@@ -17,7 +16,6 @@ export function RevisionsPage() {
   
   const [revisions, setRevisions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected' | 'modified'>('all');
 
   useEffect(() => {
@@ -83,15 +81,7 @@ export function RevisionsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-        <SkeletonScreen type="header" />
-        <div className="max-w-lg mx-auto px-5 py-6">
-          <SkeletonScreen type="card" />
-          <SkeletonScreen type="list" />
-        </div>
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -231,16 +221,16 @@ export function RevisionsPage() {
                       </div>
                     </div>
 
-                    {/* Prix suggéré */}
-                    {revision.suggested_price && (
-                      <div className="bg-blue-50 rounded-xl p-3 mb-3 border border-blue-200">
-                        <p className="text-xs font-bold text-blue-800 mb-1">Prix suggéré par le client</p>
-                        <p className="text-lg font-black text-blue-900">
+                    {/* Prix proposé par le client (affiché en premier si présent) */}
+                    {revision.suggested_price != null && Number(revision.suggested_price) > 0 && (
+                      <div className="bg-green-50 rounded-xl p-3 mb-3 border-2 border-green-200">
+                        <p className="text-xs font-bold text-green-800 mb-1">Prix proposé par le client (sera appliqué au devis si vous acceptez)</p>
+                        <p className="text-lg font-black text-green-900">
                           {Number(revision.suggested_price).toLocaleString('fr-FR')} FCFA
                         </p>
-                        {quote?.amount && (
-                          <p className="text-xs text-blue-700 mt-1">
-                            Devis actuel: {Number(quote.amount).toLocaleString('fr-FR')} FCFA
+                        {quote?.amount != null && (
+                          <p className="text-xs text-green-700 mt-1">
+                            Devis actuel : {Number(quote.amount).toLocaleString('fr-FR')} FCFA
                           </p>
                         )}
                       </div>
@@ -333,34 +323,6 @@ export function RevisionsPage() {
         )}
       </main>
 
-      {/* Modal de réponse */}
-      {selectedRevisionId && (() => {
-        const revision = revisions.find(r => r.id === selectedRevisionId);
-        const relatedQuote = revision ? revision.quotes : null;
-        const relatedProject = revision ? revision.projects : null;
-        
-        // Construire l'objet quote avec artisan_id
-        const quoteWithArtisan = {
-          ...relatedQuote,
-          artisan_id: relatedQuote?.artisan_id || revision.quotes?.artisan_id
-        };
-        
-        return revision && quoteWithArtisan && relatedProject ? (
-          <QuoteRevisionResponseModal
-            isOpen={!!selectedRevisionId}
-            onClose={() => {
-              setSelectedRevisionId(null);
-              fetchRevisions();
-            }}
-            revision={revision}
-            quote={quoteWithArtisan}
-            project={relatedProject}
-            onSuccess={() => {
-              fetchRevisions();
-            }}
-          />
-        ) : null;
-      })()}
     </div>
   );
 }

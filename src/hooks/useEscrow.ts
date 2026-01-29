@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database.types';
-import { notifyArtisanPaymentReceived } from '../lib/notificationService';
+import { notifyArtisanPaymentHeldWithBreakdown, notifyArtisanPaymentReceived } from '../lib/notificationService';
 
 export type Escrow = Database['public']['Tables']['escrows']['Row'];
 
@@ -134,15 +134,20 @@ export function useEscrow() {
           updated_at: new Date().toISOString()
         })
         .eq('id', escrowId);
-
+      
       if (err) throw err;
-
-      // Mettre le projet en in_progress
+      
+      // Mettre le projet en "payment_received" : les fonds sont sécurisés,
+      // l'artisan devra accepter les conditions avant le démarrage effectif des travaux.
       if (escrowData?.project_id) {
-        await supabase
+        const { error: projectErr } = await supabase
           .from('projects')
-          .update({ status: 'in_progress' })
+          .update({ status: 'payment_received' })
           .eq('id', escrowData.project_id);
+        if (projectErr) {
+          console.error('[useEscrow] Erreur mise à jour statut projet payment_received:', projectErr);
+          throw new Error(projectErr.message || 'Impossible de passer le projet en phase travaux.');
+        }
       }
 
       // Notifier l'artisan (récupérer l'artisan_id depuis le devis accepté)
@@ -155,10 +160,16 @@ export function useEscrow() {
           .single();
 
         if (acceptedQuote?.artisan_id) {
-          await notifyArtisanPaymentReceived(
+          // Notifier l'artisan avec détail CGV / reliquat (TVA, commission 10-15%)
+          await notifyArtisanPaymentHeldWithBreakdown(
             escrowData.project_id,
             acceptedQuote.artisan_id,
-            Number(escrowData.artisan_payout || 0)
+            {
+              total_amount: Number(escrowData.total_amount || 0),
+              tva_amount: Number(escrowData.tva_amount || 0),
+              commission_amount: Number(escrowData.commission_amount || 0),
+              artisan_payout: Number(escrowData.artisan_payout || 0),
+            }
           );
         }
       }
@@ -277,6 +288,48 @@ export function useEscrow() {
     }
   }, []);
 
+  /** Met à jour l'escrow avec un nouveau montant de base (ex. révision acceptée ou devis modifié). Recalcule commission, TVA, artisan_payout, advance. */
+  const updateEscrowForNewAmount = useCallback(async (escrowId: string, newBaseAmount: number) => {
+    setLoading(true);
+    try {
+      const { data: escrow, error: fetchErr } = await supabase
+        .from('escrows')
+        .select('id, commission_percent, advance_percent, advance_amount, status')
+        .eq('id', escrowId)
+        .single();
+
+      if (fetchErr || !escrow) throw fetchErr || new Error('Escrow introuvable');
+      if (escrow.status !== 'pending' && escrow.status !== 'held') {
+        throw new Error('Impossible de modifier le montant : l\'escrow n\'est plus en attente.');
+      }
+
+      const commissionPercent = Number(escrow.commission_percent) || 10;
+      const isVerified = (Number(escrow.advance_percent) || 0) > 0;
+      const calculation = calculateEscrow(newBaseAmount, 0, commissionPercent, isVerified);
+
+      const { error: updateErr } = await supabase
+        .from('escrows')
+        .update({
+          total_amount: calculation.totalAmount,
+          base_amount: calculation.baseAmount,
+          urgent_surcharge: calculation.urgentSurcharge,
+          commission_amount: calculation.commissionAmount,
+          tva_amount: calculation.tvaAmount,
+          artisan_payout: calculation.artisanPayout,
+          advance_amount: calculation.advanceAmount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', escrowId);
+
+      if (updateErr) throw updateErr;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -286,6 +339,7 @@ export function useEscrow() {
     releaseFullPayment,
     freezeEscrow,
     refundEscrow,
+    updateEscrowForNewAmount,
     calculateEscrow,
   };
 }

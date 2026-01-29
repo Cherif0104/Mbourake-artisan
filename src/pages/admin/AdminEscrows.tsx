@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, DollarSign, Clock, CheckCircle, AlertCircle, ArrowUpRight, Shield, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 
 interface Escrow {
   id: string;
@@ -278,13 +279,7 @@ export function AdminEscrows() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
-                  <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                </td>
-              </tr>
-            ) : filteredEscrows.length === 0 ? (
+            {filteredEscrows.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
                   Aucun escrow trouvé

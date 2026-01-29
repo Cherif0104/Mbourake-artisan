@@ -61,8 +61,9 @@ export function NotificationBell() {
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
     
-    // Navigate based on notification type
-    const { data } = notification;
+    // data peut être un objet ou une chaîne JSON (Supabase)
+    const raw = notification.data;
+    const data = typeof raw === 'string' ? (() => { try { return JSON.parse(raw); } catch { return {}; } })() : (raw || {});
     
     // Forcer le scroll en haut avant la navigation
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -73,29 +74,32 @@ export function NotificationBell() {
       case 'new_project':
       case 'quote_accepted':
       case 'quote_rejected':
+        if (data?.project_id) {
+          navigate(`/projects/${data.project_id}#devis`);
+        }
+        break;
       case 'project_completed':
         if (data?.project_id) {
-          navigate(`/projects/${data.project_id}`);
+          navigate(`/projects/${data.project_id}#suivi`);
         }
         break;
       case 'quote_revision_requested':
-        // Rediriger vers la page dédiée aux révisions
-        navigate('/revisions');
+        if (data?.project_id) {
+          const rev = data.revision_id ? `?revision=${data.revision_id}` : '';
+          navigate(`/projects/${data.project_id}${rev}`);
+        } else {
+          navigate('/revisions');
+        }
         break;
       case 'quote_revision_responded':
-        // Rediriger vers la page du projet pour voir la réponse
         if (data?.project_id) {
-          navigate(`/projects/${data.project_id}`);
+          const rev = data.revision_id ? `?revision=${data.revision_id}` : '';
+          navigate(`/projects/${data.project_id}${rev}`);
         }
         break;
       case 'new_quote':
         if (data?.project_id) {
-          // Si le chat est explicitement activé, ouvrir directement la conversation
-          if (data?.chat_enabled) {
-            navigate(`/chat/${data.project_id}`);
-          } else {
-            navigate(`/projects/${data.project_id}`);
-          }
+          navigate(`/projects/${data.project_id}`);
         }
         break;
       case 'payment_received':
@@ -108,6 +112,18 @@ export function NotificationBell() {
       case 'new_message':
         if (data?.project_id) {
           navigate(`/chat/${data.project_id}`);
+        }
+        break;
+      case 'system':
+      case 'dispute_raised':
+        if (data?.project_id) {
+          if (data?.kind === 'quote_revision_requested' && data?.revision_id) {
+            navigate(`/projects/${data.project_id}?revision=${data.revision_id}`);
+          } else {
+            navigate(`/projects/${data.project_id}#devis`);
+          }
+        } else {
+          navigate('/dashboard');
         }
         break;
       default:
@@ -169,6 +185,10 @@ export function NotificationBell() {
                   return (
                     <div
                       key={notification.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleNotificationClick(notification)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNotificationClick(notification); } }}
                       className={`flex items-start gap-3 p-4 cursor-pointer transition-colors hover:bg-gray-50 ${
                         !notification.is_read ? 'bg-brand-50/30' : ''
                       }`}
@@ -179,10 +199,7 @@ export function NotificationBell() {
                       </div>
                       
                       {/* Content */}
-                      <div 
-                        className="flex-1 min-w-0"
-                        onClick={() => handleNotificationClick(notification)}
-                      >
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <p className={`text-sm font-bold text-gray-900 ${!notification.is_read ? '' : 'text-gray-700'}`}>
                             {notification.title}
@@ -192,7 +209,7 @@ export function NotificationBell() {
                           )}
                         </div>
                         {notification.message && (
-                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                          <p className="text-xs text-gray-500 mt-0.5 truncate max-w-full">
                             {notification.message}
                           </p>
                         )}

@@ -5,6 +5,7 @@ import {
   Camera, CreditCard, Building2, ExternalLink, X, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 
 interface VerificationDocument {
   id: string;
@@ -285,11 +286,7 @@ export function AdminVerifications() {
       {/* Artisans List */}
       <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
         <div className="divide-y divide-gray-50">
-          {loading ? (
-            <div className="px-6 py-12 text-center text-gray-400">
-              <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            </div>
-          ) : filteredArtisans.length === 0 ? (
+          {filteredArtisans.length === 0 ? (
             <div className="px-6 py-12 text-center text-gray-400">
               {statusFilter === 'pending' ? 'Aucune vérification en attente' : 'Aucun artisan trouvé'}
             </div>

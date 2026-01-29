@@ -12,6 +12,8 @@ interface RatingModalProps {
   artisanName: string;
   artisanAvatar?: string;
   onSuccess: () => void;
+  /** Si true, le commentaire est obligatoire et le bouton "Plus tard" est masqué (flux clôture client). */
+  requireComment?: boolean;
 }
 
 export function RatingModal({
@@ -22,7 +24,8 @@ export function RatingModal({
   artisanId,
   artisanName,
   artisanAvatar,
-  onSuccess
+  onSuccess,
+  requireComment = false,
 }: RatingModalProps) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -72,6 +75,10 @@ export function RatingModal({
 
     if (rating < 1 || rating > 5) {
       showError('Veuillez sélectionner une note entre 1 et 5 étoiles');
+      return;
+    }
+    if (requireComment && !comment.trim()) {
+      showError('Veuillez rédiger un commentaire. Votre avis sera visible sur le profil de l\'artisan.');
       return;
     }
 
@@ -227,7 +234,7 @@ export function RatingModal({
           {/* Comment */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">
-              Votre commentaire (optionnel)
+              Votre commentaire {requireComment ? <span className="text-red-500">*</span> : '(optionnel)'}
             </label>
             <textarea
               value={comment}
@@ -248,25 +255,27 @@ export function RatingModal({
             <div className="flex items-start gap-2">
               <AlertCircle size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-blue-800 leading-relaxed">
-                Votre avis sera visible publiquement sur le profil de l'artisan et l'aidera à améliorer ses services.
+                Votre note et votre commentaire seront visibles publiquement sur le profil de l'artisan et aideront les autres clients.
               </p>
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Plus tard
-            </button>
+            {!requireComment && (
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Plus tard
+              </button>
+            )}
             <button
               type="submit"
-              disabled={loading || rating < 1}
-              className="flex-1 px-4 py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={loading || rating < 1 || (requireComment && !comment.trim())}
+              className={`${requireComment ? 'w-full' : 'flex-1'} px-4 py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

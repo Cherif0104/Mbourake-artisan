@@ -36,6 +36,9 @@ Thumbs.db
 build/
 *.tsbuildinfo
 
+# Reference / backup repo (ne pas pousser)
+Mbourake-ref/
+
 # Documentation with sensitive credentials
 CONFIGURATION_FINALE_CREDENTIALS.md
 CONFIGURATION_OAUTH_FINALE.md

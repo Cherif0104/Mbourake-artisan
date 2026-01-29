@@ -17,7 +17,10 @@ import { CreateProjectPage } from './pages/CreateProjectPage';
 import { ProjectDetailsPage } from './pages/ProjectDetailsPage';
 import { CreditsPage } from './pages/CreditsPage';
 import { ProjectPaymentPage } from './pages/ProjectPaymentPage';
+import { ProjectThankYouPage } from './pages/ProjectThankYouPage';
+import { ProjectSuiviPage } from './pages/ProjectSuiviPage';
 import { ProjectWorkPage } from './pages/ProjectWorkPage';
+import { ProjectAwaitingPaymentPage } from './pages/ProjectAwaitingPaymentPage';
 import { ProjectCompletionPage } from './pages/ProjectCompletionPage';
 import { ChatPage } from './pages/ChatPage';
 import { Dashboard } from './pages/Dashboard';
@@ -34,9 +37,13 @@ import { AdminProjects } from './pages/admin/AdminProjects';
 import { AdminEscrows } from './pages/admin/AdminEscrows';
 import { AdminVerifications } from './pages/admin/AdminVerifications';
 import { AdminDisputes } from './pages/admin/AdminDisputes';
+import { AdminClosures } from './pages/admin/AdminClosures';
 import { AdminAffiliations } from './pages/admin/AdminAffiliations';
 import { RevisionsPage } from './pages/RevisionsPage';
+import { RequestRevisionPage } from './pages/RequestRevisionPage';
+import { RevisionResponsePage } from './pages/RevisionResponsePage';
 import { ConversationsPage } from './pages/ConversationsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 // Composant pour page 404 - Route non trouvée
 function NotFoundPage() {
@@ -99,10 +106,15 @@ function AppContent() {
       {/* Protected Routes */}
       <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
       <Route path="/revisions" element={<PrivateRoute><RevisionsPage /></PrivateRoute>} />
+      <Route path="/revisions/:revisionId/respond" element={<PrivateRoute><RevisionResponsePage /></PrivateRoute>} />
       <Route path="/create-project" element={<PrivateRoute><CreateProjectPage /></PrivateRoute>} />
       <Route path="/projects/:id" element={<PrivateRoute><ProjectDetailsPage /></PrivateRoute>} />
+      <Route path="/projects/:projectId/request-revision" element={<PrivateRoute><RequestRevisionPage /></PrivateRoute>} />
       <Route path="/projects/:id/payment" element={<PrivateRoute><ProjectPaymentPage /></PrivateRoute>} />
+      <Route path="/projects/:id/thank-you" element={<PrivateRoute><ProjectThankYouPage /></PrivateRoute>} />
+      <Route path="/projects/:id/suivi" element={<PrivateRoute><ProjectSuiviPage /></PrivateRoute>} />
       <Route path="/projects/:id/work" element={<PrivateRoute><ProjectWorkPage /></PrivateRoute>} />
+      <Route path="/projects/:id/awaiting-payment" element={<PrivateRoute><ProjectAwaitingPaymentPage /></PrivateRoute>} />
       <Route path="/projects/:id/completion" element={<PrivateRoute><ProjectCompletionPage /></PrivateRoute>} />
       <Route path="/chat/:projectId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
       <Route path="/credits" element={<PrivateRoute><CreditsPage /></PrivateRoute>} />
@@ -111,6 +123,7 @@ function AppContent() {
       <Route path="/expenses" element={<PrivateRoute><ExpensesPage /></PrivateRoute>} />
       <Route path="/invoices" element={<PrivateRoute><InvoicesPage /></PrivateRoute>} />
       <Route path="/conversations" element={<PrivateRoute><ConversationsPage /></PrivateRoute>} />
+      <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
       
       {/* Admin Routes */}
       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
@@ -120,6 +133,7 @@ function AppContent() {
       <Route path="/admin/verifications" element={<AdminRoute><AdminVerifications /></AdminRoute>} />
       <Route path="/admin/affiliations" element={<AdminRoute><AdminAffiliations /></AdminRoute>} />
       <Route path="/admin/disputes" element={<AdminRoute><AdminDisputes /></AdminRoute>} />
+      <Route path="/admin/closures" element={<AdminRoute><AdminClosures /></AdminRoute>} />
       
       {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}
       <Route path="*" element={<NotFoundPage />} />

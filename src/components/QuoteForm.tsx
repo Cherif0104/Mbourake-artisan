@@ -13,7 +13,7 @@ interface QuoteFormProps {
   projectId: string;
   artisanId: string;
   isUrgent?: boolean;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -337,7 +337,7 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
         // Ne pas bloquer si la notification échoue
       }
 
-      onSuccess();
+      await Promise.resolve(onSuccess());
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -358,34 +358,44 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 space-y-4">
-        {/* Cost Breakdown */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Main d'œuvre</label>
-            <div className="relative">
-              <input
-                type="number"
-                value={laborCost}
-                onChange={(e) => setLaborCost(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-16 focus:border-brand-500 focus:outline-none text-gray-900"
-                placeholder="0"
-                required
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">FCFA</span>
+        {/* Coût prestation + Charges — total calculé automatiquement */}
+        <div className="bg-white/80 rounded-2xl border border-gray-100 p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Coût de la prestation</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={laborCost}
+                  onChange={(e) => setLaborCost(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-14 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none text-gray-900 transition-shadow"
+                  placeholder="0"
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">FCFA</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Charges</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={materialsCost}
+                  onChange={(e) => setMaterialsCost(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-14 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none text-gray-900 transition-shadow"
+                  placeholder="0"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">FCFA</span>
+              </div>
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Matériaux</label>
-            <div className="relative">
-              <input
-                type="number"
-                value={materialsCost}
-                onChange={(e) => setMaterialsCost(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-16 focus:border-brand-500 focus:outline-none text-gray-900"
-                placeholder="0"
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">FCFA</span>
-            </div>
+          <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-50">
+            <span>Prestation + Charges {isUrgent && surcharge > 0 && `+ Majoration ${urgentSurchargePercent}%`}</span>
+            <span className="font-bold text-gray-700">{baseAmount.toLocaleString('fr-FR')} {surcharge > 0 && `+ ${surcharge.toLocaleString('fr-FR')}`} →</span>
           </div>
         </div>
 
@@ -415,10 +425,10 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
           </div>
         )}
 
-        {/* Total */}
-        <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between">
-          <span className="font-bold text-gray-700">Total</span>
-          <span className="text-2xl font-black text-brand-500">{totalAmount.toLocaleString('fr-FR')} FCFA</span>
+        {/* Total — mise à jour automatique */}
+        <div className="bg-gradient-to-r from-brand-50 to-brand-50/50 rounded-xl p-4 flex items-center justify-between border border-brand-100 shadow-sm">
+          <span className="font-bold text-gray-800">Total TTC</span>
+          <span className="text-2xl font-black text-brand-600 tabular-nums">{totalAmount.toLocaleString('fr-FR')} FCFA</span>
         </div>
 
         {/* Message */}

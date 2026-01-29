@@ -9,7 +9,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
 import { getTier, TIER_COLORS } from '../utils/artisanUtils';
-import { HomeButton } from '../components/HomeButton';
+import { BackButton } from '../components/BackButton';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 
 interface ArtisanData {
   id: string;
@@ -276,14 +277,7 @@ export function CategoryPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 font-medium">Chargement...</p>
-        </div>
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (!category) {
@@ -309,7 +303,7 @@ export function CategoryPage() {
       <header className="bg-white border-b sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <HomeButton />
+            <BackButton />
             <div>
               <h1 className="text-xl font-black text-gray-900">{category.name}</h1>
               <p className="text-xs text-gray-400 font-bold">

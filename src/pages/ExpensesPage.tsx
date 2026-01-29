@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 
 type ExpenseCategory = 'materials' | 'labor' | 'transport' | 'equipment' | 'other';
 
@@ -189,11 +190,7 @@ export function ExpensesPage() {
   }, {} as Record<string, number>);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (

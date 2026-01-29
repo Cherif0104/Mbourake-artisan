@@ -23,6 +23,11 @@
   - Les utilisateurs authentifiés peuvent uploader
   - Tous peuvent lire
 
+### 4. Bucket `videos`
+- **Usage** : Stocker les vidéos des projets (création de projet, étape 1). Le bucket `photos` n’accepte pas les MIME type vidéo.
+- **Public** : Oui (pour affichage)
+- **Policies** : Voir migration `20250124000000_create_videos_bucket.sql`
+
 ## Configuration via SQL (à exécuter dans Supabase Dashboard)
 
 ```sql
