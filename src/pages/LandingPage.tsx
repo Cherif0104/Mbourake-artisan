@@ -9,7 +9,6 @@ import {
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
-import { LanguageSelector } from '../components/LanguageSelector';
 import { AndroidDownloadButton } from '../components/AndroidDownloadButton';
 import { supabase } from '../lib/supabase';
 
@@ -266,11 +265,6 @@ export function LandingPage() {
           {/* Télécharger l'app Android */}
           <div className="hidden lg:block">
             <AndroidDownloadButton variant="nav" />
-          </div>
-
-          {/* Language Selector */}
-          <div className="flex items-center">
-            <LanguageSelector />
           </div>
 
           {/* Divider - Desktop */}

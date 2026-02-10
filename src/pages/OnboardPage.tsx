@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Briefcase, Loader2, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import type { ProfileRole } from '../hooks/useProfile';
-import { LanguageSelector } from '../components/LanguageSelector';
 
 // Simple Google logo SVG used in the auth button
 const GoogleLogo: React.FC = () => (
@@ -106,7 +105,7 @@ export function OnboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FDFCFB] via-white to-orange-50/30 flex flex-col">
-      {/* Header avec bouton retour et sélection de langue */}
+      {/* Header avec bouton retour */}
       <header className="px-6 py-4 bg-white border-b border-gray-100">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <button
@@ -116,7 +115,6 @@ export function OnboardPage() {
             <ArrowLeft size={18} />
             Retour
           </button>
-          <LanguageSelector />
         </div>
       </header>
 
