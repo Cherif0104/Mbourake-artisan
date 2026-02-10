@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Database } from '../types/database.types';
+import type { Database } from '@shared';
 
 export type Message = Database['public']['Tables']['messages']['Row'];
 

@@ -1,32 +1,20 @@
-# Icônes PWA - Mbourake
+# Icône PWA – Mbourake
 
-## 📋 Tailles requises
+## Icône personnalisée « Mbouraké avec services intégrés »
 
-Pour que la PWA fonctionne correctement sur tous les appareils, vous devez générer les icônes suivantes :
+L’icône affichée sur l’écran d’accueil (PWA installée sur mobile) est l’image **« Mbouraké avec services intégrés »** : pin, poignée de main, outils, dégradé orange/vert, texte « Mbouraké ».
 
-- `icon-72x72.png` - Android (petite)
-- `icon-96x96.png` - Android (moyenne)
-- `icon-128x128.png` - Android (moyenne)
-- `icon-144x144.png` - Windows (moyenne)
-- `icon-152x152.png` - iOS (iPad)
-- `icon-192x192.png` - Android (grande, maskable)
-- `icon-384x384.png` - Android (très grande)
-- `icon-512x512.png` - Android (très grande, maskable)
+**À faire :** enregistrez cette image dans ce dossier sous le nom :
 
-## 🎨 Design recommandé
+- **`icon-mbourake.png`**
 
-- **Couleur principale** : #FBBF24 (brand-500)
-- **Fond** : Blanc ou dégradé brand
-- **Logo** : Lettre "M" stylisée ou logo complet Mbourake
-- **Style** : Moderne, épuré, reconnaissable même en petite taille
+**Recommandations :**
+- Taille **512×512 px** minimum (carré).
+- Format **PNG**.
+- Le navigateur et l’OS redimensionnent pour 192 px ; une seule fichier 512×512 suffit.
 
-## 🛠️ Outils pour générer les icônes
+Une fois `icon-mbourake.png` présent dans `public/icons/`, il sera utilisé par le `manifest.json` et en `apple-touch-icon` pour l’installation PWA sur mobile.
 
-1. **En ligne** : https://www.pwabuilder.com/imageGenerator
-2. **En ligne** : https://realfavicongenerator.net/
-3. **Local** : Utiliser un outil comme ImageMagick ou un éditeur d'images
+## Fallback
 
-## 📝 Note
-
-Les icônes doivent être au format PNG avec transparence si nécessaire.
-Les icônes maskable (192x192 et 512x512) doivent avoir un padding de sécurité de 20% pour éviter que le contenu soit coupé sur certains appareils.
+Si `icon-mbourake.png` est absent, le manifest utilise `logo-senegel.png` à la racine du site comme icône de secours.

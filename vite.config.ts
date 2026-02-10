@@ -13,8 +13,10 @@ const spaFallbackPlugin = (): Plugin => {
         
         // Ignorer les assets statiques et les routes Vite internes (CRITIQUE)
         if (
-          // Fichiers avec extensions
-          url.match(/\.(js|mjs|cjs|ts|tsx|jsx|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webp|mp4|webm|wasm)$/) ||
+          // Fichiers avec extensions (dont .apk pour téléchargement Android)
+          url.match(/\.(js|mjs|cjs|ts|tsx|jsx|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webp|mp4|webm|wasm|apk)$/) ||
+          // Téléchargement APK : laisser Vite servir le fichier depuis public/download/
+          url.startsWith('/download/') ||
           // Routes Vite internes - NE PAS REDIRIGER CES ROUTES
           url.startsWith('/@vite/') ||
           url.startsWith('/@react-refresh') ||
@@ -42,6 +44,7 @@ const spaFallbackPlugin = (): Plugin => {
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
+      base: './',
       server: {
         port: 3002,
         host: '0.0.0.0',
@@ -53,6 +56,7 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, './src'),
+          '@shared': path.resolve(__dirname, './shared'),
         },
         dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom'],
       },

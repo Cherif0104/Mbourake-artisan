@@ -35,6 +35,7 @@ Plateforme web moderne de mise en relation entre artisans et clients au Sénéga
 - **Styling**: Tailwind CSS
 - **Backend**: Supabase (PostgreSQL + Auth + Storage + Realtime)
 - **Icons**: Lucide React
+- **Android (Google Play)** : même app web empaquetée avec [Capacitor](https://capacitorjs.com) → dossier `android/`, voir [docs/ANDROID_GOOGLE_PLAY.md](docs/ANDROID_GOOGLE_PLAY.md)
 
 ## 📦 Installation
 

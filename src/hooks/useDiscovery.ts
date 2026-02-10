@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Database } from '../types/database.types';
+import type { Database } from '@shared';
 
 export type Category = Database['public']['Tables']['categories']['Row'];
 export type ArtisanProfile = Database['public']['Tables']['artisans']['Row'] & {

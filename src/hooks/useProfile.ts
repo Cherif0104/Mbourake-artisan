@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
-import type { Database } from '../types/database.types';
+import type { Database } from '@shared';
 
 export type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 export type ProfileRole = 'client' | 'artisan' | 'admin' | 'partner' | 'chambre_metier';

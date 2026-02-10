@@ -46,6 +46,30 @@ import { RevisionResponsePage } from './pages/RevisionResponsePage';
 import { ConversationsPage } from './pages/ConversationsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 
+// Page affichée quand on ouvre /download/... dans l'app (fichier APK non servi)
+function DownloadUnavailablePage() {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="text-center max-w-md">
+        <div className="w-16 h-16 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <span className="text-3xl" aria-hidden>📱</span>
+        </div>
+        <h1 className="text-xl font-black text-gray-900 mb-2">Téléchargement indisponible</h1>
+        <p className="text-gray-600 text-sm mb-6">
+          Le fichier de l'application Android n'est pas encore disponible à cette adresse. Revenez à l'accueil et utilisez le bouton « Télécharger l'app Android » lorsque le lien sera configuré.
+        </p>
+        <button
+          onClick={() => navigate('/')}
+          className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors"
+        >
+          Retour à l'accueil
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Composant pour page 404 - Route non trouvée
 function NotFoundPage() {
   const navigate = useNavigate();
@@ -103,6 +127,7 @@ function AppContent() {
       <Route path="/artisans/:id" element={<ArtisanPublicProfilePage />} />
       <Route path="/favorites" element={<FavoritesPage />} />
       <Route path="/category/:slug" element={<CategoryPage />} />
+      <Route path="/download/:filename" element={<DownloadUnavailablePage />} />
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />

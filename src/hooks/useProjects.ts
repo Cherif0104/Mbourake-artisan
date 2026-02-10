@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Database } from '../types/database.types';
+import type { Database } from '@shared';
 
 export type Project = Database['public']['Tables']['projects']['Row'];
 export type Quote = Database['public']['Tables']['quotes']['Row'];

@@ -4,13 +4,13 @@ import {
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
   Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
-  ChevronRight, X, Download, Smartphone
+  ChevronRight, X
 } from 'lucide-react';
-import { usePWAInstall } from '../contexts/PWAInstallContext';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { LanguageSelector } from '../components/LanguageSelector';
+import { AndroidDownloadButton } from '../components/AndroidDownloadButton';
 import { supabase } from '../lib/supabase';
 
 function normalizeForSearch(s: string): string {
@@ -41,10 +41,17 @@ export function LandingPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [artisans, setArtisans] = useState<ArtisanSuggestion[]>([]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+
+  // Éviter la page blanche : après 3 s, afficher la landing même si auth/profile chargent encore
+  useEffect(() => {
+    const t = window.setTimeout(() => setLoadingTimeout(true), 3000);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  const showLoading = (auth.loading || profileLoading) && !loadingTimeout;
 
   const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
-  const pwaInstall = usePWAInstall();
-  const showInstallCTA = pwaInstall?.canInstall ?? false;
   // Map icon names to Lucide components
   const iconMap: Record<string, React.ReactNode> = {
     'hammer': <Hammer size={24} />,
@@ -214,9 +221,12 @@ export function LandingPage() {
     }
   }, [auth.loading, profileLoading, auth.user, profile, navigate, searchParams]);
 
-  if (auth.loading || profileLoading) {
+  if (showLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div
+        className="min-h-screen bg-gray-50 flex items-center justify-center"
+        style={{ backgroundColor: '#f9fafb', minHeight: '100vh' }}
+      >
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-gray-600 font-medium">Chargement...</p>
@@ -253,6 +263,11 @@ export function LandingPage() {
             <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-brand-500 group-hover:w-full transition-all duration-200" />
           </button>
 
+          {/* Télécharger l'app Android */}
+          <div className="hidden lg:block">
+            <AndroidDownloadButton variant="nav" />
+          </div>
+
           {/* Language Selector */}
           <div className="flex items-center">
             <LanguageSelector />
@@ -263,15 +278,6 @@ export function LandingPage() {
 
           {/* CTA Buttons */}
           <div className="flex items-center gap-2 md:gap-3">
-            {showInstallCTA && (
-              <button
-                onClick={() => pwaInstall?.promptInstall()}
-                className="flex items-center gap-2 px-4 md:px-5 py-2 md:py-2.5 bg-white/90 text-gray-800 border border-gray-200 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-wider hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 transition-all shadow-sm"
-              >
-                <Smartphone size={18} />
-                Installer l'app
-              </button>
-            )}
             {isLoggedIn ? (
               <>
                 <button 
@@ -408,15 +414,6 @@ export function LandingPage() {
             )}
           </div>
           
-          {showInstallCTA && (
-            <button
-              onClick={() => pwaInstall?.promptInstall()}
-              className="mt-6 flex items-center justify-center gap-2 px-6 py-3 bg-white/95 text-gray-900 rounded-xl font-bold shadow-lg border-2 border-white/30 hover:bg-brand-50 hover:border-brand-400 transition-all"
-            >
-              <Download size={22} />
-              Télécharger l'app sur mon téléphone
-            </button>
-          )}
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             {['Maçonnerie', 'Plomberie', 'Couture', 'Solaire', 'Mécanique'].map(tag => (
               <button 
@@ -542,6 +539,7 @@ export function LandingPage() {
           >
             Artisans
           </button>
+          <AndroidDownloadButton variant="footer" />
           <button 
             onClick={() => navigate('/onboard?mode=signup')}
             className="text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
