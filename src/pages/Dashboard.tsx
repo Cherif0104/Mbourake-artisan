@@ -80,6 +80,18 @@ export function Dashboard() {
   
   const { signOut } = auth;
 
+  // Si l'utilisateur est un admin, le Dashboard ne doit pas s'afficher :
+  // on le redirige automatiquement vers le panel admin.
+  useEffect(() => {
+    if (profileLoading) return;
+    if (profile?.role === 'admin') {
+      // Éviter les boucles : ne rediriger que si on est bien sur /dashboard
+      if (location.pathname === '/dashboard') {
+        navigate('/admin', { replace: true });
+      }
+    }
+  }, [profileLoading, profile?.role, location.pathname, navigate]);
+
   // Initialiser ou corriger le rôle du profil si l'utilisateur vient de s'inscrire via Google.
   // IMPORTANT : Pour les artisans en signup, on redirige vers edit-profile au lieu de créer le profil ici
   // pour qu'ils choisissent leur catégorie/métier AVANT de créer le profil
