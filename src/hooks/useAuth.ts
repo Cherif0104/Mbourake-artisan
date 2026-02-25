@@ -17,6 +17,7 @@ export function useAuth() {
 
   // Référence pour éviter les redirections multiples
   const redirectingRef = useRef(false);
+  const lastLoggedSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -38,18 +39,40 @@ export function useAuth() {
       });
     
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      // Ne jamais logger INITIAL_SESSION (se produit trop souvent)
-      if (event !== 'INITIAL_SESSION') {
-        console.log('[useAuth] Auth state changed:', {
-          event,
-          hasUser: !!session?.user,
-          userId: session?.user?.id,
-          email: session?.user?.email,
-        });
+      // Ne pas logger INITIAL_SESSION ni les SIGNED_IN répétés pour la même session
+      const sessionId = session?.user?.id ?? null;
+      if (event !== 'INITIAL_SESSION' && sessionId !== lastLoggedSessionIdRef.current) {
+        lastLoggedSessionIdRef.current = sessionId;
+        if (import.meta.env.DEV) {
+          console.log('[useAuth] Auth state changed:', { event, hasUser: !!session?.user, userId: sessionId, email: session?.user?.email });
+        }
       }
 
       // Redirection globale après authentification réussie
       if (event === 'SIGNED_IN' && typeof window !== 'undefined') {
+        // Cas spécial : compte admin technique -> accès direct au dashboard admin
+        // Sans passer par le flow classique de /dashboard et sans impacter les autres comptes.
+        const adminEmail = 'techsupport@senegel.org';
+        const currentEmail = session?.user?.email?.toLowerCase();
+        if (currentEmail && currentEmail === adminEmail.toLowerCase()) {
+          // Éviter les redirections multiples en dev (événements SIGNED_IN répétés)
+          if (redirectingRef.current) {
+            return;
+          }
+          redirectingRef.current = true;
+
+          // Ne pas renvoyer vers /admin si on y est déjà
+          if (window.location.pathname !== '/admin') {
+            console.log('[useAuth] Admin détecté, redirection directe vers /admin');
+            try {
+              window.location.replace('/admin');
+            } catch (e) {
+              console.warn('[useAuth] Erreur pendant la redirection admin:', e);
+            }
+          }
+          return;
+        }
+
         try {
           const search = new URLSearchParams(window.location.search);
           let mode = search.get('mode');

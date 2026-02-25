@@ -160,6 +160,16 @@ export function useNotifications() {
 
     fetchNotifications();
 
+    // En développement (localhost avec React StrictMode + Vite),
+    // les effets sont montés/démontés plusieurs fois et Supabase Realtime
+    // peut spammer la console avec des erreurs de WebSocket.
+    // Pour éviter ce bruit et les re-renders visuels gênants,
+    // on désactive l'abonnement temps-réel en DEV et on ne garde
+    // que le fetch classique.
+    if (import.meta.env.DEV) {
+      return;
+    }
+
     // Subscribe to new notifications
     const channel = supabase
       .channel('notifications_realtime')

@@ -10,11 +10,13 @@ const spaFallbackPlugin = (): Plugin => {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = req.url || '';
+        // Ignorer les paramètres de requête pour la détection d'assets
+        const pathname = url.split('?')[0] || '';
         
         // Ignorer les assets statiques et les routes Vite internes (CRITIQUE)
         if (
           // Fichiers avec extensions (dont .apk pour téléchargement Android)
-          url.match(/\.(js|mjs|cjs|ts|tsx|jsx|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webp|mp4|webm|wasm|apk)$/) ||
+          pathname.match(/\.(js|mjs|cjs|ts|tsx|jsx|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webp|mp4|webm|wasm|apk)$/) ||
           // Téléchargement APK : laisser Vite servir le fichier depuis public/download/
           url.startsWith('/download/') ||
           // Routes Vite internes - NE PAS REDIRIGER CES ROUTES
@@ -43,11 +45,29 @@ const spaFallbackPlugin = (): Plugin => {
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    const supabaseUrl = (env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
     return {
       base: './',
       server: {
         port: 3002,
         host: '0.0.0.0',
+        // En dev : proxy vers Supabase pour éviter CORS sur les Edge Functions (ex. delete-my-account)
+        proxy: supabaseUrl
+          ? {
+              '/api/supabase-functions': {
+                target: supabaseUrl,
+                changeOrigin: true,
+                secure: true,
+                rewrite: (path) => path.replace(/^\/api\/supabase-functions/, '/functions'),
+                configure: (proxy) => {
+                  proxy.on('proxyReq', (proxyReq) => {
+                    const key = env.VITE_SUPABASE_ANON_KEY;
+                    if (key) proxyReq.setHeader('apikey', key);
+                  });
+                },
+              },
+            }
+          : undefined,
       },
       plugins: [
         react(),

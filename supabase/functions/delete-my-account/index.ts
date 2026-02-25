@@ -9,14 +9,16 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
+const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   if (req.method !== 'POST') {
@@ -122,6 +124,48 @@ serve(async (req) => {
     await admin.from('artisans').delete().eq('id', uid);
     await admin.from('artisans').delete().eq('user_id', uid);
     await admin.from('profiles').delete().eq('id', uid);
+
+    // 2.5) Supprimer les fichiers Storage (portfolio, documents, vérification, etc.)
+    const buckets = ['photos', 'videos', 'audio', 'documents'] as const;
+    const prefixUid = `${uid}`;
+    const prefixMessagesUid = `messages/${uid}`;
+
+    async function listAllPaths(bucketId: string, prefix: string): Promise<string[]> {
+      const paths: string[] = [];
+      const { data: items, error } = await admin.storage.from(bucketId).list(prefix, { limit: 1000 });
+      if (error || !items?.length) return paths;
+      for (const item of items) {
+        const fullPath = prefix ? `${prefix}/${item.name}` : item.name;
+        // null id = folder (prefix) in Supabase Storage list
+        if (item.id == null) {
+          const nested = await listAllPaths(bucketId, fullPath);
+          paths.push(...nested);
+        } else {
+          paths.push(fullPath);
+        }
+      }
+      return paths;
+    }
+
+    for (const bucketId of buckets) {
+      try {
+        const paths = await listAllPaths(bucketId, prefixUid);
+        if (paths.length > 0) {
+          await admin.storage.from(bucketId).remove(paths);
+        }
+      } catch (e) {
+        console.warn(`delete-my-account: storage ${bucketId} prefix ${prefixUid}:`, e);
+      }
+    }
+    // audio: messages/{uid}/ (Chat)
+    try {
+      const paths = await listAllPaths('audio', prefixMessagesUid);
+      if (paths.length > 0) {
+        await admin.storage.from('audio').remove(paths);
+      }
+    } catch (e) {
+      console.warn('delete-my-account: storage audio messages:', e);
+    }
 
     // 3) Supprimer le compte Auth
     const { error: deleteUserError } = await admin.auth.admin.deleteUser(uid);

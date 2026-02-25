@@ -1,0 +1,8 @@
+# Configuration des Edge Functions
+# Voir https://supabase.com/docs/guides/functions/function-configuration
+
+# delete-my-account : on désactive la vérification JWT au niveau plateforme pour que
+# la prérequête OPTIONS (sans en-tête Authorization) renvoie 200 avec CORS.
+# Le JWT est vérifié manuellement dans la fonction pour les requêtes POST.
+[functions.delete-my-account]
+verify_jwt = false

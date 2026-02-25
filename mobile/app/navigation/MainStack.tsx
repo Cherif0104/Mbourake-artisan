@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ChatScreen from '../screens/ChatScreen';
 import DashboardScreen from '../screens/DashboardScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import ProjectCompletionScreen from '../screens/ProjectCompletionScreen';
 import ProjectDetailsScreen from '../screens/ProjectDetailsScreen';
 import ProjectListScreen from '../screens/ProjectListScreen';
@@ -9,6 +10,7 @@ import ProjectWorkScreen from '../screens/ProjectWorkScreen';
 
 export type MainStackParamList = {
   Dashboard: undefined;
+  Profile: undefined;
   ProjectList: undefined;
   ProjectDetails: { projectId: string };
   ProjectPayment: { projectId: string };
@@ -23,6 +25,7 @@ export function MainStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: true }}>
       <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Tableau de bord' }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profil' }} />
       <Stack.Screen name="ProjectList" component={ProjectListScreen} options={{ title: 'Mes projets' }} />
       <Stack.Screen name="ProjectDetails" component={ProjectDetailsScreen} options={{ title: 'Détails projet' }} />
       <Stack.Screen name="ProjectPayment" component={ProjectPaymentScreen} options={{ title: 'Paiement' }} />

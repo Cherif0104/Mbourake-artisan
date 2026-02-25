@@ -151,15 +151,16 @@ function AppContent() {
       <Route path="/conversations" element={<PrivateRoute><ConversationsPage /></PrivateRoute>} />
       <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
       
-      {/* Admin Routes */}
-      <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-      <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
-      <Route path="/admin/projects" element={<AdminRoute><AdminProjects /></AdminRoute>} />
-      <Route path="/admin/escrows" element={<AdminRoute><AdminEscrows /></AdminRoute>} />
-      <Route path="/admin/verifications" element={<AdminRoute><AdminVerifications /></AdminRoute>} />
-      <Route path="/admin/affiliations" element={<AdminRoute><AdminAffiliations /></AdminRoute>} />
-      <Route path="/admin/disputes" element={<AdminRoute><AdminDisputes /></AdminRoute>} />
-      <Route path="/admin/closures" element={<AdminRoute><AdminClosures /></AdminRoute>} />
+      {/* Admin Routes (layout commun avec sidebar) */}
+      <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>}>
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="projects" element={<AdminProjects />} />
+        <Route path="escrows" element={<AdminEscrows />} />
+        <Route path="verifications" element={<AdminVerifications />} />
+        <Route path="affiliations" element={<AdminAffiliations />} />
+        <Route path="disputes" element={<AdminDisputes />} />
+        <Route path="closures" element={<AdminClosures />} />
+      </Route>
       
       {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}
       <Route path="*" element={<NotFoundPage />} />

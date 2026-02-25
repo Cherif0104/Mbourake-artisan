@@ -16,6 +16,7 @@ export default function DashboardScreen({ navigation }: Props) {
       <Text style={styles.title}>Tableau de bord</Text>
       <Text style={styles.email}>{user?.email ?? '—'}</Text>
       <Button title="Mes projets" onPress={() => navigation.navigate('ProjectList')} />
+      <Button title="Profil" onPress={() => navigation.navigate('Profile')} />
       <View style={styles.spacer} />
       <Button title="Déconnexion" onPress={() => signOut()} />
     </View>

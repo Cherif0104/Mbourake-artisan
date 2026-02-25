@@ -42,7 +42,7 @@ interface DisputedProject {
 type Resolution = 'refund_client' | 'pay_artisan' | 'split';
 
 export function AdminDisputes() {
-  const { error: showError } = useToastContext();
+  const { success: showSuccess, error: showError } = useToastContext();
   const [disputes, setDisputes] = useState<DisputedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDispute, setSelectedDispute] = useState<DisputedProject | null>(null);
@@ -190,12 +190,11 @@ export function AdminDisputes() {
       fetchDisputes();
       setSelectedDispute(null);
       setResolutionNote('');
-      
+      showSuccess('Litige résolu. Les parties ont été notifiées.');
     } catch (err) {
       console.error('Error resolving dispute:', err);
       showError('Erreur lors de la résolution du litige');
     }
-    
     setResolving(false);
   };
 

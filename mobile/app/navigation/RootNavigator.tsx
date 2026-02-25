@@ -1,6 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../../contexts/AuthContext';
+import { LoadingScreen } from '../components/LoadingScreen';
 import { AuthStack } from './AuthStack';
 import { MainStack } from './MainStack';
 
@@ -10,7 +11,7 @@ export function RootNavigator() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return null;
+    return <LoadingScreen />;
   }
 
   return (

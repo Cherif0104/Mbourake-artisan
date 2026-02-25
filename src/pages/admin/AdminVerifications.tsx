@@ -4,6 +4,7 @@ import {
   FileText, Phone, MapPin, Briefcase, Award, AlertCircle,
   Camera, CreditCard, Building2, ExternalLink, X, ChevronLeft, ChevronRight
 } from 'lucide-react';
+import { useToastContext } from '../../contexts/ToastContext';
 import { supabase } from '../../lib/supabase';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 
@@ -45,6 +46,7 @@ interface ArtisanVerification {
 }
 
 export function AdminVerifications() {
+  const { success: showSuccess, error: showError } = useToastContext();
   const [artisans, setArtisans] = useState<ArtisanVerification[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -150,8 +152,10 @@ export function AdminVerifications() {
       
       fetchArtisans();
       setSelectedArtisan(null);
+      showSuccess('Artisan vérifié. Notification envoyée.');
     } catch (err) {
       console.error('Error verifying artisan:', err);
+      showError(err instanceof Error ? err.message : 'Erreur lors de la vérification');
     }
   };
 
@@ -188,8 +192,10 @@ export function AdminVerifications() {
       fetchArtisans();
       setSelectedArtisan(null);
       setRejectionReason('');
+      showSuccess('Vérification refusée. Notification envoyée à l\'artisan.');
     } catch (err) {
       console.error('Error rejecting artisan:', err);
+      showError(err instanceof Error ? err.message : 'Erreur lors du rejet');
     }
   };
 

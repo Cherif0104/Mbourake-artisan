@@ -9,6 +9,7 @@ import {
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
+import { useToastContext } from '../contexts/ToastContext';
 import { AndroidDownloadButton } from '../components/AndroidDownloadButton';
 import { supabase } from '../lib/supabase';
 
@@ -32,9 +33,10 @@ const MAX_SUGGESTION_ARTISANS = 6;
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const auth = useAuth();
   const { profile, loading: profileLoading } = useProfile();
+  const { success: showSuccess } = useToastContext();
   const { categories: dbCategories, loading } = useDiscovery();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -47,6 +49,15 @@ export function LandingPage() {
     const t = window.setTimeout(() => setLoadingTimeout(true), 3000);
     return () => window.clearTimeout(t);
   }, []);
+
+  // Message après suppression de compte : afficher le toast puis retirer le paramètre de l'URL
+  useEffect(() => {
+    if (searchParams.get('account_deleted') !== '1') return;
+    showSuccess('Votre compte et toutes vos données ont été supprimés. Vous pouvez vous réinscrire à tout moment.', 8000);
+    const next = new URLSearchParams(searchParams);
+    next.delete('account_deleted');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, showSuccess]);
 
   const showLoading = (auth.loading || profileLoading) && !loadingTimeout;
 

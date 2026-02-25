@@ -23,7 +23,7 @@ interface Affiliation {
 }
 
 export function AdminAffiliations() {
-  const { showSuccess, showError } = useToastContext();
+  const { success: showSuccess, error: showError } = useToastContext();
   const [affiliations, setAffiliations] = useState<Affiliation[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');

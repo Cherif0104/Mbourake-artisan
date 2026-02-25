@@ -731,20 +731,41 @@ export function EditProfilePage() {
     }
     setDeletingAccount(true);
     try {
-      const { data, error } = await supabase.functions.invoke('delete-my-account', {
-        headers: { Authorization: `Bearer ${auth.session.access_token}` },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      // En dev : appel via le proxy Vite pour éviter CORS. En prod : appel direct Supabase.
+      if (import.meta.env.DEV) {
+        const res = await fetch('/api/supabase-functions/v1/delete-my-account', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${auth.session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: '{}',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 404) {
+          throw new Error(
+            'Fonction "delete-my-account" non déployée sur ce projet Supabase. Depuis la racine du projet : supabase link --project-ref <ton-ref> puis supabase functions deploy delete-my-account --no-verify-jwt'
+          );
+        }
+        if (!res.ok) throw new Error((data as { error?: string })?.error || res.statusText || 'Erreur');
+        if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error);
+      } else {
+        const { data, error } = await supabase.functions.invoke('delete-my-account', {
+          headers: { Authorization: `Bearer ${auth.session.access_token}` },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+      }
       setShowDeleteAccountModal(false);
       await auth.signOut();
+      navigate('/?account_deleted=1', { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Impossible de supprimer le compte.';
       showError(message);
     } finally {
       setDeletingAccount(false);
     }
-  }, [auth.session?.access_token, auth.signOut, showError]);
+  }, [auth.session?.access_token, auth.signOut, showError, navigate]);
 
   const handleNext = () => {
     if (!isMounted) return; // Éviter les actions si le composant est en train de se démonter

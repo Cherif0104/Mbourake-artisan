@@ -370,10 +370,10 @@ export function ChatPage() {
               </div>
               <div>
                 <p className="font-bold text-gray-900 text-sm">{participant?.name ?? 'Professionnel'}</p>
-                <p className="text-[10px] text-green-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <div className="text-[10px] text-green-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse inline-block" aria-hidden />
                   En ligne
-                </p>
+                </div>
               </div>
             </div>
           )}
