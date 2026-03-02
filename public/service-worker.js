@@ -1,7 +1,7 @@
 // Bumper la version à chaque déploiement pour forcer la mise à jour des clients (skipWaiting + controllerchange → reload)
-const CACHE_NAME = 'mbourake-v2.2.0';
-const STATIC_CACHE_NAME = 'mbourake-static-v2.2.0';
-const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.2.0';
+const CACHE_NAME = 'mbourake-v2.3.0';
+const STATIC_CACHE_NAME = 'mbourake-static-v2.3.0';
+const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.3.0';
 
 // Assets à mettre en cache immédiatement
 const STATIC_ASSETS = [
@@ -73,6 +73,12 @@ self.addEventListener('fetch', (event) => {
         });
       })
     );
+    return;
+  }
+
+  // Ne pas mettre en cache les documents avec query string (callback OAuth, etc.) pour éviter bugs connexion PWA
+  if (request.destination === 'document' && url.search) {
+    event.respondWith(fetch(request));
     return;
   }
 

@@ -67,14 +67,19 @@ export function useEscrow() {
           .single();
 
         if (acceptedQuote?.artisan_id) {
+          const quoteAmount = Number(acceptedQuote?.amount || 0);
+          const total = Number(escrowData.total_amount ?? 0) || quoteAmount;
+          const payout = Number(escrowData.artisan_payout ?? 0) || (quoteAmount ? Math.round(quoteAmount * 0.85) : 0);
+          const tva = Number(escrowData.tva_amount ?? 0);
+          const commission = Number(escrowData.commission_amount ?? 0) || (total ? Math.round(total * 0.1) : 0);
           await notifyArtisanPaymentHeldWithBreakdown(
             escrowData.project_id,
             acceptedQuote.artisan_id,
             {
-              total_amount: Number(escrowData.total_amount || 0),
-              tva_amount: Number(escrowData.tva_amount || 0),
-              commission_amount: Number(escrowData.commission_amount || 0),
-              artisan_payout: Number(escrowData.artisan_payout || 0),
+              total_amount: total,
+              tva_amount: tva,
+              commission_amount: commission,
+              artisan_payout: payout,
             },
           );
         }

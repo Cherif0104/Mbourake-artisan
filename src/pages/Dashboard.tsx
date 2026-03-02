@@ -148,16 +148,14 @@ export function Dashboard() {
     if (auth.loading || !auth.user || profileLoading) return;
     if (!auth.session) return;
 
+    // Ne jamais écraser le rôle admin (un super admin reste admin)
+    if (profile?.role === 'admin') return;
+
     const searchParams = new URLSearchParams(location.search);
     const modeFromUrl = searchParams.get('mode');
     const roleFromUrl = searchParams.get('role');
 
     if (roleFromUrl !== 'client' && roleFromUrl !== 'artisan') {
-      return;
-    }
-
-    // Ne jamais écraser le rôle admin : un super admin reste admin.
-    if (profile?.role === 'admin') {
       return;
     }
 
@@ -238,8 +236,7 @@ export function Dashboard() {
     
     const fetchData = async () => {
       setLoading(true);
-      if (profile.role !== 'artisan') setSatisfactionStats(null);
-
+      
       if (profile.role === 'artisan') {
         // Charger le solde de crédits de l'artisan
         try {
@@ -265,19 +262,6 @@ export function Dashboard() {
           setVerificationStatus(artisan.verification_status || 'unverified');
           setCategoryName(artisan.categories?.name || null);
           setIsAvailable(artisan.is_available !== false);
-
-          // Satisfaction : avis et note moyenne (proportionnel aux projets notés)
-          const { data: reviews } = await supabase
-            .from('reviews')
-            .select('id, rating')
-            .eq('artisan_id', profile.id);
-          const reviewList = reviews || [];
-          const reviewCount = reviewList.length;
-          const ratingSum = reviewList.reduce((s, r) => s + (r.rating || 0), 0);
-          const ratingAvg = reviewCount > 0 ? ratingSum / reviewCount : (artisan.rating_avg ?? 0);
-          const satisfiedCount = reviewList.filter((r) => (r.rating || 0) >= 4).length;
-          const satisfactionPercent = reviewCount > 0 ? Math.round((satisfiedCount / reviewCount) * 100) : 0;
-          setSatisfactionStats({ ratingAvg, reviewCount, satisfactionPercent });
 
           // Récupérer UNIQUEMENT les projets de sa catégorie
           // Un artisan ne voit QUE les projets liés à sa catégorie
@@ -330,7 +314,24 @@ export function Dashboard() {
             .order('responded_at', { ascending: false });
           setQuoteRevisionsResponded(respondedRevisions || []);
         }
+
+        // Taux de satisfaction : note moyenne, nombre d'avis, % de satisfaction (4-5 étoiles)
+        try {
+          const { data: reviews } = await supabase
+            .from('reviews')
+            .select('rating')
+            .eq('artisan_id', profile.id);
+          const list = reviews || [];
+          const count = list.length;
+          const ratingAvg = artisan?.rating_avg != null ? Number(artisan.rating_avg) : (count ? list.reduce((s, r) => s + Number(r.rating || 0), 0) / count : 0);
+          const satisfiedCount = list.filter((r) => Number(r.rating) >= 4).length;
+          const satisfactionPercent = count > 0 ? Math.round((satisfiedCount / count) * 100) : 0;
+          setSatisfactionStats({ ratingAvg, reviewCount: count, satisfactionPercent });
+        } catch (_) {
+          setSatisfactionStats(null);
+        }
       } else {
+        setSatisfactionStats(null);
         // Récupérer les projets du client, exclure les projets annulés pour l'affichage principal
         const { data: clientProjects } = await supabase
           .from('projects')
@@ -706,6 +707,31 @@ export function Dashboard() {
               );
             })()}
 
+            {/* Taux de satisfaction (artisan) */}
+            {isArtisan && satisfactionStats !== null && (
+              <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass border-brand-200/80">
+                <div className="flex items-center gap-2 mb-3">
+                  <Star size={18} className="text-amber-500 fill-amber-500" />
+                  <p className="text-sm font-black text-gray-900">Votre satisfaction client</p>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-lg font-black text-gray-900">{satisfactionStats.ratingAvg.toFixed(1)}</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide">Note moyenne</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-black text-gray-900">{satisfactionStats.reviewCount}</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide">Avis reçus</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-black text-brand-600">{satisfactionStats.satisfactionPercent}%</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide">Satisfaction</p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2">Satisfaction = part des avis à 4–5 étoiles</p>
+              </div>
+            )}
+
             {/* Finances & Dépenses (dashboard) */}
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -746,33 +772,6 @@ export function Dashboard() {
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
                   <Megaphone size={18} className="text-brand-600" />
-                </div>
-              </button>
-            )}
-
-            {/* Satisfaction (artisan) : note, nombre d'avis, taux de satisfaction (proportion 4-5 étoiles) */}
-            {isArtisan && satisfactionStats !== null && (
-              <button
-                type="button"
-                onClick={() => navigate('/profile')}
-                className="w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                      <Star size={18} className="text-amber-500 fill-amber-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-gray-900">Taux de satisfaction</p>
-                      <p className="text-xs text-gray-500">
-                        {satisfactionStats.reviewCount} avis · Note {satisfactionStats.ratingAvg.toFixed(1)}/5
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-brand-600">{satisfactionStats.satisfactionPercent} %</p>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">clients satisfaits (4-5 ★)</p>
-                  </div>
                 </div>
               </button>
             )}
