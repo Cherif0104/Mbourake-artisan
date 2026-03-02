@@ -93,7 +93,7 @@ export function AdminClosures() {
         .update({ status: 'completed', updated_at: new Date().toISOString() })
         .eq('id', row.id);
 
-      const reliquat = (row.escrow.artisan_payout || 0);
+      const reliquat = Number(row.escrow.artisan_payout) || Number(row.escrow.total_amount) || 0;
       if (row.artisan?.id && reliquat > 0) {
         await notifyArtisanPaymentReceived(row.id, row.artisan.id, reliquat);
       }

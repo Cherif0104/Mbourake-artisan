@@ -177,4 +177,25 @@ Document de cadrage pour définir les fonctionnalités du super administrateur, 
 
 ---
 
+## 8. Schéma technique retenu et réalisations
+
+### 8.1 Tables et champs implémentés
+
+- **profiles** : `is_suspended`, `suspended_at`, `suspended_reason`. Policy : admins peuvent UPDATE.
+- **chambres_metier** : `organisation_type` (chambre, incubateur, sae, centre_formation, autre).
+- **organisation_members** : user_id, organisation_id, role (admin_org, manager, formateur, facilitateur, conseil_client, gestionnaire_dossiers).
+- **invitation_links** : token, organisation_id, created_by, invitation_type (artisan | client), expires_at, used_at. RPC get_invitation_info et consume_invitation.
+- **client_attributions** : client_id, organisation_id, invitation_link_id, source.
+- **artisan_affiliations** : les admins peuvent INSERT (rattachement manuel) et DELETE (détacher).
+
+### 8.2 Étapes techniques réalisées
+
+- **Phase 1** : Migration suspension, page Compte suspendu, RequireNotSuspended, AdminUsers (Suspendre/Réactiver/Supprimer), Edge Function admin-delete-account.
+- **Phase 2** : Migration organisation_type + organisation_members, page Admin Organisations (liste, membres, ajout/retrait).
+- **Phase 3** : Migration invitation_links + client_attributions, RPC get_invitation_info + consume_invitation, page /invite/:token, OnboardPage (stockage invite), Dashboard (consommation après profil), Admin Organisations (génération et liste des liens).
+- **Phase 4** : Admin Dashboard (KPIs région, catégorie, F-P-L, organisations), page Admin Exports (filtres + export CSV).
+- **Phase 5** : Admin Affiliations (création manuelle affiliation + bouton Détacher), mise à jour de ce document.
+
+---
+
 *Document rédigé pour anticiper les besoins super admin, exploitation des données et partenariats, en restant aligné avec l’authentification Google et le modèle F-P-L existant.*

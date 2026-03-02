@@ -2,8 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Briefcase, Shield, DollarSign, 
-  AlertCircle, CheckCircle, LogOut, Settings, Bell, AlertTriangle, Building2,
-  Package, ShoppingBag
+  AlertCircle, CheckCircle, LogOut, Settings, Bell, AlertTriangle, Building2, Landmark,
+  Package, ShoppingBag, FileDown
 } from 'lucide-react';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../../hooks/useAuth';
@@ -45,6 +45,10 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [projectTrends, setProjectTrends] = useState<ProjectTrend[]>([]);
   const [statusDistribution, setStatusDistribution] = useState<ProjectStatusDistribution[]>([]);
+  const [regionStats, setRegionStats] = useState<{ region: string; count: number }[]>([]);
+  const [categoryStats, setCategoryStats] = useState<{ category_id: number; name: string; count: number }[]>([]);
+  const [fplStats, setFplStats] = useState<{ label: string; count: number }[]>([]);
+  const [orgStats, setOrgStats] = useState<{ id: string; name: string; artisanCount: number; clientCount: number }[]>([]);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showBellMenu, setShowBellMenu] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -177,6 +181,83 @@ export function AdminDashboard() {
       }));
       
       setStatusDistribution(distribution);
+
+      // Par région (artisans)
+      const { data: artisansByRegion } = await supabase
+        .from('profiles')
+        .select('region')
+        .eq('role', 'artisan')
+        .not('region', 'is', null);
+      const regionMap = new Map<string, number>();
+      artisansByRegion?.forEach((p: { region: string | null }) => {
+        const r = (p.region || '').trim();
+        if (r) regionMap.set(r, (regionMap.get(r) || 0) + 1);
+      });
+      setRegionStats(Array.from(regionMap.entries()).map(([region, count]) => ({ region, count })).sort((a, b) => b.count - a.count));
+
+      // Par catégorie (artisans)
+      const { data: categories } = await supabase.from('categories').select('id, name');
+      const { data: artisansCat } = await supabase.from('artisans').select('category_id');
+      const catMap = new Map<number, number>();
+      artisansCat?.forEach((a: { category_id: number | null }) => {
+        const c = a.category_id ?? 0;
+        if (c) catMap.set(c, (catMap.get(c) || 0) + 1);
+      });
+      const catNames = new Map((categories || []).map((c: { id: number; name: string }) => [c.id, c.name || '']));
+      setCategoryStats(
+        Array.from(catMap.entries())
+          .map(([category_id, count]) => ({ category_id, name: catNames.get(category_id) || `Catégorie ${category_id}`, count }))
+          .sort((a, b) => b.count - a.count)
+      );
+
+      // F-P-L (formalisation / professionnalisation / labellisation)
+      const { data: fplProfiles } = await supabase
+        .from('profiles')
+        .select('formalisation_status, professionalisation_status, labellisation_status')
+        .eq('role', 'artisan');
+      const fplForm = new Map<string, number>();
+      const fplPro = new Map<string, number>();
+      const fplLab = new Map<string, number>();
+      fplProfiles?.forEach((p: { formalisation_status?: string | null; professionalisation_status?: string | null; labellisation_status?: string | null }) => {
+        const fs = p.formalisation_status || 'non_renseigne';
+        const ps = p.professionalisation_status || 'non_renseigne';
+        const ls = p.labellisation_status || 'non_renseigne';
+        fplForm.set(fs, (fplForm.get(fs) || 0) + 1);
+        fplPro.set(ps, (fplPro.get(ps) || 0) + 1);
+        fplLab.set(ls, (fplLab.get(ls) || 0) + 1);
+      });
+      const fplRows: { label: string; count: number }[] = [];
+      fplForm.forEach((count, label) => fplRows.push({ label: `Formalisation: ${label}`, count }));
+      fplPro.forEach((count, label) => fplRows.push({ label: `Professionnalisation: ${label}`, count }));
+      fplLab.forEach((count, label) => fplRows.push({ label: `Labellisation: ${label}`, count }));
+      setFplStats(fplRows.sort((a, b) => b.count - a.count));
+
+      // Par organisation (chambres + affiliations / attributions)
+      const { data: chambres } = await supabase.from('chambres_metier').select('id, name');
+      const orgArtisanCount: Record<string, number> = {};
+      const orgClientCount: Record<string, number> = {};
+      (chambres || []).forEach((c: { id: string }) => {
+        orgArtisanCount[c.id] = 0;
+        orgClientCount[c.id] = 0;
+      });
+      const { data: affils } = await supabase.from('artisan_affiliations').select('chambre_id');
+      affils?.forEach((a: { chambre_id: string | null }) => {
+        if (a.chambre_id) orgArtisanCount[a.chambre_id] = (orgArtisanCount[a.chambre_id] || 0) + 1;
+      });
+      try {
+        const { data: attr } = await supabase.from('client_attributions').select('organisation_id');
+        attr?.forEach((a: { organisation_id: string }) => {
+          orgClientCount[a.organisation_id] = (orgClientCount[a.organisation_id] || 0) + 1;
+        });
+      } catch (_) { /* table peut ne pas exister */ }
+      setOrgStats(
+        (chambres || []).map((c: { id: string; name: string }) => ({
+          id: c.id,
+          name: c.name,
+          artisanCount: orgArtisanCount[c.id] || 0,
+          clientCount: orgClientCount[c.id] || 0,
+        }))
+      );
       
       setStats({
         totalUsers: totalUsers || 0,
@@ -208,7 +289,9 @@ export function AdminDashboard() {
     { id: 'closures', path: '/admin/closures', icon: <CheckCircle size={20} />, label: 'Clôtures' },
     { id: 'verifications', path: '/admin/verifications', icon: <Shield size={20} />, label: 'Vérifications' },
     { id: 'affiliations', path: '/admin/affiliations', icon: <Building2 size={20} />, label: 'Affiliations' },
+    { id: 'organisations', path: '/admin/organisations', icon: <Landmark size={20} />, label: 'Organisations' },
     { id: 'disputes', path: '/admin/disputes', icon: <AlertTriangle size={20} />, label: 'Litiges' },
+    { id: 'exports', path: '/admin/exports', icon: <FileDown size={20} />, label: 'Exports' },
   ];
 
   const isActive = (path: string) => {
@@ -450,6 +533,63 @@ export function AdminDashboard() {
                   </ResponsiveContainer>
                 </div>
               </div>
+
+              {/* Par région */}
+              {regionStats.length > 0 && (
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Artisans par région</p>
+                  <div className="flex flex-wrap gap-2">
+                    {regionStats.slice(0, 12).map((r) => (
+                      <span key={r.region} className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700">
+                        {r.region} <span className="font-bold text-brand-600">{r.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Par catégorie */}
+              {categoryStats.length > 0 && (
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Artisans par catégorie</p>
+                  <div className="flex flex-wrap gap-2">
+                    {categoryStats.slice(0, 10).map((c) => (
+                      <span key={c.category_id} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-medium text-gray-700">
+                        {c.name} <span className="font-bold text-brand-600">{c.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* F-P-L */}
+              {fplStats.length > 0 && (
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Statuts F-P-L (artisans)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {fplStats.slice(0, 9).map((f, i) => (
+                      <span key={i} className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-1.5 text-xs font-medium text-gray-700">
+                        {f.label} <span className="font-bold">{f.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Par organisation */}
+              {orgStats.length > 0 && (
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Organisations (affiliations / attributions)</p>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {orgStats.map((o) => (
+                      <div key={o.id} className="flex items-center justify-between text-sm py-1">
+                        <span className="font-medium text-gray-800 truncate">{o.name}</span>
+                        <span className="text-gray-500 shrink-0 ml-2">Artisans: {o.artisanCount} · Clients: {o.clientCount}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Accès rapides (liens discrets) */}
               <div className="flex flex-wrap items-center gap-2">

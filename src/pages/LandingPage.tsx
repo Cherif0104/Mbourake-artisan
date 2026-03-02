@@ -10,7 +10,7 @@ import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
-import { AndroidDownloadButton } from '../components/AndroidDownloadButton';
+import { DownloadOnMobileButton } from '../components/DownloadOnMobileButton';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { supabase } from '../lib/supabase';
 
@@ -610,7 +610,7 @@ export function LandingPage() {
           >
             Artisans
           </button>
-          <AndroidDownloadButton variant="footer" />
+          <DownloadOnMobileButton />
           <button 
             onClick={() => navigate('/onboard?mode=signup')}
             className="text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"

@@ -10,6 +10,13 @@ if ('scrollRestoration' in window.history) {
   window.history.scrollRestoration = 'manual';
 }
 
+// PWA : quand un nouveau Service Worker prend le contrôle (déploiement), recharger pour appliquer la mise à jour
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
     <ToastProvider>

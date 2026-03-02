@@ -47,11 +47,18 @@ export function OnboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Pré-remplir le rôle depuis l'URL (signup ou login client : ?role=client)
+  // Stocker le token d'invitation s'il est présent (?invite=...) pour consommation après création du profil
   useEffect(() => {
     const roleFromUrl = searchParams.get('role') as ProfileRole | null;
+    const inviteToken = searchParams.get('invite');
     if (roleFromUrl === 'client' || roleFromUrl === 'artisan') {
       setRole(roleFromUrl);
       if (authMode === 'signup' || (authMode === 'login' && roleFromUrl === 'client')) setCurrentStep('auth');
+    }
+    if (inviteToken?.trim()) {
+      try {
+        localStorage.setItem('mbourake_pending_invite', inviteToken.trim());
+      } catch (_) { /* ignore */ }
     }
   }, [searchParams, authMode]);
 
@@ -86,10 +93,16 @@ export function OnboardPage() {
     setError(null);
     setLoading(true);
     try {
-      // Mémoriser rôle, mode et redirect dans localStorage pour après OAuth
+      // Mémoriser rôle, mode, invite et redirect dans localStorage pour après OAuth
       if (authMode === 'signup' && role) {
         localStorage.setItem('mbourake_pending_role', role);
         localStorage.setItem('mbourake_pending_mode', authMode);
+        const inviteToken = searchParams.get('invite');
+        if (inviteToken?.trim()) {
+          try {
+            localStorage.setItem('mbourake_pending_invite', inviteToken.trim());
+          } catch (_) { /* ignore */ }
+        }
       }
       if (authMode === 'login' && role) {
         localStorage.setItem('mbourake_pending_role', role);

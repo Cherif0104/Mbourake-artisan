@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Filter, MoreVertical, User, Briefcase, Shield, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { Search, Filter, MoreVertical, User, Briefcase, Shield, CheckCircle, XCircle, Eye, Ban, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { useToastContext } from '../../contexts/ToastContext';
 
 interface UserProfile {
   id: string;
@@ -13,17 +14,23 @@ interface UserProfile {
   avatar_url: string | null;
   created_at: string;
   is_verified?: boolean;
+  is_suspended?: boolean | null;
+  suspended_at?: string | null;
+  suspended_reason?: string | null;
   formalisation_status?: string | null;
   professionalisation_status?: string | null;
   labellisation_status?: string | null;
 }
 
 export function AdminUsers() {
+  const { success: showSuccess, error: showError } = useToastContext();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [suspendingId, setSuspendingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -51,12 +58,65 @@ export function AdminUsers() {
   });
 
   const handleChangeRole = async (userId: string, newRole: string) => {
-    await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', userId);
+    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
+    if (error) showError(error.message);
+    else showSuccess('Rôle mis à jour.');
     fetchUsers();
     setSelectedUser(null);
+  };
+
+  const handleSuspend = async (userId: string, suspend: boolean) => {
+    setSuspendingId(userId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          is_suspended: suspend,
+          suspended_at: suspend ? new Date().toISOString() : null,
+          suspended_reason: suspend ? 'Suspendu par un administrateur' : null,
+        })
+        .eq('id', userId);
+      if (error) throw error;
+      showSuccess(suspend ? 'Compte suspendu.' : 'Compte réactivé.');
+      fetchUsers();
+      setSelectedUser((u) => (u?.id === userId ? { ...u, is_suspended: suspend } : u));
+    } catch (e: unknown) {
+      showError(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setSuspendingId(null);
+    }
+  };
+
+  const handleDeleteAccount = async (userId: string) => {
+    if (!window.confirm('Supprimer définitivement ce compte et toutes ses données ? Cette action est irréversible.')) return;
+    setDeletingId(userId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        showError('Session expirée. Reconnectez-vous.');
+        setDeletingId(null);
+        return;
+      }
+      const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
+      const fnUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/functions/v1/admin-delete-account` : `${window.location.origin}/functions/v1/admin-delete-account`;
+      const res = await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error ?? `Erreur ${res.status}`);
+      }
+      showSuccess('Compte supprimé.');
+      setSelectedUser(null);
+      fetchUsers();
+    } catch (e: unknown) {
+      showError(e instanceof Error ? e.message : 'Erreur lors de la suppression');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleExportCsv = () => {
@@ -235,6 +295,12 @@ export function AdminUsers() {
                 <span className="text-gray-500">Rôle actuel</span>
                 <span className="font-bold text-gray-900 capitalize">{selectedUser.role}</span>
               </div>
+              <div className="flex justify-between py-2 border-b items-center">
+                <span className="text-gray-500">Statut compte</span>
+                <span className={`font-bold ${selectedUser.is_suspended ? 'text-amber-600' : 'text-green-600'}`}>
+                  {selectedUser.is_suspended ? 'Suspendu' : 'Actif'}
+                </span>
+              </div>
               <div className="flex justify-between py-2 border-b">
                 <span className="text-gray-500">Téléphone</span>
                 <span className="font-bold text-gray-900">{selectedUser.phone || '-'}</span>
@@ -279,6 +345,47 @@ export function AdminUsers() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="space-y-3 mt-4">
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Suspension</p>
+              <div className="flex gap-2">
+                {selectedUser.is_suspended ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSuspend(selectedUser.id, false)}
+                    disabled={suspendingId === selectedUser.id}
+                    className="flex-1 py-2 rounded-xl font-bold text-sm bg-green-100 text-green-700 hover:bg-green-200 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {suspendingId === selectedUser.id ? '…' : null}
+                    <CheckCircle size={16} />
+                    Réactiver
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSuspend(selectedUser.id, true)}
+                    disabled={suspendingId === selectedUser.id}
+                    className="flex-1 py-2 rounded-xl font-bold text-sm bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {suspendingId === selectedUser.id ? '…' : null}
+                    <Ban size={16} />
+                    Suspendre
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => handleDeleteAccount(selectedUser.id)}
+                disabled={deletingId === selectedUser.id}
+                className="w-full py-2.5 rounded-xl font-bold text-sm bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+              >
+                {deletingId === selectedUser.id ? 'Suppression…' : <Trash2 size={16} />}
+                Supprimer le compte
+              </button>
             </div>
 
             <button

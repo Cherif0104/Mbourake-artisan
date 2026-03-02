@@ -78,6 +78,7 @@ export function Dashboard() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [activityFilter, setActivityFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [activitySubTab, setActivitySubTab] = useState<'demandes' | 'devis' | 'revisions_attente' | 'revisions_envoyees'>('demandes');
+  const [satisfactionStats, setSatisfactionStats] = useState<{ ratingAvg: number; reviewCount: number; satisfactionPercent: number } | null>(null);
   
   const { signOut } = auth;
 
@@ -103,6 +104,43 @@ export function Dashboard() {
     }
   }, [location.search]);
 
+  // Consommer le lien d'invitation après création du profil (rattachement à l'organisation)
+  useEffect(() => {
+    if (profileLoading || !profile?.id || typeof window === 'undefined') return;
+    const token = localStorage.getItem('mbourake_pending_invite');
+    if (!token?.trim()) return;
+
+    let mounted = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc('consume_invitation', {
+          in_token: token.trim(),
+          in_user_id: profile.id,
+        });
+        if (!mounted) return;
+        try {
+          localStorage.removeItem('mbourake_pending_invite');
+        } catch (_) { /* ignore */ }
+        if (error) {
+          console.warn('[Dashboard] consume_invitation:', error.message);
+          return;
+        }
+        const result = data as { ok?: boolean };
+        if (result?.ok) {
+          // Optionnel : recharger le profil pour afficher la nouvelle affiliation
+          // (les hooks refetch déjà si besoin)
+        }
+      } catch (e) {
+        if (mounted) {
+          try {
+            localStorage.removeItem('mbourake_pending_invite');
+          } catch (_) { /* ignore */ }
+        }
+      }
+    })();
+    return () => { mounted = false; };
+  }, [profileLoading, profile?.id]);
+
   // Initialiser ou corriger le rôle du profil si l'utilisateur vient de s'inscrire via Google.
   useEffect(() => {
     if (initializingProfile) return;
@@ -115,6 +153,11 @@ export function Dashboard() {
     const roleFromUrl = searchParams.get('role');
 
     if (roleFromUrl !== 'client' && roleFromUrl !== 'artisan') {
+      return;
+    }
+
+    // Ne jamais écraser le rôle admin : un super admin reste admin.
+    if (profile?.role === 'admin') {
       return;
     }
 
@@ -195,7 +238,8 @@ export function Dashboard() {
     
     const fetchData = async () => {
       setLoading(true);
-      
+      if (profile.role !== 'artisan') setSatisfactionStats(null);
+
       if (profile.role === 'artisan') {
         // Charger le solde de crédits de l'artisan
         try {
@@ -221,6 +265,19 @@ export function Dashboard() {
           setVerificationStatus(artisan.verification_status || 'unverified');
           setCategoryName(artisan.categories?.name || null);
           setIsAvailable(artisan.is_available !== false);
+
+          // Satisfaction : avis et note moyenne (proportionnel aux projets notés)
+          const { data: reviews } = await supabase
+            .from('reviews')
+            .select('id, rating')
+            .eq('artisan_id', profile.id);
+          const reviewList = reviews || [];
+          const reviewCount = reviewList.length;
+          const ratingSum = reviewList.reduce((s, r) => s + (r.rating || 0), 0);
+          const ratingAvg = reviewCount > 0 ? ratingSum / reviewCount : (artisan.rating_avg ?? 0);
+          const satisfiedCount = reviewList.filter((r) => (r.rating || 0) >= 4).length;
+          const satisfactionPercent = reviewCount > 0 ? Math.round((satisfiedCount / reviewCount) * 100) : 0;
+          setSatisfactionStats({ ratingAvg, reviewCount, satisfactionPercent });
 
           // Récupérer UNIQUEMENT les projets de sa catégorie
           // Un artisan ne voit QUE les projets liés à sa catégorie
@@ -689,6 +746,33 @@ export function Dashboard() {
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
                   <Megaphone size={18} className="text-brand-600" />
+                </div>
+              </button>
+            )}
+
+            {/* Satisfaction (artisan) : note, nombre d'avis, taux de satisfaction (proportion 4-5 étoiles) */}
+            {isArtisan && satisfactionStats !== null && (
+              <button
+                type="button"
+                onClick={() => navigate('/profile')}
+                className="w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                      <Star size={18} className="text-amber-500 fill-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-gray-900">Taux de satisfaction</p>
+                      <p className="text-xs text-gray-500">
+                        {satisfactionStats.reviewCount} avis · Note {satisfactionStats.ratingAvg.toFixed(1)}/5
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-black text-brand-600">{satisfactionStats.satisfactionPercent} %</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">clients satisfaits (4-5 ★)</p>
+                  </div>
                 </div>
               </button>
             )}

@@ -48,6 +48,8 @@ import { AdminClosures } from './pages/admin/AdminClosures';
 import { AdminBoutique } from './pages/admin/AdminBoutique';
 import { AdminCommandes } from './pages/admin/AdminCommandes';
 import { AdminAffiliations } from './pages/admin/AdminAffiliations';
+import { AdminOrganisations } from './pages/admin/AdminOrganisations';
+import { AdminExports } from './pages/admin/AdminExports';
 import { RevisionsPage } from './pages/RevisionsPage';
 import { RequestRevisionPage } from './pages/RequestRevisionPage';
 import { RevisionResponsePage } from './pages/RevisionResponsePage';
@@ -61,6 +63,7 @@ import { MyOrdersPage } from './pages/MyOrdersPage';
 import { MyShopOrdersPage } from './pages/MyShopOrdersPage';
 import { PanierPage } from './pages/PanierPage';
 import { CompteSuspenduPage } from './pages/CompteSuspenduPage';
+import { InvitePage } from './pages/InvitePage';
 
 // Page affichée quand on ouvre /download/... dans l'app (fichier APK non servi)
 function DownloadUnavailablePage() {
@@ -148,6 +151,8 @@ function AppContent() {
       <Route path="/marketplace/:productId" element={<MarketplaceProductPage />} />
       <Route path="/marketplace/:productId/checkout" element={<PrivateRoute><MarketplaceCheckoutPage /></PrivateRoute>} />
       <Route path="/download/:filename" element={<DownloadUnavailablePage />} />
+      <Route path="/compte-suspendu" element={<CompteSuspenduPage />} />
+      <Route path="/invite/:token" element={<InvitePage />} />
       
       {/* Redirection URL courante vers l’admin (évite 404 sur /dashboard/ADMIN) */}
       <Route path="/dashboard/ADMIN" element={<Navigate to="/admin" replace />} />
@@ -198,6 +203,8 @@ function AppContent() {
         <Route path="escrows" element={<AdminEscrows />} />
         <Route path="verifications" element={<AdminVerifications />} />
         <Route path="affiliations" element={<AdminAffiliations />} />
+        <Route path="organisations" element={<AdminOrganisations />} />
+        <Route path="exports" element={<AdminExports />} />
         <Route path="disputes" element={<AdminDisputes />} />
         <Route path="closures" element={<AdminClosures />} />
       </Route>

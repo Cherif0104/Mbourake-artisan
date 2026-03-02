@@ -191,11 +191,8 @@ export function ProjectCompletionPage() {
       // 4. Notify artisan
       if (quote?.artisan_id && project?.title) {
         try {
-          await notifyArtisanPaymentReceived(
-            id,
-            quote.artisan_id,
-            Number(escrow?.artisan_payout || 0)
-          );
+          const payoutAmount = Number(escrow?.artisan_payout) || Number(escrow?.total_amount) || Number(quote?.amount) || 0;
+          await notifyArtisanPaymentReceived(id, quote.artisan_id, payoutAmount);
 
           // Also notify about the rating
           await supabase.from('notifications').insert({

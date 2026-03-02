@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, X, Clock, Building2, FileText, Search, User } from 'lucide-react';
+import { Check, X, Clock, Building2, FileText, Search, User, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useToastContext } from '../../contexts/ToastContext';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
@@ -7,6 +7,7 @@ import { LoadingOverlay } from '../../components/LoadingOverlay';
 interface Affiliation {
   id: string;
   artisan_id: string;
+  chambre_id: string | null;
   affiliation_type: 'chambre' | 'incubateur' | 'sae' | 'autre';
   affiliation_name: string | null;
   affiliation_number: string | null;
@@ -31,10 +32,23 @@ export function AdminAffiliations() {
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addEmail, setAddEmail] = useState('');
+  const [addChambreId, setAddChambreId] = useState('');
+  const [addStatus, setAddStatus] = useState<'pending' | 'verified'>('verified');
+  const [chambres, setChambres] = useState<{ id: string; name: string }[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadAffiliations();
   }, [filter]);
+
+  useEffect(() => {
+    supabase.from('chambres_metier').select('id, name').order('name').then(({ data }) => {
+      setChambres((data as { id: string; name: string }[]) || []);
+    });
+  }, []);
 
   const loadAffiliations = async () => {
     try {
@@ -120,6 +134,58 @@ export function AdminAffiliations() {
     }
   };
 
+  const handleAddAffiliation = async () => {
+    const email = addEmail.trim().toLowerCase();
+    if (!email || !addChambreId) {
+      showError('Saisissez un email d\'artisan et sélectionnez une organisation.');
+      return;
+    }
+    const { data: profile } = await supabase.from('profiles').select('id, role').eq('email', email).maybeSingle();
+    if (!profile?.id) {
+      showError('Aucun utilisateur trouvé avec cet email.');
+      return;
+    }
+    if (profile.role !== 'artisan') {
+      showError('Cet utilisateur n\'est pas un artisan.');
+      return;
+    }
+    setAdding(true);
+    try {
+      const { error } = await supabase.from('artisan_affiliations').insert({
+        artisan_id: profile.id,
+        chambre_id: addChambreId,
+        affiliation_type: 'chambre',
+        status: addStatus,
+        ...(addStatus === 'verified' ? { verified_at: new Date().toISOString() } : {}),
+      });
+      if (error) throw error;
+      showSuccess('Affiliation créée.');
+      setAddEmail('');
+      setAddChambreId('');
+      setShowAddForm(false);
+      loadAffiliations();
+    } catch (err: any) {
+      showError(err.message || 'Erreur lors de la création');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleDeleteAffiliation = async (id: string) => {
+    if (!window.confirm('Détacher cette affiliation ? L\'artisan ne sera plus rattaché à cette organisation.')) return;
+    setDeletingId(id);
+    try {
+      const { error } = await supabase.from('artisan_affiliations').delete().eq('id', id);
+      if (error) throw error;
+      showSuccess('Affiliation supprimée.');
+      loadAffiliations();
+    } catch (err: any) {
+      showError(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'chambre':
@@ -158,6 +224,64 @@ export function AdminAffiliations() {
           <p className="text-gray-600">
             Vérifiez et validez les affiliations des artisans (chambres de métier, incubateurs, SAE)
           </p>
+        </div>
+
+        {/* Créer une affiliation (rattachement manuel) */}
+        <div className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+          <button
+            type="button"
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center gap-2 text-brand-600 font-bold hover:text-brand-700"
+          >
+            <Plus size={20} />
+            {showAddForm ? 'Masquer le formulaire' : 'Créer une affiliation (rattachement manuel)'}
+          </button>
+          {showAddForm && (
+            <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Email de l&apos;artisan</label>
+                <input
+                  type="email"
+                  value={addEmail}
+                  onChange={(e) => setAddEmail(e.target.value)}
+                  placeholder="artisan@exemple.com"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Organisation (chambre)</label>
+                <select
+                  value={addChambreId}
+                  onChange={(e) => setAddChambreId(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-500 focus:outline-none"
+                >
+                  <option value="">Sélectionner…</option>
+                  {chambres.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Statut</label>
+                <select
+                  value={addStatus}
+                  onChange={(e) => setAddStatus(e.target.value as 'pending' | 'verified')}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-500 focus:outline-none"
+                >
+                  <option value="verified">Vérifiée</option>
+                  <option value="pending">En attente</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddAffiliation}
+                disabled={adding || !addEmail.trim() || !addChambreId}
+                className="px-4 py-2.5 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 disabled:opacity-50"
+              >
+                {adding ? 'Création…' : 'Créer'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Filtres et recherche */}
@@ -311,6 +435,18 @@ export function AdminAffiliations() {
                         <p className="text-xs text-red-600">{aff.rejection_reason}</p>
                       </div>
                     )}
+
+                    {/* Détacher (supprimer l'affiliation) */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAffiliation(aff.id)}
+                      disabled={deletingId === aff.id}
+                      className="flex items-center justify-center gap-2 px-4 py-2 text-red-600 border border-red-200 rounded-xl font-bold text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
+                      title="Détacher cette affiliation"
+                    >
+                      <Trash2 size={16} />
+                      Détacher
+                    </button>
                   </div>
                 </div>
 
