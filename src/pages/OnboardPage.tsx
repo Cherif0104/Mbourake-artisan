@@ -46,12 +46,12 @@ export function OnboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pré-remplir le rôle depuis l'URL pour des liens du type ?role=client|artisan (signup uniquement)
+  // Pré-remplir le rôle depuis l'URL (signup ou login client : ?role=client)
   useEffect(() => {
     const roleFromUrl = searchParams.get('role') as ProfileRole | null;
-    if (authMode === 'signup' && (roleFromUrl === 'client' || roleFromUrl === 'artisan')) {
+    if (roleFromUrl === 'client' || roleFromUrl === 'artisan') {
       setRole(roleFromUrl);
-      setCurrentStep('auth');
+      if (authMode === 'signup' || (authMode === 'login' && roleFromUrl === 'client')) setCurrentStep('auth');
     }
   }, [searchParams, authMode]);
 
@@ -86,15 +86,22 @@ export function OnboardPage() {
     setError(null);
     setLoading(true);
     try {
-      // Mémoriser le rôle dans localStorage pour le récupérer après OAuth
-      // (car l'URL de retour peut ne pas contenir les query params)
+      // Mémoriser rôle, mode et redirect dans localStorage pour après OAuth
       if (authMode === 'signup' && role) {
         localStorage.setItem('mbourake_pending_role', role);
         localStorage.setItem('mbourake_pending_mode', authMode);
       }
+      if (authMode === 'login' && role) {
+        localStorage.setItem('mbourake_pending_role', role);
+        localStorage.setItem('mbourake_pending_mode', authMode);
+        const redirect = searchParams.get('redirect');
+        if (redirect && redirect.startsWith('/')) {
+          localStorage.setItem('mbourake_pending_redirect', redirect);
+        }
+      }
 
-      // En login, on ne transmet pas de rôle (déjà enregistré côté profil)
-      const roleToSend = authMode === 'signup' ? role || undefined : undefined;
+      // En login avec role=client : transmettre le rôle pour créer le profil en client si nouvel utilisateur
+      const roleToSend = (authMode === 'signup' || (authMode === 'login' && role === 'client')) ? role || undefined : undefined;
       await auth.signInWithGoogle(authMode, roleToSend);
       // signInWithGoogle redirige vers /dashboard après OAuth
     } catch (e: any) {

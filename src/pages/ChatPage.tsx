@@ -30,7 +30,7 @@ export function ChatPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const auth = useAuth();
-  const { messages, sendMessage, loading } = useMessages(projectId);
+  const { messages, sendMessage, loading } = useMessages(projectId, auth.user?.id);
   const { markAsReadForProject } = useNotifications();
 
   const [inputText, setInputText] = useState('');
@@ -40,6 +40,7 @@ export function ChatPage() {
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [sending, setSending] = useState(false);
+  const isLoadingMessages = loading || auth.loading;
 
   const myName = auth.user?.user_metadata?.full_name || '';
   const {
@@ -519,7 +520,7 @@ export function ChatPage() {
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto px-4 py-4 scroll-smooth"
       >
-        {loading ? (
+        {isLoadingMessages ? (
           <div className="flex flex-col gap-4 py-4">
             {[1, 2, 3, 4].map((i) => (
               <div

@@ -49,6 +49,12 @@ export function AboutPage() {
             La plateforme qui connecte les meilleurs artisans du Sénégal avec des clients exigeants, 
             ancrée dans la culture sénégalaise et tournée vers l'excellence.
           </p>
+          <p className="mt-4 text-sm text-gray-500">
+            En cas de litige ou de question, consultez notre{' '}
+            <button type="button" onClick={() => navigate('/aide')} className="text-brand-600 font-bold underline hover:text-brand-700">
+              page Aide
+            </button>.
+          </p>
         </section>
 
         {/* Mission & Vision */}

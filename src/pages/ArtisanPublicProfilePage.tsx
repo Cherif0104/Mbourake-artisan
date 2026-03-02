@@ -4,7 +4,7 @@ import {
   ArrowLeft, Star, MapPin, Phone, Mail, Shield, CheckCircle,
   Heart, Share2, MessageSquare, Calendar, Clock, Image, Video,
   ChevronLeft, ChevronRight, X, Play, Briefcase, Award, Hash,
-  User, Quote, Building2, MessageCircle, Send, Pencil, Copy
+  User, Quote, Building2, MessageCircle, Send, Pencil, Copy, ShoppingBag
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -53,6 +53,16 @@ interface ArtisanProfile {
   } | null;
 }
 
+interface ProductPreview {
+  id: string;
+  title: string;
+  description: string | null;
+  price: number;
+  promo_percent: number | null;
+  status: string;
+  images: unknown;
+}
+
 export function ArtisanPublicProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -65,6 +75,8 @@ export function ArtisanPublicProfilePage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewStats, setReviewStats] = useState({ count: 0, avg: 0, projectsCount: 0, tier: 'Bronze' as 'Platine' | 'Or' | 'Argent' | 'Bronze' });
   const [affiliations, setAffiliations] = useState<Array<{ affiliation_type: string; affiliation_name: string | null }>>([]);
+  const [certifications, setCertifications] = useState<Array<{ id: string; title: string; type: string; image_url: string | null; issuer: string | null }>>([]);
+  const [products, setProducts] = useState<ProductPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -263,6 +275,22 @@ export function ArtisanPublicProfilePage() {
       if (affiliationsData) {
         setAffiliations(affiliationsData);
       }
+
+      const { data: certsData, error: _certErr } = await supabase
+        .from('artisan_certifications')
+        .select('id, title, type, image_url, issuer')
+        .eq('artisan_id', id)
+        .order('created_at', { ascending: false });
+      if (certsData) setCertifications(certsData);
+
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, title, description, price, promo_percent, status, images')
+        .eq('artisan_id', id)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(12);
+      setProducts((productsData as ProductPreview[] | null) || []);
       
       setLoading(false);
     };
@@ -295,9 +323,10 @@ export function ArtisanPublicProfilePage() {
   };
 
   const handleRequestProject = () => {
-    // Si l'utilisateur n'est pas connecté, rediriger vers l'inscription en tant que client
+    // Si l'utilisateur n'est pas connecté : connexion client (après Google, compte créé automatiquement si nouveau)
     if (!user) {
-      navigate('/onboard?mode=signup&role=client');
+      const redirect = `/create-project?artisan=${id}`;
+      navigate(`/onboard?mode=login&role=client&redirect=${encodeURIComponent(redirect)}`);
       return;
     }
     
@@ -398,7 +427,7 @@ export function ArtisanPublicProfilePage() {
             {isOwnProfile ? (
               <button
                 type="button"
-                onClick={() => navigate('/edit-profile')}
+                onClick={() => navigate('/profile')}
                 className="p-2 rounded-xl transition-colors hover:bg-brand-50 text-brand-600 flex items-center gap-1.5"
                 aria-label="Modifier le profil"
               >
@@ -542,6 +571,34 @@ export function ArtisanPublicProfilePage() {
           </section>
         )}
 
+        {/* Certifications & reconnaissances */}
+        {certifications.length > 0 && (
+          <section className="bg-white border-b px-6 py-6">
+            <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Award size={18} className="text-amber-500" />
+              Certifications & reconnaissances
+            </h3>
+            <div className="space-y-3">
+              {certifications.map((c) => (
+                <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  {c.image_url ? (
+                    <img src={c.image_url} alt={c.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <Award size={20} className="text-amber-600" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900">{c.title}</p>
+                    <p className="text-xs text-gray-500 capitalize">{c.type}</p>
+                    {c.issuer && <p className="text-xs text-gray-500 mt-0.5">{c.issuer}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Portfolio Photos */}
         {portfolioPhotos.length > 0 && (
           <section id="portfolio" className="bg-white border-b px-6 py-6">
@@ -600,6 +657,65 @@ export function ArtisanPublicProfilePage() {
             </div>
           </section>
         )}
+
+        {/* Boutique (portfolio marchand) */}
+        <section className="bg-white border-b px-6 py-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <ShoppingBag size={18} className="text-brand-500" />
+              Boutique
+            </h3>
+            <span className="text-xs text-gray-400 font-bold">{products.length} article(s)</span>
+          </div>
+          {products.length === 0 ? (
+            <div className="text-sm text-gray-500 bg-gray-50 border border-gray-100 rounded-xl p-4">
+              Aucun article publié pour le moment.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {products.map((product) => {
+                const primaryImage =
+                  Array.isArray(product.images) && product.images.length > 0
+                    ? String(product.images[0])
+                    : null;
+                const promoActive =
+                  product.promo_percent != null && product.promo_percent > 0 && product.status !== 'sold_out';
+                const finalPrice = promoActive
+                  ? Number(product.price || 0) * (1 - (product.promo_percent || 0) / 100)
+                  : Number(product.price || 0);
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => navigate(`/marketplace/${product.id}`)}
+                    className="text-left bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden hover:border-brand-200 transition-colors"
+                  >
+                    <div className="aspect-[4/3] bg-gray-100 overflow-hidden">
+                      {primaryImage ? (
+                        <img src={primaryImage} alt={product.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                          <Image size={24} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="font-semibold text-gray-900 text-sm line-clamp-2">{product.title}</p>
+                      <p className="text-brand-600 font-bold text-xs mt-1">
+                        {promoActive && (
+                          <span className="text-gray-400 line-through mr-1">
+                            {Number(product.price || 0).toLocaleString('fr-FR')}
+                          </span>
+                        )}
+                        {finalPrice.toLocaleString('fr-FR')} FCFA
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* Contact Info */}
         <section className="bg-white border-b px-6 py-6">

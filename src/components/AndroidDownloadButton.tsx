@@ -5,7 +5,7 @@ const APK_URL = import.meta.env.VITE_ANDROID_APK_URL || '/download/mbourake.apk'
 
 export function AndroidDownloadButton({ variant = 'nav' }: { variant?: 'nav' | 'footer' }) {
   const [open, setOpen] = useState(false);
-  const hasApkUrl = !!(import.meta.env.VITE_ANDROID_APK_URL?.trim()) || true;
+  const hasApkUrl = !!(import.meta.env.VITE_ANDROID_APK_URL?.trim());
 
   const buttonClass =
     variant === 'nav'
@@ -82,9 +82,22 @@ export function AndroidDownloadButton({ variant = 'nav' }: { variant?: 'nav' | '
                     </p>
                   </>
                 ) : (
-                  <span className="flex items-center justify-center gap-2 w-full py-3.5 px-4 bg-gray-200 text-gray-500 rounded-xl font-medium text-sm">
-                    Bientôt disponible
-                  </span>
+                  <>
+                    <a
+                      href={APK_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download="mbourake.apk"
+                      className="flex items-center justify-center gap-2 w-full py-3.5 px-4 bg-brand-500 text-white rounded-xl font-bold text-sm shadow-md hover:bg-brand-600 transition-colors no-underline"
+                      onClick={() => setOpen(false)}
+                    >
+                      <Download size={20} />
+                      Télécharger l'APK
+                    </a>
+                    <p className="text-gray-400 text-xs text-center">
+                      Si l'APK n'est pas encore publié, le lien affichera une page indisponible (404).
+                    </p>
+                  </>
                 )}
                 <button
                   type="button"

@@ -74,6 +74,9 @@ export function useAuth() {
         }
 
         try {
+          // Ne pas rediriger si on est déjà sur /admin (évite la boucle dashboard ↔ admin)
+          if (window.location.pathname === '/admin') return;
+
           const search = new URLSearchParams(window.location.search);
           let mode = search.get('mode');
           let role = search.get('role');
@@ -87,45 +90,22 @@ export function useAuth() {
             role = localStorage.getItem('mbourake_pending_role') || undefined;
           }
 
-          // IMPORTANT : Ne PAS nettoyer localStorage ici, car EditProfilePage en a besoin
-          // Il sera nettoyé par EditProfilePage après avoir été lu
-
-          // Pour tous les nouveaux utilisateurs en signup (client ou artisan) :
-          // rediriger directement vers la page de profil pour compléter leur profil
-          if (mode === 'signup') {
-            const profileParams = new URLSearchParams();
-            profileParams.set('mode', 'onboarding');
-            // Toujours inclure le rôle s'il est disponible (URL ou localStorage)
-            const finalRole = role || localStorage.getItem('mbourake_pending_role') || undefined;
-            if (finalRole) {
-              profileParams.set('role', finalRole);
-              console.log('[useAuth] Rôle déterminé pour redirection:', finalRole);
-            } else {
-              console.warn('[useAuth] ATTENTION: Aucun rôle trouvé pour signup, redirection sans rôle');
-            }
-            const profileUrl = `/edit-profile?${profileParams.toString()}`;
-            console.log('[useAuth] SIGNED_IN (signup) → redirection directe vers', profileUrl);
-            setTimeout(() => {
-              window.location.replace(profileUrl);
-            }, 0);
-            return;
-          }
-
-          // Pour les utilisateurs existants en login, vérifier si profil complet
-          // Si profil incomplet, rediriger vers edit-profile aussi
-          // (Cette logique sera gérée par Dashboard ou LandingPage)
+          // Redirection après login : passer par le dashboard avec mode/role pour créer le profil si besoin,
+          // et transmettre un éventuel redirect en query pour que le dashboard envoie ensuite vers la page cible
+          const pendingRedirect = typeof window !== 'undefined' ? localStorage.getItem('mbourake_pending_redirect') : null;
           const params = new URLSearchParams();
           if (mode) params.set('mode', mode);
           if (role) params.set('role', role);
-
-          const dashboardUrl = `/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
-
-          // Éviter de naviguer si on est déjà sur /dashboard
+          if (pendingRedirect && pendingRedirect.startsWith('/')) {
+            try {
+              localStorage.removeItem('mbourake_pending_redirect');
+            } catch (_) {}
+            params.set('redirect', pendingRedirect);
+          }
+          const targetUrl = `/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
           if (window.location.pathname !== '/dashboard') {
-            console.log('[useAuth] SIGNED_IN (login) → redirection vers', dashboardUrl);
-            setTimeout(() => {
-              window.location.replace(dashboardUrl);
-            }, 0);
+            console.log('[useAuth] SIGNED_IN → redirection vers', targetUrl);
+            window.location.replace(targetUrl);
           }
         } catch (e) {
           console.warn('[useAuth] Erreur pendant la redirection SIGNED_IN:', e);
@@ -249,10 +229,13 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    // Après chaque déconnexion : redirection vers la landing (page d'accueil)
-    window.location.href = '/';
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      // Session déjà absente, 403 ou autre : on ignore et on redirige quand même
+    }
+    // Toujours rediriger vers la landing (évite AuthSessionMissingError / 403 si session expirée)
+    window.location.replace('/');
   }, []);
 
   return useMemo(

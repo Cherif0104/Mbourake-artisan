@@ -4,12 +4,12 @@ import type { Database } from '@shared';
 
 export type Message = Database['public']['Tables']['messages']['Row'];
 
-export function useMessages(projectId?: string) {
+export function useMessages(projectId?: string, userId?: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchMessages = useCallback(async () => {
-    if (!projectId) return;
+    if (!projectId || !userId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('messages')
@@ -19,15 +19,17 @@ export function useMessages(projectId?: string) {
     
     if (!error && data) {
       setMessages(data);
+    } else if (error) {
+      console.error('Error fetching messages:', error);
     }
     setLoading(false);
-  }, [projectId]);
+  }, [projectId, userId]);
 
   useEffect(() => {
+    if (!projectId || !userId) return;
     fetchMessages();
 
     // Subscribe to new messages (éviter doublon avec envoi optimiste)
-    if (!projectId) return;
     const channel = supabase
       .channel(`project-messages-${projectId}`)
       .on('postgres_changes', { 
@@ -46,7 +48,7 @@ export function useMessages(projectId?: string) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [projectId, fetchMessages]);
+  }, [projectId, userId, fetchMessages]);
 
   const sendMessage = async (data: {
     project_id: string;

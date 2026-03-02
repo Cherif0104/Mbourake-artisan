@@ -5,25 +5,12 @@ import { useAuth } from '../hooks/useAuth';
 export function PrivateRoute({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
 
-  // État de chargement - afficher un loader
-  if (auth.loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-600 font-medium">Chargement...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Utilisateur non authentifié - rediriger vers /onboard (auth + choix du rôle), qui lui-même lancera Google OAuth
-  if (!auth.user) {
-    // Sauvegarder l'URL actuelle pour redirection après login
+  // Utilisateur non authentifié (une fois l'auth connue) → onboard
+  if (!auth.loading && !auth.user) {
     const currentPath = window.location.pathname + window.location.search;
     return <Navigate to={`/onboard?mode=login&redirect=${encodeURIComponent(currentPath)}`} replace />;
   }
 
-  // Utilisateur authentifié : affiche directement le contenu protégé
+  // auth.loading OU auth.user : on affiche l'enfant (Dashboard / etc.) qui gère son propre overlay de chargement → pas de double overlay
   return <>{children}</>;
 }

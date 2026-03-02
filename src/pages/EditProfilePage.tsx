@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search, Building2, Trash2, AlertTriangle } from 'lucide-react';
+import { Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search, Building2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
@@ -8,90 +8,12 @@ import { useToastContext } from '../contexts/ToastContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { AffiliationSection } from '../components/AffiliationSection';
 import { supabase } from '../lib/supabase';
+import { senegalLocationData, senegalRegions } from '../data/senegalLocations';
 
 const MAX_PHOTOS = 10;
 const MAX_VIDEOS = 5;
 const MAX_PHOTO_SIZE_MB = 5;
 const MAX_VIDEO_SIZE_MB = 50;
-
-// Structure hiérarchique : Régions > Départements > Communes
-const senegalLocationData: Record<string, Record<string, string[]>> = {
-  Dakar: {
-    Dakar: [
-      'Plateau',
-      'Médina',
-      'Fass-Colobane-Gueule Tapée',
-      'Yoff',
-      'Ngor',
-      'Ouakam',
-      'Grand Dakar',
-      'Parcelles Assainies',
-    ],
-    Pikine: [
-      'Guinaw Rails Nord',
-      'Guinaw Rails Sud',
-      'Thiaroye',
-      'Keur Massar',
-      'Dalifort',
-    ],
-    Rufisque: [
-      'Rufisque Est',
-      'Rufisque Ouest',
-      'Bargny',
-      'Sébikhotane',
-    ],
-    Guédiawaye: ['Golf Sud', 'Sam Notaire', 'Ndiarème Limamoulaye'],
-    'Keur Massar': ['Keur Massar Nord', 'Keur Massar Sud'],
-  },
-  'Thiès': {
-    'Thiès Nord': ['Thiès Ville', 'Grand Standing'],
-    'Thiès Sud': ['Mbour 1', 'Mbour 2'],
-    Mbour: ['Mbour Ville', 'Saly', 'Ngaparou', 'Somone'],
-  },
-  Diourbel: {
-    Diourbel: ['Diourbel Ville'],
-    Mbacké: ['Mbacké Ville', 'Touba'],
-  },
-  Fatick: {
-    Fatick: ['Fatick Ville'],
-    Foundiougne: ['Foundiougne Ville'],
-  },
-  Kaolack: {
-    Kaolack: ['Kaolack Ville'],
-    Nioro: ['Nioro Ville'],
-  },
-  Kaffrine: {
-    Kaffrine: ['Kaffrine Ville'],
-  },
-  Kolda: {
-    Kolda: ['Kolda Ville'],
-  },
-  Ziguinchor: {
-    Ziguinchor: ['Ziguinchor Ville'],
-  },
-  Sédhiou: {
-    Sédhiou: ['Sédhiou Ville'],
-  },
-  'Saint-Louis': {
-    'Saint-Louis': ['Saint-Louis Ville'],
-    Podor: ['Podor Ville'],
-    Dagana: ['Dagana Ville'],
-  },
-  Louga: {
-    Louga: ['Louga Ville'],
-  },
-  Matam: {
-    Matam: ['Matam Ville'],
-  },
-  Tambacounda: {
-    Tambacounda: ['Tambacounda Ville'],
-  },
-  'Kédougou': {
-    'Kédougou': ['Kédougou Ville'],
-  },
-};
-
-const senegalRegions = Object.keys(senegalLocationData);
 
 const getDepartmentsForRegion = (region: string): string[] => {
   if (!region || !senegalLocationData[region]) return [];
@@ -118,8 +40,6 @@ export function EditProfilePage() {
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [success, setSuccess] = useState(false);
   const [initializingProfile, setInitializingProfile] = useState(false);
-  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
-  const [deletingAccount, setDeletingAccount] = useState(false);
   
   // Système d'étapes pour le wizard
   const [currentStep, setCurrentStep] = useState(1);
@@ -532,33 +452,28 @@ export function EditProfilePage() {
       // 2. Si categoryId est renseigné, c'est FORCÉMENT un artisan (car seul les artisans ont une catégorie)
       // 3. Sinon, utiliser le rôle du profil existant ou 'client' par défaut
       let finalRole: 'client' | 'artisan';
-      
-      // PRIORITÉ ABSOLUE pour onboarding : utiliser le rôle choisi explicitement par l'utilisateur
-      if (isOnboarding && (roleFromUrl || roleFromStorage)) {
-        finalRole = (roleFromUrl || roleFromStorage) as 'client' | 'artisan';
-        console.log('[EditProfilePage] Rôle déterminé depuis choix utilisateur (onboarding):', finalRole, {
-          roleFromUrl,
-          roleFromStorage
-        });
-      } else if (categoryId) {
-        // Si categoryId est renseigné, c'est forcément un artisan
+      const persistedRole =
+        profile?.role === 'artisan' || profile?.role === 'client'
+          ? (profile.role as 'client' | 'artisan')
+          : null;
+      const onboardingRole =
+        isOnboarding && (roleFromUrl || roleFromStorage)
+          ? ((roleFromUrl || roleFromStorage) as 'client' | 'artisan')
+          : null;
+
+      // Règle de sécurité anti-régression :
+      // - En onboarding explicite : respecter le rôle choisi.
+      // - Hors onboarding : conserver le rôle persistant en base si présent.
+      // - Ne jamais "downgrader" un artisan existant vers client par défaut.
+      if (onboardingRole) {
+        finalRole = onboardingRole;
+      } else if (persistedRole) {
+        finalRole = persistedRole;
+      } else if (categoryId || isArtisan) {
         finalRole = 'artisan';
-        console.log('[EditProfilePage] Rôle déterminé: artisan (categoryId présent:', categoryId, ')');
       } else {
-        // Sinon, utiliser le rôle existant ou 'client' par défaut
-        finalRole = (profile?.role as 'client' | 'artisan') || 'client';
-        console.log('[EditProfilePage] Rôle déterminé depuis profil existant ou défaut:', finalRole);
+        finalRole = 'client';
       }
-      
-      console.log('[EditProfilePage] Sauvegarde du profil avec rôle:', finalRole, {
-        isArtisan,
-        roleFromUrl,
-        roleFromStorage,
-        profileRole: profile?.role,
-        categoryId,
-        totalSteps,
-        currentStep,
-      });
 
       // Upsert profile (crée la ligne si elle n'existe pas encore)
       // Pour les clients : company_name doit être null (pas d'entreprise)
@@ -613,8 +528,6 @@ export function EditProfilePage() {
           console.error('[EditProfilePage] Erreur lors de la sauvegarde artisan:', artisanError);
           throw artisanError;
         }
-        
-        console.log('[EditProfilePage] Données artisan sauvegardées avec succès');
       }
       
       // Vérifier que le rôle a bien été sauvegardé
@@ -624,17 +537,14 @@ export function EditProfilePage() {
         .eq('id', user.id)
         .single();
       
-      if (!checkError && savedProfile) {
-        console.log('[EditProfilePage] Vérification après sauvegarde - Rôle en base:', savedProfile.role);
-        if (savedProfile.role !== finalRole) {
-          console.error('[EditProfilePage] ERREUR: Le rôle sauvegardé ne correspond pas!', {
-            attendu: finalRole,
-            obtenu: savedProfile.role,
-          });
-          showError('Une erreur est survenue lors de la sauvegarde du rôle. Veuillez réessayer.');
-          setLoading(false);
-          return;
-        }
+      if (!checkError && savedProfile && savedProfile.role !== finalRole) {
+        console.error('[EditProfilePage] ERREUR: Le rôle sauvegardé ne correspond pas!', {
+          attendu: finalRole,
+          obtenu: savedProfile.role,
+        });
+        showError('Une erreur est survenue lors de la sauvegarde du rôle. Veuillez réessayer.');
+        setLoading(false);
+        return;
       }
       
       setSuccess(true);
@@ -645,17 +555,14 @@ export function EditProfilePage() {
         localStorage.removeItem('mbourake_pending_mode');
       }
       
-      // Rediriger vers l'accueil (dashboard) après sauvegarde
-      // Utiliser window.location au lieu de navigate pour éviter l'erreur removeChild
-      // lors de la navigation après sauvegarde
+      // Rediriger vers le profil unifié ou le dashboard après sauvegarde
       setTimeout(() => {
         try {
           if (isMounted && typeof window !== 'undefined') {
-            // Si onboarding et qu'on était sur la dernière étape, rediriger vers le dashboard
             if (isOnboarding && currentStep === totalSteps) {
               window.location.href = '/dashboard';
             } else {
-              window.location.href = '/dashboard';
+              window.location.href = '/profile';
             }
           }
         } catch (e) {
@@ -666,40 +573,10 @@ export function EditProfilePage() {
     } catch (err) {
       console.error('[EditProfilePage] Save error:', err);
       showError('Une erreur est survenue lors de la sauvegarde du profil.');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
-
-  // Logs de débogage pour diagnostiquer les problèmes d'affichage
-  // Utiliser useRef pour éviter les logs répétés inutiles
-  const lastLogRef = useRef<string>('');
-  useEffect(() => {
-    const currentState = JSON.stringify({
-      isOnboarding,
-      roleFromUrl,
-      profileRole: profile?.role,
-      isArtisan,
-      profileExists: !!profile,
-      profileId: profile?.id,
-      userId: user?.id,
-    });
-    
-    // Ne logger que si l'état a vraiment changé
-    if (currentState !== lastLogRef.current) {
-      console.log('[EditProfilePage] État actuel:', {
-        isOnboarding,
-        roleFromUrl,
-        profileRole: profile?.role,
-        isArtisan,
-        profileExists: !!profile,
-        profileId: profile?.id,
-        userId: user?.id,
-        urlSearch: window.location.search,
-      });
-      lastLogRef.current = currentState;
-    }
-  }, [isOnboarding, roleFromUrl, profile?.role, isArtisan, profile, user?.id]);
 
   // Validation des étapes
   const validateStep = (step: number): boolean => {
@@ -722,50 +599,6 @@ export function EditProfilePage() {
 
   const canGoToNextStep = validateStep(currentStep);
   const canGoToPreviousStep = currentStep > 1;
-
-  // Supprimer mon compte et toutes mes données (artisan ou client)
-  const handleDeleteMyAccount = useCallback(async () => {
-    if (!auth.session?.access_token) {
-      showError('Session expirée. Veuillez vous reconnecter.');
-      return;
-    }
-    setDeletingAccount(true);
-    try {
-      // En dev : appel via le proxy Vite pour éviter CORS. En prod : appel direct Supabase.
-      if (import.meta.env.DEV) {
-        const res = await fetch('/api/supabase-functions/v1/delete-my-account', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${auth.session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: '{}',
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 404) {
-          throw new Error(
-            'Fonction "delete-my-account" non déployée sur ce projet Supabase. Depuis la racine du projet : supabase link --project-ref <ton-ref> puis supabase functions deploy delete-my-account --no-verify-jwt'
-          );
-        }
-        if (!res.ok) throw new Error((data as { error?: string })?.error || res.statusText || 'Erreur');
-        if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error);
-      } else {
-        const { data, error } = await supabase.functions.invoke('delete-my-account', {
-          headers: { Authorization: `Bearer ${auth.session.access_token}` },
-        });
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
-      }
-      setShowDeleteAccountModal(false);
-      await auth.signOut();
-      navigate('/?account_deleted=1', { replace: true });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Impossible de supprimer le compte.';
-      showError(message);
-    } finally {
-      setDeletingAccount(false);
-    }
-  }, [auth.session?.access_token, auth.signOut, showError, navigate]);
 
   const handleNext = () => {
     if (!isMounted) return; // Éviter les actions si le composant est en train de se démonter
@@ -894,7 +727,7 @@ export function EditProfilePage() {
         <div className="max-w-lg mx-auto px-4 py-4">
           <div className="flex items-center gap-4 mb-4">
             <button 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/profile')}
               className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
             >
               <User size={20} />
@@ -1426,24 +1259,6 @@ export function EditProfilePage() {
             </div>
           )}
 
-          {/* Paramètres du compte : supprimer mon compte (hors onboarding) */}
-          {!isOnboarding && (
-            <div className="mt-10 pt-8 border-t border-gray-200">
-              <h2 className="text-lg font-bold text-gray-900 mb-2">Paramètres du compte</h2>
-              <p className="text-sm text-gray-500 mb-4">
-                Cette action supprime définitivement votre compte, votre profil, vos projets, devis, messages et toutes les données liées à cette adresse email. Elle est irréversible.
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowDeleteAccountModal(true)}
-                className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl border-2 border-red-200 bg-red-50 text-red-700 font-bold hover:bg-red-100 transition-colors"
-              >
-                <Trash2 size={20} />
-                Supprimer mon compte et toutes mes données
-              </button>
-            </div>
-          )}
-
           {/* Boutons de navigation */}
           <ErrorBoundary>
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-20">
@@ -1511,42 +1326,6 @@ export function EditProfilePage() {
         </form>
 
       </main>
-
-      {/* Modal de confirmation suppression de compte */}
-      {showDeleteAccountModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle size={24} className="text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Supprimer mon compte</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-6">
-              Êtes-vous sûr de vouloir supprimer définitivement votre compte et toutes les données liées à cette adresse email ? Cette action est irréversible.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                disabled={deletingAccount}
-                onClick={() => setShowDeleteAccountModal(false)}
-                className="flex-1 py-3 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                disabled={deletingAccount}
-                onClick={handleDeleteMyAccount}
-                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {deletingAccount ? <Loader2 size={20} className="animate-spin" /> : <Trash2 size={20} />}
-                {deletingAccount ? 'Suppression...' : 'Supprimer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

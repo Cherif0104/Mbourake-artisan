@@ -11,12 +11,7 @@ import { useProjects } from '../hooks/useProjects';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { supabase } from '../lib/supabase';
 import { notifyArtisansNewProject } from '../lib/notificationService';
-
-const senegalRegions = [
-  'Dakar', 'Thiès', 'Diourbel', 'Fatick', 'Kaolack', 'Kaffrine',
-  'Kolda', 'Ziguinchor', 'Sédhiou', 'Saint-Louis', 'Louga', 'Matam',
-  'Tambacounda', 'Kédougou'
-];
+import { senegalRegions } from '../data/senegalLocations';
 
 const DISTANCE_OPTIONS = [5, 10, 20, 50, 100];
 const RATING_OPTIONS = [1, 2, 3, 4, 5];
@@ -374,7 +369,11 @@ export function CreateProjectPage() {
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
         <form onSubmit={handleSubmit}>
-          
+          <div className="mb-6 rounded-2xl bg-brand-50 border border-brand-100 p-4 text-center">
+            <p className="text-sm font-semibold text-brand-800">
+              Devis gratuit. Les artisans vous envoient leurs propositions ; vous ne payez qu&apos;après avoir accepté un devis.
+            </p>
+          </div>
           {/* STEP 1: Description */}
           {step === 1 && (
             <div key="create-step-1" className="space-y-5 animate-in fade-in duration-300">

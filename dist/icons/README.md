@@ -17,4 +17,4 @@ Une fois `icon-mbourake.png` présent dans `public/icons/`, il sera utilisé par
 
 ## Fallback
 
-Si `icon-mbourake.png` est absent, le manifest utilise `logo-senegel.png` à la racine du site comme icône de secours.
+Si `icon-mbourake.png` est absent, l'icône PWA ne sera pas disponible correctement. Gardez ce fichier présent dans `public/icons/`.

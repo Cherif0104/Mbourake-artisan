@@ -50,6 +50,16 @@ export function ConversationsPage() {
         };
 
         let projects: ProjectRow[] = [];
+        const byId = new Map<string, ProjectRow>();
+
+        // Base de vérité : derniers messages visibles pour l'utilisateur connecté.
+        // Permet d'afficher l'historique même si le projet n'est plus "en cours".
+        const { data: latestMessages, error: latestMessagesError } = await supabase
+          .from('messages')
+          .select('project_id, created_at, content, type')
+          .order('created_at', { ascending: false })
+          .limit(800);
+        if (latestMessagesError) throw latestMessagesError;
 
         if (profile.role === 'client') {
           const { data, error } = await supabase
@@ -59,25 +69,55 @@ export function ConversationsPage() {
             .not('status', 'in', '("cancelled","expired")')
             .order('updated_at', { ascending: false });
           if (error) throw error;
-          projects = (data as ProjectRow[]) || [];
+          ((data as ProjectRow[]) || []).forEach((p) => {
+            if (p?.id) byId.set(p.id, p);
+          });
         } else {
-          // Artisan : tous les projets où j'ai un devis (en attente, vu ou accepté) — pas seulement accepté
+          // Artisan : tous les projets où j'ai eu un devis (quel que soit le statut)
+          // + projets qui me sont ciblés. Cela évite de masquer des discussions historiques.
           const { data: quotesData, error: quotesError } = await supabase
             .from('quotes')
             .select(`
               project_id,
               projects (id, title, status, client_id, target_artisan_id, updated_at, categories(name))
             `)
-            .eq('artisan_id', auth.user.id)
-            .in('status', ['pending', 'viewed', 'accepted']);
+            .eq('artisan_id', auth.user.id);
           if (quotesError) throw quotesError;
-          const byId = new Map<string, ProjectRow>();
           (quotesData as { project_id: string; projects: ProjectRow }[] | null)?.forEach((q) => {
             const p = q.projects;
             if (p && p.id && !['cancelled', 'expired'].includes(p.status)) byId.set(p.id, p);
           });
-          projects = Array.from(byId.values());
+          const { data: targetedProjects, error: targetedError } = await supabase
+            .from('projects')
+            .select('id, title, status, client_id, target_artisan_id, updated_at, categories(name)')
+            .eq('target_artisan_id', auth.user.id)
+            .not('status', 'in', '("cancelled","expired")');
+          if (targetedError) throw targetedError;
+          (targetedProjects as ProjectRow[] | null)?.forEach((p) => {
+            if (p && p.id) byId.set(p.id, p);
+          });
         }
+
+        const messageProjectIds = Array.from(
+          new Set(
+            ((latestMessages as { project_id: string }[] | null) || [])
+              .map((m) => m.project_id)
+              .filter(Boolean)
+          )
+        );
+
+        if (messageProjectIds.length > 0) {
+          const { data: messageProjects, error: messageProjectsError } = await supabase
+            .from('projects')
+            .select('id, title, status, client_id, target_artisan_id, updated_at, categories(name)')
+            .in('id', messageProjectIds);
+          if (messageProjectsError) throw messageProjectsError;
+          (messageProjects as ProjectRow[] | null)?.forEach((p) => {
+            if (p?.id) byId.set(p.id, p);
+          });
+        }
+
+        projects = Array.from(byId.values());
 
         if (projects.length === 0) {
           setConversations([]);
@@ -85,17 +125,9 @@ export function ConversationsPage() {
           return;
         }
 
-        const projectIds = projects.map((p) => p.id);
-
-        const { data: lastMessages } = await supabase
-          .from('messages')
-          .select('project_id, created_at, content, type')
-          .in('project_id', projectIds)
-          .order('created_at', { ascending: false });
-
         type LastMsg = { created_at: string; content: string | null; type: string };
         const lastMessageByProject = new Map<string, LastMsg>();
-        (lastMessages as { project_id: string; created_at: string; content: string | null; type: string }[] | null)?.forEach((row) => {
+        (latestMessages as { project_id: string; created_at: string; content: string | null; type: string }[] | null)?.forEach((row) => {
           if (!lastMessageByProject.has(row.project_id)) {
             lastMessageByProject.set(row.project_id, { created_at: row.created_at, content: row.content, type: row.type || 'text' });
           }
@@ -213,8 +245,8 @@ export function ConversationsPage() {
             <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <MessageSquare size={28} className="text-gray-300" />
             </div>
-            <p className="text-gray-500 font-medium">Aucun projet en cours</p>
-            <p className="text-sm text-gray-400 mt-1">Les discussions de vos projets actifs apparaîtront ici</p>
+            <p className="text-gray-500 font-medium">Aucune discussion pour le moment</p>
+            <p className="text-sm text-gray-400 mt-1">Vos conversations apparaîtront ici dès le premier échange</p>
           </div>
         ) : filteredConversations.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">

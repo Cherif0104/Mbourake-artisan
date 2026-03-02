@@ -13,6 +13,9 @@ interface UserProfile {
   avatar_url: string | null;
   created_at: string;
   is_verified?: boolean;
+  formalisation_status?: string | null;
+  professionalisation_status?: string | null;
+  labellisation_status?: string | null;
 }
 
 export function AdminUsers() {
@@ -56,10 +59,56 @@ export function AdminUsers() {
     setSelectedUser(null);
   };
 
+  const handleExportCsv = () => {
+    const rows = filteredUsers;
+    if (!rows.length) return;
+
+    const headers = [
+      'id',
+      'full_name',
+      'email',
+      'role',
+      'phone',
+      'location',
+      'created_at',
+      'formalisation_status',
+      'professionalisation_status',
+      'labellisation_status',
+    ];
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map((u) =>
+        [
+          u.id,
+          u.full_name ?? '',
+          u.email ?? '',
+          u.role ?? '',
+          u.phone ?? '',
+          u.location ?? '',
+          u.created_at ?? '',
+          u.formalisation_status ?? '',
+          u.professionalisation_status ?? '',
+          u.labellisation_status ?? '',
+        ]
+          .map((value) => `"${(value ?? '').toString().replace(/"/g, '""')}"`)
+          .join(';'),
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'mbourake-utilisateurs.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
         <div className="flex-1 relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input
@@ -80,6 +129,14 @@ export function AdminUsers() {
           <option value="artisan">Artisans</option>
           <option value="admin">Admins</option>
         </select>
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:border-brand-300 hover:text-brand-600 transition-colors flex items-center gap-2"
+        >
+          <Filter size={16} className="text-gray-400" />
+          Export CSV
+        </button>
       </div>
 
       {/* Users Table */}
@@ -186,6 +243,22 @@ export function AdminUsers() {
                 <span className="text-gray-500">Région</span>
                 <span className="font-bold text-gray-900">{selectedUser.location || '-'}</span>
               </div>
+              {selectedUser.role === 'artisan' && (
+                <div className="flex flex-col gap-2 py-2 border-b">
+                  <span className="text-gray-500 text-sm">Parcours F‑P‑L</span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="px-3 py-1 rounded-full bg-gray-50 text-[11px] text-gray-700 border border-gray-200">
+                      F : {selectedUser.formalisation_status || 'à démarrer'}
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-gray-50 text-[11px] text-gray-700 border border-gray-200">
+                      P : {selectedUser.professionalisation_status || 'à démarrer'}
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-gray-50 text-[11px] text-gray-700 border border-gray-200">
+                      L : {selectedUser.labellisation_status || 'à démarrer'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">

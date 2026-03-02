@@ -1420,6 +1420,11 @@ export function ProjectDetailsPage() {
               <AlertTriangle size={16} />
               Signaler un litige
             </button>
+            <p className="mt-2 text-xs text-amber-700">
+              <button type="button" onClick={() => navigate('/aide')} className="underline font-medium hover:text-amber-900">
+                En savoir plus sur les litiges
+              </button>
+            </p>
           </div>
         )}
 

@@ -119,6 +119,13 @@ Mbourake/
 ### Politiques RLS
 Toutes les tables ont des politiques Row Level Security (RLS) activées pour la sécurité.
 
+### Edge Functions – Suppression de compte
+Le bouton « Supprimer mon compte » (Paramètres) appelle la fonction Edge `delete-my-account`. Pour qu’il fonctionne, déployer la fonction après avoir lié le projet Supabase :
+```bash
+supabase functions deploy delete-my-account --no-verify-jwt
+```
+Voir [supabase/functions/delete-my-account/README.md](supabase/functions/delete-my-account/README.md) pour le détail.
+
 ## 🚢 Déploiement
 
 ### Vercel / Netlify

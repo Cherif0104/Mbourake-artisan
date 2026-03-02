@@ -2,23 +2,45 @@
 
 Permet à un utilisateur de supprimer son compte et toutes ses données (base + Storage + Auth).
 
-## Déploiement sur ton projet Supabase
+## CORS et erreur « preflight doesn't pass access control check »
 
-La 404 en local signifie que la fonction n’est pas déployée sur le projet utilisé par l’app (`VITE_SUPABASE_URL`).
+L’erreur CORS en production vient du fait que la **prérequête OPTIONS** (sans token) doit recevoir **200 OK** avec les en-têtes CORS. Si la fonction est déployée avec vérification JWT activée, la plateforme Supabase renvoie **401** avant même d’exécuter le code, donc pas d’en-têtes CORS → le navigateur bloque.
 
-1. **CLI Supabase** : installe-la si besoin (`npm i -g supabase`), puis connecte-toi avec `supabase login`.
+**Solution** : la fonction doit être déployée avec `verify_jwt = false`. C’est déjà configuré dans `supabase/config.toml` pour `delete-my-account`. Il suffit de **redéployer** la fonction (via la CLI) pour que la config soit appliquée. Si l’erreur persiste, dans le Dashboard Supabase → Edge Functions → delete-my-account → Settings, vérifier que « Enforce JWT verification » est **désactivé**.
 
-2. **Lier le projet** (à la racine du repo) :
+## Déploiement (à faire après chaque modification de la fonction)
+
+1. **CLI Supabase** : soit installer globalement (`npm i -g supabase` puis `supabase login`), soit utiliser `npx` (le script `npm run deploy:delete-account` utilise déjà `npx supabase`).
+
+2. **Lier le projet** (une fois) : exécuter **deux commandes séparées** (ne pas enchaîner avec `>>`) :
    ```bash
-   supabase link --project-ref snhoxuqaskgoownshvgr
+   npx supabase login
    ```
-   (Remplace par ton Project Ref si différent : Dashboard Supabase → Settings → General → Reference ID.)
-
-3. **Déployer la fonction** (avec `verify_jwt = false` pour que la prérequête CORS OPTIONS réussisse) :
+   (Ouvrir le lien dans le navigateur, se connecter, puis **copier le token qui commence par `sbp_`** et le coller dans le terminal quand c’est demandé. Ne pas utiliser la clé « anon » ou « service_role » du projet.)
    ```bash
-   supabase functions deploy delete-my-account --no-verify-jwt
+   npx supabase link --project-ref snhoxuqaskgoownshvgr
    ```
 
-4. **Secrets** : la fonction utilise `SUPABASE_URL`, `SUPABASE_ANON_KEY` et `SUPABASE_SERVICE_ROLE_KEY`. Ils sont en général déjà définis pour le projet. Vérifie dans Dashboard → Edge Functions → delete-my-account → Settings → Secrets.
+3. **Déployer la fonction** (le `config.toml` applique déjà `verify_jwt = false`) :
+   ```bash
+   npm run deploy:delete-account
+   ```
+   ou :
+   ```bash
+   supabase functions deploy delete-my-account
+   ```
 
-Après déploiement, réessaie « Supprimer mon compte » depuis l’app (en dev le proxy Vite enverra la requête à Supabase).
+4. **Secrets** : la fonction utilise `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (généralement déjà définis pour le projet). Vérifier dans Dashboard → Edge Functions → delete-my-account → Settings → Secrets.
+
+Après déploiement, tester « Supprimer mon compte » depuis Paramètres sur https://www.mbourake.com.
+
+---
+
+## Dépannage
+
+- **« Invalid access token format. Must be like sbp_0102...1920 »**  
+  Le token de connexion Supabase doit être celui obtenu après `npx supabase login` (en ouvrant le lien dans le navigateur). Il commence par `sbp_`. N’utilisez pas la clé « anon » ou « service_role » du Dashboard comme token de login.
+
+- **« failed to parse environment file: .env (unexpected character '»' in variable name) »**  
+  Souvent causé par un **BOM UTF-8** en début de fichier (invisible) ou par des guillemets typographiques `»`/`«` dans un nom de variable.  
+  **À faire** : enregistrer `.env` **sans BOM** (Notepad : « Enregistrer sous » → encodage « UTF-8 » sans BOM ; ou en PowerShell : `$c=[IO.File]::ReadAllText('.env'); [IO.File]::WriteAllText('.env',$c,(New-Object System.Text.UTF8Encoding $false))`). Vérifier aussi qu’aucune ligne n’a de `»` ou `«` dans le nom de la variable (uniquement lettres, chiffres, underscore).

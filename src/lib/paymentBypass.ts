@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 /**
  * Système de Bypass Temporaire pour les Paiements
  * ================================================
@@ -130,6 +132,31 @@ const generateReference = (): string => {
  * En production, cette fonction sera remplacée par les appels API réels
  * vers Wave, Orange Money, etc.
  */
+async function processRealPayment(
+  amount: number,
+  methodId: string,
+  metadata?: {
+    projectId?: string;
+    escrowId?: string;
+    userId?: string;
+    phoneNumber?: string;
+  },
+): Promise<PaymentResult> {
+  const { data, error } = await supabase.functions.invoke<PaymentResult>('initiate-intouch-payment', {
+    body: {
+      amount,
+      methodId,
+      metadata: metadata ?? {},
+    },
+  });
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Erreur lors de l’appel à l’API de paiement.');
+  }
+
+  return data;
+}
+
 export async function processPayment(
   amount: number,
   methodId: string,
@@ -138,8 +165,18 @@ export async function processPayment(
     escrowId?: string;
     userId?: string;
     phoneNumber?: string;
-  }
+  },
 ): Promise<PaymentResult> {
+  // Si le mode bypass est désactivé, on tente d'utiliser l'Edge Function (InTouch)
+  if (!BYPASS_MODE.enabled) {
+    try {
+      return await processRealPayment(amount, methodId, metadata);
+    } catch (e) {
+      console.error('[payment] Erreur API réelle, bascule en mode bypass:', e);
+      // On continue en mode simulation ci-dessous
+    }
+  }
+
   // Simule un délai de traitement
   await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
   
@@ -353,10 +390,17 @@ export async function processRefund(
 }
 
 /**
- * Mode de test - Affiche une bannière pour indiquer que le système est en mode bypass
+ * Mode de test - Affiche une bannière pour indiquer que le système est en mode bypass.
+ * Peut être contrôlé par la variable d'environnement VITE_PAYMENT_BYPASS_ENABLED.
  */
+const bypassEnv = (import.meta as any).env?.VITE_PAYMENT_BYPASS_ENABLED;
+const bypassEnabled =
+  bypassEnv === undefined
+    ? true
+    : !(bypassEnv === 'false' || bypassEnv === '0' || bypassEnv === 'off');
+
 export const BYPASS_MODE = {
-  enabled: true,
+  enabled: bypassEnabled,
   message: 'Mode démonstration - Paiements simulés',
   warning: 'Les transactions sont simulées. Aucun vrai paiement n\'est effectué.',
 };

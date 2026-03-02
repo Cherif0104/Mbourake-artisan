@@ -3,9 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   User, Plus, PlusCircle, MapPin, Clock, ChevronRight, Shield, 
   Briefcase, Home, Settings, LogOut, CheckCircle, FileText,
-  Send, Star, Search, Menu, X, Image, Video,
+  Send, Star, Menu, X, Image, Video,
   MessageSquare, CreditCard, AlertCircle, Check, Eye,
-  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Receipt, Wallet, Megaphone, Award, Bell
+  ArrowRight, Sparkles, Calendar, TrendingUp, ToggleLeft, ToggleRight, Loader2, Receipt, Wallet, Megaphone, Award, Bell,
+  ShoppingCart, ShoppingBag, Package
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -92,31 +93,27 @@ export function Dashboard() {
     }
   }, [profileLoading, profile?.role, location.pathname, navigate]);
 
+  // Nettoyer localStorage après atterrissage sur le dashboard en mode signup
+  // pour éviter qu'une prochaine visite réutilise ces clés de façon incohérente
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('mode') === 'signup' && typeof window !== 'undefined') {
+      localStorage.removeItem('mbourake_pending_role');
+      localStorage.removeItem('mbourake_pending_mode');
+    }
+  }, [location.search]);
+
   // Initialiser ou corriger le rôle du profil si l'utilisateur vient de s'inscrire via Google.
-  // IMPORTANT : Pour les artisans en signup, on redirige vers edit-profile au lieu de créer le profil ici
-  // pour qu'ils choisissent leur catégorie/métier AVANT de créer le profil
   useEffect(() => {
     if (initializingProfile) return;
     // Vérifier que l'authentification est complète avant de continuer
-    // IMPORTANT : Vérifier auth.loading EN PREMIER et aussi s'assurer que auth.user est vraiment disponible
     if (auth.loading || !auth.user || profileLoading) return;
-    if (!auth.session) return; // Vérifier aussi que la session existe
+    if (!auth.session) return;
 
     const searchParams = new URLSearchParams(location.search);
     const modeFromUrl = searchParams.get('mode');
     const roleFromUrl = searchParams.get('role');
-    
-    // Si on est en signup avec role=artisan, rediriger vers edit-profile
-    // pour qu'ils choisissent leur catégorie/métier AVANT de créer le profil
-    if (modeFromUrl === 'signup' && roleFromUrl === 'artisan') {
-      const profileParams = new URLSearchParams();
-      profileParams.set('mode', 'onboarding');
-      profileParams.set('role', 'artisan');
-      console.log('[Dashboard] Redirection artisan signup vers edit-profile');
-      navigate(`/edit-profile?${profileParams.toString()}`, { replace: true });
-      return;
-    }
-    
+
     if (roleFromUrl !== 'client' && roleFromUrl !== 'artisan') {
       return;
     }
@@ -181,6 +178,16 @@ export function Dashboard() {
 
     initializeProfileAsync();
   }, [auth.loading, auth.user?.id, profile?.id, profile?.role, profileLoading, location.search, initializingProfile, upsertProfile, profile, navigate]);
+
+  // Après login avec redirect (ex. Demander un Service) : une fois le profil prêt, rediriger vers la page cible
+  useEffect(() => {
+    if (profileLoading || !profile || initializingProfile) return;
+    const searchParams = new URLSearchParams(location.search);
+    const redirect = searchParams.get('redirect');
+    if (redirect && redirect.startsWith('/') && redirect !== '/dashboard') {
+      navigate(redirect, { replace: true });
+    }
+  }, [profileLoading, profile, initializingProfile, location.search, navigate]);
 
   // Fetch data
   useEffect(() => {
@@ -291,9 +298,9 @@ export function Dashboard() {
     document.body.scrollTop = 0;
   }, [activeTab]);
 
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/');
+  const handleLogout = () => {
+    setShowMenu(false);
+    signOut();
   };
 
   const toggleAvailability = async () => {
@@ -319,6 +326,11 @@ export function Dashboard() {
   const isVerified = verificationStatus === 'verified';
   const needsProfileCompletion = profile ? !isProfileComplete(profile) : false;
 
+  // Statuts F‑P‑L (peuvent être null pour les anciens comptes)
+  const formalisationStatus = profile?.formalisation_status ?? null;
+  const professionalisationStatus = profile?.professionalisation_status ?? null;
+  const labellisationStatus = profile?.labellisation_status ?? null;
+
   const filteredProjects = useMemo(() => {
     if (activityFilter === 'active') {
       return projects.filter(p =>
@@ -342,11 +354,12 @@ export function Dashboard() {
     return projects.filter(p => p.status === 'open' && !quotedProjectIds.has(p.id));
   }, [isArtisan, projects, myQuotes]);
 
+  // Un seul overlay de chargement (auth + profil + données) pour éviter tout flash entre PrivateRoute et Dashboard
+  if (auth.loading || profileLoading) {
+    return <LoadingOverlay />;
+  }
+
   if (!profile) {
-    // Si le profil est encore en chargement, afficher l'overlay de chargement validé
-    if (profileLoading) {
-      return <LoadingOverlay />;
-    }
 
     // Utilisateur connecté mais sans ligne de profil encore créée :
     // on affiche un écran très simple qui pousse vers la création de profil.
@@ -431,14 +444,9 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button 
-                onClick={() => {
-                  if (isArtisan && profile?.id) {
-                    navigate(`/artisans/${profile.id}?focus=portfolio`);
-                  } else {
-                    setActiveTab('profile');
-                  }
-                }}
+                onClick={() => navigate('/profile')}
                 className="relative"
+                aria-label="Voir mon profil"
               >
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 p-0.5 shadow-lg shadow-brand-200/50">
                   <div className="w-full h-full rounded-2xl bg-white flex items-center justify-center overflow-hidden">
@@ -478,17 +486,6 @@ export function Dashboard() {
 
             {/* Actions rapides - Toujours visibles - Mobile-first (min 44px) */}
             <div className="flex items-center gap-2">
-              {!isArtisan && (
-                <button
-                  onClick={() => navigate('/create-project')}
-                  className="text-sm font-bold text-brand-600 hover:text-brand-700 flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 p-2 sm:p-0 rounded-lg sm:rounded-none active:bg-brand-50/80 sm:active:bg-transparent"
-                  aria-label="Nouveau projet"
-                >
-                  <PlusCircle size={20} className="flex-shrink-0" />
-                  <span className="hidden sm:inline">Nouveau projet</span>
-                </button>
-              )}
-              
               {/* Cloche notifications (même emplacement que le repo d'origine) */}
               <NotificationBell />
 
@@ -505,35 +502,65 @@ export function Dashboard() {
                 {/* Menu simplifié - Portfolio + Modifier profil (artisan) ou Mon profil (client) */}
                 {showMenu && (
                   <div className="absolute right-0 top-14 w-52 bg-white/90 backdrop-blur-xl rounded-2xl shadow-glass-hover border border-white/60 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                    {isArtisan ? (
+{isArtisan ? (
                       <>
                         <button 
-                          onClick={() => { navigate(`/artisans/${profile.id}?focus=portfolio`); setShowMenu(false); }}
+                          onClick={() => { navigate('/my-products'); setShowMenu(false); }}
                           className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
                         >
                           <Image size={18} className="text-gray-400" />
-                          <span className="font-medium text-gray-700">Mon portfolio</span>
+                          <span className="font-medium text-gray-700">Ma boutique</span>
                         </button>
-                    <button 
-                      onClick={() => { navigate('/edit-profile'); setShowMenu(false); }}
-                      className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
-                    >
-                      <User size={18} className="text-gray-400" />
-                          <span className="font-medium text-gray-700">Modifier mon profil</span>
-                    </button>
+                        <button 
+                          onClick={() => { navigate('/my-shop-orders'); setShowMenu(false); }}
+                          className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <Package size={18} className="text-gray-400" />
+                          <span className="font-medium text-gray-700">Commandes boutique</span>
+                        </button>
+                        <button 
+                          onClick={() => { navigate('/profile'); setShowMenu(false); }}
+                          className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <User size={18} className="text-gray-400" />
+                          <span className="font-medium text-gray-700">Profil</span>
+                        </button>
+                        <button 
+                          onClick={() => { navigate('/settings'); setShowMenu(false); }}
+                          className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <Settings size={18} className="text-gray-400" />
+                          <span className="font-medium text-gray-700">Paramètres</span>
+                        </button>
                       </>
                     ) : (
-                      <button 
-                        onClick={() => { navigate('/edit-profile'); setShowMenu(false); }}
-                        className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
-                      >
-                        <User size={18} className="text-gray-400" />
-                        <span className="font-medium text-gray-700">Mon profil</span>
-                      </button>
+                      <>
+                        <button 
+                          onClick={() => { navigate('/my-orders'); setShowMenu(false); }}
+                          className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <ShoppingBag size={18} className="text-gray-400" />
+                          <span className="font-medium text-gray-700">Mes commandes</span>
+                        </button>
+                        <button 
+                          onClick={() => { navigate('/profile'); setShowMenu(false); }}
+                          className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <User size={18} className="text-gray-400" />
+                          <span className="font-medium text-gray-700">Profil</span>
+                        </button>
+                        <button 
+                          onClick={() => { navigate('/settings'); setShowMenu(false); }}
+                          className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <Settings size={18} className="text-gray-400" />
+                          <span className="font-medium text-gray-700">Paramètres</span>
+                        </button>
+                      </>
                     )}
                     <div className="h-px bg-gray-100 my-1" />
                     <button 
-                      onClick={() => { handleLogout(); setShowMenu(false); }}
+                      onClick={handleLogout}
                       className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-red-50 transition-colors text-sm font-medium"
                     >
                       <LogOut size={18} className="text-red-500" />
@@ -647,6 +674,24 @@ export function Dashboard() {
                 <p className="text-xs text-gray-500 mt-0.5">Suivi</p>
               </button>
             </div>
+
+            {isArtisan && (
+              <button
+                type="button"
+                onClick={() => navigate('/my-products')}
+                className="mt-3 w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[88px] flex items-center justify-between"
+              >
+                <div>
+                  <p className="text-sm font-black text-gray-900">Ma boutique</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Gérez vos produits sur le marketplace
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                  <Megaphone size={18} className="text-brand-600" />
+                </div>
+              </button>
+            )}
 
             {/* Stats simplifiées - Design minimaliste */}
             {(activeCount > 0 || completedCount > 0) && (
@@ -1104,6 +1149,38 @@ export function Dashboard() {
                     </div>
                     <div className={`w-3 h-3 rounded-full ${isAvailable ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
                   </button>
+                  {/* Bloc F‑P‑L simplifié */}
+                  <div className="w-full rounded-2xl bg-gray-50 border border-gray-200/70 px-4 py-3">
+                    <p className="text-xs font-bold text-gray-700 mb-2">
+                      Parcours F‑P‑L
+                    </p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                          Formalisation
+                        </span>
+                        <span className="mt-1 inline-flex items-center justify-start px-2 py-1 rounded-lg text-[11px] font-semibold bg-white text-gray-700 border border-gray-200">
+                          {formalisationStatus || 'À démarrer'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                          Pro.
+                        </span>
+                        <span className="mt-1 inline-flex items-center justify-start px-2 py-1 rounded-lg text-[11px] font-semibold bg-white text-gray-700 border border-gray-200">
+                          {professionalisationStatus || 'À démarrer'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                          Label
+                        </span>
+                        <span className="mt-1 inline-flex items-center justify-start px-2 py-1 rounded-lg text-[11px] font-semibold bg-white text-gray-700 border border-gray-200">
+                          {labellisationStatus || 'À démarrer'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
                 </div>
               )}
@@ -1123,20 +1200,38 @@ export function Dashboard() {
         )}
       </main>
 
+      {/* CTA client : création projet rapide au-dessus du footer */}
+      {!isArtisan && (
+        <div className="fixed bottom-24 left-0 right-0 z-30 px-4 pointer-events-none">
+          <div className="max-w-lg mx-auto">
+            <button
+              type="button"
+              onClick={() => navigate('/create-project')}
+              className="pointer-events-auto w-full rounded-2xl bg-brand-500 text-white py-4 px-5 shadow-xl shadow-brand-500/30 hover:bg-brand-600 transition-colors flex items-center justify-center gap-2 font-black"
+              aria-label="Nouveau projet"
+            >
+              <PlusCircle size={20} />
+              Nouveau projet
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ============== BOTTOM NAVIGATION MODERNISÉE AGRANDIE ============== */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200/50 z-30 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <div className="max-w-lg mx-auto px-2 py-3.5 flex items-center justify-around bg-white border-t border-gray-100 overflow-x-auto">
           {[
             { id: 'home' as TabId, icon: Home, label: 'Accueil' },
             { id: 'activity' as TabId, icon: isArtisan ? Send : Briefcase, label: 'Projets', badge: urgentCount > 0 ? urgentCount : undefined },
+            { id: 'profile' as TabId, icon: User, label: 'Profil' },
           ].map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const isActive = tab.id === 'profile' ? false : activeTab === tab.id;
             
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => (tab.id === 'profile' ? navigate('/profile') : setActiveTab(tab.id))}
                 className={`relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 ${
                   isActive 
                     ? 'text-brand-600' 
@@ -1184,18 +1279,33 @@ export function Dashboard() {
             );
           })}
 
-          {/* Recherche : Explorer les artisans (liste des profils publics) */}
+          {/* Marketplace produits */}
           <button
             type="button"
-            onClick={() => navigate('/artisans')}
+            onClick={() => navigate('/marketplace')}
             className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
-            aria-label="Recherche"
+            aria-label="Marketplace"
           >
             <div className="relative scale-100 transition-transform duration-200">
-              <Search size={22} strokeWidth={2} className="text-gray-400" />
+              <Megaphone size={22} strokeWidth={2} className="text-gray-400" />
             </div>
             <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
-              Recherche
+              Marché
+            </span>
+          </button>
+
+          {/* Panier : articles, commandes, favoris */}
+          <button
+            type="button"
+            onClick={() => navigate('/panier')}
+            className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            aria-label="Panier"
+          >
+            <div className="relative scale-100 transition-transform duration-200">
+              <ShoppingCart size={22} strokeWidth={2} className="text-gray-400" />
+            </div>
+            <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
+              Panier
             </span>
           </button>
 

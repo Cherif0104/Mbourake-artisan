@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Routes, useNavigate } from 'react-router-dom';
+import { Route, Routes, useNavigate, Navigate } from 'react-router-dom';
 import { ToastContainer } from './components/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ScrollToTop } from './components/ScrollToTop';
@@ -16,6 +16,9 @@ import { ArtisansPage } from './pages/ArtisansPage';
 import { CategoryPage } from './pages/CategoryPage';
 import { CreateProjectPage } from './pages/CreateProjectPage';
 import { ProjectDetailsPage } from './pages/ProjectDetailsPage';
+import { MarketplacePage } from './pages/MarketplacePage';
+import { MarketplaceProductPage } from './pages/MarketplaceProductPage';
+import { MarketplaceCheckoutPage } from './pages/MarketplaceCheckoutPage';
 import { CreditsPage } from './pages/CreditsPage';
 import { ProjectPaymentPage } from './pages/ProjectPaymentPage';
 import { ProjectThankYouPage } from './pages/ProjectThankYouPage';
@@ -27,11 +30,14 @@ import { ChatPage } from './pages/ChatPage';
 import { Dashboard } from './pages/Dashboard';
 import { VerificationPage } from './pages/VerificationPage';
 import { EditProfilePage } from './pages/EditProfilePage';
+import { ProfilePage } from './pages/ProfilePage';
+import { SettingsPage } from './pages/SettingsPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { ArtisanPublicProfilePage } from './pages/ArtisanPublicProfilePage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { AboutPage } from './pages/AboutPage';
+import { AidePage } from './pages/AidePage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminProjects } from './pages/admin/AdminProjects';
@@ -45,6 +51,12 @@ import { RequestRevisionPage } from './pages/RequestRevisionPage';
 import { RevisionResponsePage } from './pages/RevisionResponsePage';
 import { ConversationsPage } from './pages/ConversationsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { ChambreDashboardPage } from './pages/ChambreDashboardPage';
+import { ChambreMetierRoute } from './components/ChambreMetierRoute';
+import { MyProductsPage } from './pages/MyProductsPage';
+import { MyCertificationsPage } from './pages/MyCertificationsPage';
+import { MyOrdersPage } from './pages/MyOrdersPage';
+import { MyShopOrdersPage } from './pages/MyShopOrdersPage';
 
 // Page affichée quand on ouvre /download/... dans l'app (fichier APK non servi)
 function DownloadUnavailablePage() {
@@ -122,13 +134,19 @@ function AppContent() {
       {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/aide" element={<AidePage />} />
       <Route path="/onboard" element={<OnboardPage />} />
       <Route path="/artisans" element={<ArtisansPage />} />
       <Route path="/artisans/:id" element={<ArtisanPublicProfilePage />} />
       <Route path="/favorites" element={<FavoritesPage />} />
       <Route path="/category/:slug" element={<CategoryPage />} />
+      <Route path="/marketplace" element={<MarketplacePage />} />
+      <Route path="/marketplace/:productId" element={<MarketplaceProductPage />} />
+      <Route path="/marketplace/:productId/checkout" element={<PrivateRoute><MarketplaceCheckoutPage /></PrivateRoute>} />
       <Route path="/download/:filename" element={<DownloadUnavailablePage />} />
       
+      {/* Redirection URL courante vers l’admin (évite 404 sur /dashboard/ADMIN) */}
+      <Route path="/dashboard/ADMIN" element={<Navigate to="/admin" replace />} />
       {/* Protected Routes */}
       <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
       <Route path="/revisions" element={<PrivateRoute><RevisionsPage /></PrivateRoute>} />
@@ -145,11 +163,26 @@ function AppContent() {
       <Route path="/chat/:projectId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
       <Route path="/credits" element={<PrivateRoute><CreditsPage /></PrivateRoute>} />
       <Route path="/verification" element={<PrivateRoute><VerificationPage /></PrivateRoute>} />
+      <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+      <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
       <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
       <Route path="/expenses" element={<PrivateRoute><ExpensesPage /></PrivateRoute>} />
       <Route path="/invoices" element={<PrivateRoute><InvoicesPage /></PrivateRoute>} />
       <Route path="/conversations" element={<PrivateRoute><ConversationsPage /></PrivateRoute>} />
       <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
+      {/* Tableau de bord Chambre de Métiers */}
+      <Route
+        path="/chambre"
+        element={
+          <ChambreMetierRoute>
+            <ChambreDashboardPage />
+          </ChambreMetierRoute>
+        }
+      />
+      <Route path="/my-products" element={<PrivateRoute><MyProductsPage /></PrivateRoute>} />
+      <Route path="/my-certifications" element={<PrivateRoute><MyCertificationsPage /></PrivateRoute>} />
+      <Route path="/my-orders" element={<PrivateRoute><MyOrdersPage /></PrivateRoute>} />
+      <Route path="/my-shop-orders" element={<PrivateRoute><MyShopOrdersPage /></PrivateRoute>} />
       
       {/* Admin Routes (layout commun avec sidebar) */}
       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>}>

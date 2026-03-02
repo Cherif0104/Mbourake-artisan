@@ -4,19 +4,35 @@
  * - Supprime toutes les données public liées à cet utilisateur (ordre respectant les FK)
  * - Supprime le compte Auth (auth.users)
  * À appeler depuis le front avec Authorization: Bearer <session.access_token>
+ * CORS : config.toml doit avoir verify_jwt = false pour cette fonction (préflight OPTIONS sans token).
  */
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-};
+const ALLOWED_ORIGINS = [
+  'https://www.mbourake.com',
+  'https://mbourake.com',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+];
+
+function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('Origin') ?? '';
+  const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '*';
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Max-Age': '86400',
+  };
+}
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
+  // CORS preflight : 200 OK + corps "ok" (recommandation Supabase). Nécessite verify_jwt = false dans config.toml.
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders });
   }

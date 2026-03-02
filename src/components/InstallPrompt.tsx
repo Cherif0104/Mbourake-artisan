@@ -86,18 +86,18 @@ export function InstallPrompt() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="font-black text-gray-900 mb-1">Installer Mbourake</h3>
+            <h3 className="font-black text-gray-900 mb-1">Installez l&apos;app Mbouraké</h3>
             {ctx.isIOS ? (
               <div className="text-sm text-gray-600 space-y-2">
-                <p>Pour installer l'application :</p>
+                <p>Pour ajouter Mbouraké sur votre écran d&apos;accueil :</p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
                   <li>Appuyez sur le bouton <span className="font-bold">Partager</span> <span className="inline-block w-4 h-4 bg-gray-300 rounded" /></li>
-                  <li>Sélectionnez <span className="font-bold">Sur l'écran d'accueil</span></li>
+                  <li>Sélectionnez <span className="font-bold">Sur l&apos;écran d&apos;accueil</span></li>
                 </ol>
               </div>
             ) : (
               <p className="text-sm text-gray-600">
-                Installez Mbourake pour un accès rapide et une meilleure expérience.
+                Ajoutez Mbouraké à votre écran d&apos;accueil pour y accéder comme une app.
               </p>
             )}
 

@@ -1,0 +1,29 @@
+---
+description: Utiliser le MCP Supabase (user-supabase) pour tout ce qui concerne la base et les ressources Supabase
+alwaysApply: true
+---
+
+# Supabase : tout passer par le MCP
+
+Pour tout ce qui concerne **Supabase** (base de données, migrations, Auth, Edge Functions, Storage, logs, types), **utiliser le MCP Supabase** (serveur **user-supabase**) en priorité.
+
+## Outils MCP à privilégier
+
+- **execute_sql** : exécuter du SQL (lecture, écriture, appels de fonctions comme `promote_user_to_admin`), vérifier les données, corriger des rôles ou des lignes.
+- **apply_migration** : appliquer une migration (création/modification de tables, fonctions, RLS) directement sur le projet lié.
+- **list_tables** : lister les tables et la structure.
+- **list_migrations** : voir les migrations déjà appliquées.
+- **get_logs** : consulter les logs du projet.
+- **get_project_url** / **get_publishable_keys** : récupérer l’URL et les clés du projet.
+- **generate_typescript_types** : régénérer les types TypeScript à partir du schéma.
+- **list_edge_functions**, **get_edge_function**, **deploy_edge_function** : gérer les Edge Functions.
+- **list_storage_buckets**, **get_storage_config**, **update_storage_config** : gérer le stockage.
+
+## Comportement attendu
+
+1. **Migrations** : pour appliquer une nouvelle migration, utiliser **apply_migration** (nom + requête) au lieu de seulement créer le fichier et laisser l’utilisateur faire `supabase db push`.
+2. **Données / rôles** : pour créer un admin, promouvoir un utilisateur, corriger des données ou tester une requête, utiliser **execute_sql**.
+3. **Diagnostic** : pour inspecter tables, migrations ou logs, utiliser **list_tables**, **list_migrations**, **get_logs**, etc.
+4. **Types** : après un changement de schéma appliqué via le MCP, envisager **generate_typescript_types** et mettre à jour `shared/types` si nécessaire.
+
+Ne pas se limiter aux scripts locaux (ex. `create-admin.mjs`) ou au SQL Editor manuel lorsque le MCP peut faire l’action directement.

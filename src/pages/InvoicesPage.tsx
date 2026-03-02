@@ -28,6 +28,7 @@ export function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+  const [tableUnavailable, setTableUnavailable] = useState(false);
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -62,8 +63,14 @@ export function InvoicesPage() {
     const { data, error } = await query.order('issue_date', { ascending: false });
     
     if (error) {
-      console.error('Error fetching invoices:', error);
+      const err = error as { code?: string; status?: number; message?: string };
+      const msg = typeof err?.message === 'string' ? err.message : '';
+      const is404 = err?.status === 404 || err?.code === '42P01' || err?.code === 'PGRST116'
+        || msg.includes('does not exist') || msg.includes('relation') || msg.toLowerCase().includes('42p01');
+      setTableUnavailable(is404);
+      setInvoices([]);
     } else {
+      setTableUnavailable(false);
       setInvoices(data || []);
     }
     setLoading(false);
@@ -208,7 +215,22 @@ export function InvoicesPage() {
         </div>
 
         {/* Invoices List */}
-        {invoices.length === 0 ? (
+        {tableUnavailable ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+            <FileText size={48} className="mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-500 font-medium">Factures en préparation</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Le module factures sera bientôt disponible.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard')}
+              className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-medium"
+            >
+              Retour au tableau de bord
+            </button>
+          </div>
+        ) : invoices.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
             <FileText size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500 font-medium">Aucune facture</p>

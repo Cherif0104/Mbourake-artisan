@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Briefcase, Shield, DollarSign, 
-  TrendingUp, AlertCircle, CheckCircle, Clock, LogOut,
-  ChevronRight, Settings, Bell, AlertTriangle, Building2
+  AlertCircle, CheckCircle, LogOut, Settings, Bell, AlertTriangle, Building2
 } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
 import { supabase } from '../../lib/supabase';
@@ -20,6 +19,8 @@ interface Stats {
   totalEscrowHeld: number;
   pendingVerifications: number;
   disputedProjects: number;
+  formalisationLeads: number;
+  formalisationCompleted: number;
 }
 
 export function AdminDashboard() {
@@ -37,10 +38,26 @@ export function AdminDashboard() {
     totalEscrowHeld: 0,
     pendingVerifications: 0,
     disputedProjects: 0,
+    formalisationLeads: 0,
+    formalisationCompleted: 0,
   });
   const [loading, setLoading] = useState(true);
   const [projectTrends, setProjectTrends] = useState<ProjectTrend[]>([]);
   const [statusDistribution, setStatusDistribution] = useState<ProjectStatusDistribution[]>([]);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showBellMenu, setShowBellMenu] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  // Fermer les menus au clic extérieur
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setShowSettingsMenu(false);
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setShowBellMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     // Check admin access
@@ -102,6 +119,19 @@ export function AdminDashboard() {
         .from('projects')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'disputed');
+
+      // F‑P‑L : leads de formalisation (artisans sans statut) et formalisation complétée
+      const { count: formalisationLeads } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'artisan')
+        .is('formalisation_status', null);
+
+      const { count: formalisationCompleted } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'artisan')
+        .eq('formalisation_status', 'valide');
       
       // Fetch project trends (derniers 30 jours)
       const thirtyDaysAgo = new Date();
@@ -157,6 +187,8 @@ export function AdminDashboard() {
         totalEscrowHeld,
         pendingVerifications: pendingVerifications || 0,
         disputedProjects: disputedProjects || 0,
+        formalisationLeads: formalisationLeads || 0,
+        formalisationCompleted: formalisationCompleted || 0,
       });
       
       setLoading(false);
@@ -255,47 +287,87 @@ export function AdminDashboard() {
             </h2>
             <p className="text-sm text-gray-400">Gérez votre plateforme Mbourake</p>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="p-2 text-gray-400 hover:text-gray-600 relative">
-              <Bell size={22} />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-gray-600">
-              <Settings size={22} />
-            </button>
+          <div className="flex items-center gap-2">
+            <div className="relative" ref={bellRef}>
+              <button
+                type="button"
+                onClick={() => { setShowBellMenu(!showBellMenu); setShowSettingsMenu(false); }}
+                className="p-2 text-gray-400 hover:text-gray-600 relative rounded-lg hover:bg-gray-100"
+                aria-label="Notifications"
+              >
+                <Bell size={22} />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+              </button>
+              {showBellMenu && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
+                  <p className="px-4 py-3 text-sm text-gray-500">Aucune nouvelle notification</p>
+                </div>
+              )}
+            </div>
+            <div className="relative" ref={settingsRef}>
+              <button
+                type="button"
+                onClick={() => { setShowSettingsMenu(!showSettingsMenu); setShowBellMenu(false); }}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                aria-label="Paramètres"
+              >
+                <Settings size={22} />
+              </button>
+              {showSettingsMenu && (
+                <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
+                  <button
+                    type="button"
+                    onClick={() => { navigate('/'); setShowSettingsMenu(false); }}
+                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <LayoutDashboard size={18} className="text-gray-400" />
+                    Retour à l&apos;accueil
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { navigate('/profile'); setShowSettingsMenu(false); }}
+                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Users size={18} className="text-gray-400" />
+                    Mon profil
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         
         {/* Content Area */}
         <div className="flex-1 p-8 overflow-auto">
           {location.pathname === '/admin' ? (
-            /* Overview Dashboard */
-            <div className="space-y-8">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            /* Vue d'ensemble minimaliste */
+            <div className="space-y-6 max-w-5xl">
+              {/* KPI compactes (style minimal) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                  icon={<Users className="text-blue-500" />}
+                  icon={<Users className="text-blue-600" size={20} />}
                   label="Utilisateurs"
                   value={stats.totalUsers}
-                  subtext={`${stats.totalArtisans} artisans · ${stats.totalClients} clients`}
+                  subtext={stats.totalUsers > 0 ? `${Math.round((stats.totalArtisans / stats.totalUsers) * 100)}% artisans` : '—'}
                   color="blue"
+                  alert={false}
                 />
                 <StatCard
-                  icon={<Briefcase className="text-brand-500" />}
+                  icon={<Briefcase className="text-brand-500" size={20} />}
                   label="Projets"
                   value={stats.totalProjects}
-                  subtext={`${stats.openProjects} ouverts · ${stats.completedProjects} terminés`}
+                  subtext={stats.openProjects > 0 ? `${stats.openProjects} ouverts` : '—'}
                   color="orange"
                 />
                 <StatCard
-                  icon={<DollarSign className="text-green-500" />}
-                  label="Escrow Actif"
-                  value={`${stats.totalEscrowHeld.toLocaleString()} FCFA`}
-                  subtext="Fonds en garantie"
+                  icon={<DollarSign className="text-green-600" size={20} />}
+                  label="Escrow"
+                  value={stats.totalEscrowHeld > 0 ? `${(stats.totalEscrowHeld / 1000).toFixed(0)}k` : '0'}
+                  subtext="FCFA en garantie"
                   color="green"
                 />
                 <StatCard
-                  icon={<Shield className="text-purple-500" />}
+                  icon={<Shield className="text-purple-600" size={20} />}
                   label="Vérifications"
                   value={stats.pendingVerifications}
                   subtext="En attente"
@@ -303,66 +375,113 @@ export function AdminDashboard() {
                   alert={stats.pendingVerifications > 0}
                 />
               </div>
-              
-              {/* Quick Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <QuickAction
-                  icon={<Shield />}
-                  title="Vérifier les artisans"
-                  description="Examinez les demandes de certification"
-                  count={stats.pendingVerifications}
-                  onClick={() => navigate('/admin/verifications')}
-                />
-                <QuickAction
-                  icon={<Briefcase />}
-                  title="Projets en cours"
-                  description="Suivez l'avancement des projets"
-                  count={stats.openProjects}
-                  onClick={() => navigate('/admin/projects')}
-                />
-                <QuickAction
-                  icon={<DollarSign />}
-                  title="Paiements Escrow"
-                  description="Gérez les garanties et libérations"
-                  onClick={() => navigate('/admin/escrows')}
-                />
-                {stats.disputedProjects > 0 && (
-                  <QuickAction
-                    icon={<AlertTriangle />}
-                    title="Litiges à résoudre"
-                    description="Des projets nécessitent votre attention"
-                    count={stats.disputedProjects}
-                    onClick={() => navigate('/admin/disputes')}
-                  />
-                )}
-              </div>
-              
-              {/* Recent Activity */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border">
-                <h3 className="font-black text-gray-900 mb-4">Activité Récente</h3>
-                <div className="space-y-4">
-                  <ActivityItem
-                    icon={<CheckCircle className="text-green-500" />}
-                    text="Nouveau projet créé: Réparation plomberie"
-                    time="Il y a 5 min"
-                  />
-                  <ActivityItem
-                    icon={<Users className="text-blue-500" />}
-                    text="Nouvel artisan inscrit: Moussa Diop"
-                    time="Il y a 15 min"
-                  />
-                  <ActivityItem
-                    icon={<DollarSign className="text-green-500" />}
-                    text="Paiement escrow reçu: 25,000 FCFA"
-                    time="Il y a 1h"
-                  />
-                  <ActivityItem
-                    icon={<Shield className="text-purple-500" />}
-                    text="Demande de vérification: Fatou Cissé"
-                    time="Il y a 2h"
-                  />
+
+              {/* Donuts compacts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Utilisateurs</p>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={(() => {
+                          const d = [
+                            { name: 'Artisans', value: stats.totalArtisans, color: '#f97316' },
+                            { name: 'Clients', value: stats.totalClients, color: '#3b82f6' },
+                          ].filter((x) => x.value > 0);
+                          return d.length ? d : [{ name: 'Aucun', value: 1, color: '#e5e7eb' }];
+                        })()}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={44}
+                        outerRadius={64}
+                        paddingAngle={1}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {(() => {
+                          const d = [
+                            { name: 'Artisans', value: stats.totalArtisans, color: '#f97316' },
+                            { name: 'Clients', value: stats.totalClients, color: '#3b82f6' },
+                          ].filter((x) => x.value > 0);
+                          const data = d.length ? d : [{ name: 'Aucun', value: 1, color: '#e5e7eb' }];
+                          return data.map((entry) => <Cell key={entry.name} fill={entry.color} />);
+                        })()}
+                      </Pie>
+                      <Tooltip formatter={(value: number, name: string, props: { payload: { value: number } }) => {
+                        const total = stats.totalArtisans + stats.totalClients;
+                        const pct = total > 0 ? ((props.payload.value / total) * 100).toFixed(1) : '0';
+                        return [`${value} (${pct}%)`, name];
+                      }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Projets par statut</p>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={statusDistribution.length > 0 ? statusDistribution : [{ status: 'Aucun', count: 1 }]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={44}
+                        outerRadius={64}
+                        paddingAngle={1}
+                        dataKey="count"
+                        nameKey="status"
+                        label={({ status, count }) => {
+                          const total = (statusDistribution.length ? statusDistribution : [{ status: 'Aucun', count: 1 }]).reduce((s, x) => s + x.count, 0);
+                          const pct = total > 0 ? ((count / total) * 100).toFixed(0) : '0';
+                          return `${status} ${pct}%`;
+                        }}
+                      >
+                        {(statusDistribution.length > 0 ? statusDistribution : [{ status: 'Aucun', count: 1 }]).map((entry, index) => (
+                          <Cell key={entry.status} fill={['#22c55e', '#3b82f6', '#f97316', '#a855f7', '#ef4444', '#64748b', '#e5e7eb'][index % 7]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number, name: string, props: { payload: { count: number } }) => {
+                        const total = statusDistribution.reduce((s, x) => s + x.count, 0);
+                        const pct = total > 0 ? ((props.payload.count / total) * 100).toFixed(1) : '0';
+                        return [`${value} (${pct}%)`, name];
+                      }} />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
+
+              {/* Accès rapides (liens discrets) */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-gray-500 mr-2">Accès rapide :</span>
+                <button type="button" onClick={() => navigate('/admin/verifications')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <Shield size={14} /> Vérifications {stats.pendingVerifications > 0 && <span className="bg-red-100 text-red-700 text-xs px-1.5 rounded">{stats.pendingVerifications}</span>}
+                </button>
+                <button type="button" onClick={() => navigate('/admin/projects')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <Briefcase size={14} /> Projets
+                </button>
+                <button type="button" onClick={() => navigate('/admin/escrows')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <DollarSign size={14} /> Escrow
+                </button>
+                {stats.disputedProjects > 0 && (
+                  <button type="button" onClick={() => navigate('/admin/disputes')} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100">
+                    <AlertTriangle size={14} /> Litiges {stats.disputedProjects}
+                  </button>
+                )}
+              </div>
+
+              {/* Courbe tendance (optionnelle, compacte) */}
+              {projectTrends.length > 0 && (
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Projets créés (14 j)</p>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <LineChart data={projectTrends}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={24} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="count" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} name="Projets" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           ) : (
             <Outlet />
@@ -373,70 +492,29 @@ export function AdminDashboard() {
   );
 }
 
-// Sub-components
-function StatCard({ icon, label, value, subtext, color, alert }: any) {
-  const bgColors: Record<string, string> = {
+// Carte KPI minimaliste (style épuré)
+function StatCard({ icon, label, value, subtext, color, alert }: { icon: React.ReactNode; label: string; value: string | number; subtext: string; color: string; alert?: boolean }) {
+  const iconBg: Record<string, string> = {
     blue: 'bg-blue-50',
     orange: 'bg-orange-50',
     green: 'bg-green-50',
     purple: 'bg-purple-50',
   };
-  
   return (
-    <div className={`${bgColors[color]} rounded-2xl p-6 relative overflow-hidden`}>
-      <div className="flex items-start justify-between mb-4">
-        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
-          {icon}
-        </div>
-        {alert && (
-          <span className="flex items-center gap-1 text-red-500 text-xs font-bold">
-            <AlertCircle size={14} />
-            Action requise
-          </span>
-        )}
+    <div className="relative bg-white rounded-xl border border-gray-100 p-4 flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-gray-500">{label}</p>
+        <p className="text-xl font-bold text-gray-900 mt-0.5 truncate">{value}</p>
+        {subtext && <p className="text-xs text-gray-400 mt-0.5">{subtext}</p>}
       </div>
-      <p className="text-3xl font-black text-gray-900 mb-1">{value}</p>
-      <p className="text-sm text-gray-500 font-medium">{label}</p>
-      <p className="text-xs text-gray-400 mt-1">{subtext}</p>
-    </div>
-  );
-}
-
-function QuickAction({ icon, title, description, count, onClick }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className="bg-white rounded-2xl p-6 shadow-sm border text-left hover:shadow-md hover:border-brand-200 transition-all group"
-    >
-      <div className="flex items-start justify-between mb-4">
-        <div className="w-12 h-12 bg-brand-50 rounded-xl flex items-center justify-center text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-all">
-          {icon}
-        </div>
-        {count !== undefined && count > 0 && (
-          <span className="bg-brand-500 text-white text-xs font-black px-2 py-1 rounded-full">
-            {count}
-          </span>
-        )}
-      </div>
-      <h4 className="font-black text-gray-900 mb-1">{title}</h4>
-      <p className="text-sm text-gray-500">{description}</p>
-      <div className="flex items-center gap-1 text-brand-500 text-sm font-bold mt-4 group-hover:gap-2 transition-all">
-        Accéder <ChevronRight size={16} />
-      </div>
-    </button>
-  );
-}
-
-function ActivityItem({ icon, text, time }: any) {
-  return (
-    <div className="flex items-center gap-4 py-3 border-b border-gray-50 last:border-0">
-      <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center">
+      <div className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${iconBg[color] || 'bg-gray-100'}`}>
         {icon}
       </div>
-      <div className="flex-1">
-        <p className="text-sm font-medium text-gray-900">{text}</p>
-        <p className="text-xs text-gray-400">{time}</p>
-      </div>
+      {alert && (
+        <span className="absolute top-2 right-2 flex items-center gap-0.5 text-red-500 text-[10px] font-semibold">
+          <AlertCircle size={10} />
+        </span>
+      )}
     </div>
   );
 }

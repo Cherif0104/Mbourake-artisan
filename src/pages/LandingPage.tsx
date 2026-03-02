@@ -4,13 +4,14 @@ import {
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
   Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
-  ChevronRight, X
+  ChevronRight, X, MapPin, User, FileEdit, ShoppingBag, Handshake, Menu, Shield
 } from 'lucide-react';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
 import { AndroidDownloadButton } from '../components/AndroidDownloadButton';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 import { supabase } from '../lib/supabase';
 
 function normalizeForSearch(s: string): string {
@@ -39,10 +40,13 @@ export function LandingPage() {
   const { success: showSuccess } = useToastContext();
   const { categories: dbCategories, loading } = useDiscovery();
   const [searchQuery, setSearchQuery] = useState('');
+  const [locationQuery, setLocationQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [artisans, setArtisans] = useState<ArtisanSuggestion[]>([]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Éviter la page blanche : après 3 s, afficher la landing même si auth/profile chargent encore
   useEffect(() => {
@@ -59,7 +63,9 @@ export function LandingPage() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, showSuccess]);
 
-  const showLoading = (auth.loading || profileLoading) && !loadingTimeout;
+  const fromRecherche = searchParams.get('recherche') === '1';
+  const willRedirectToDashboard = !!auth.user && !fromRecherche;
+  const showLoading = (auth.loading || profileLoading || willRedirectToDashboard) && !loadingTimeout;
 
   const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
   // Map icon names to Lucide components
@@ -162,12 +168,11 @@ export function LandingPage() {
     fetchArtisans();
   }, []);
 
-  // Fermer le dropdown au clic extérieur
+  // Fermer le dropdown recherche et le menu mobile au clic extérieur
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) setShowSuggestions(false);
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) setMobileMenuOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -187,200 +192,150 @@ export function LandingPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/artisans?search=${encodeURIComponent(searchQuery)}`);
-    } else {
-      navigate('/artisans');
-    }
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set('search', searchQuery.trim());
+    if (locationQuery.trim()) params.set('region', locationQuery.trim());
+    const qs = params.toString();
+    navigate(qs ? `/artisans?${qs}` : '/artisans');
   };
 
-  // Redirection pour utilisateurs authentifiés sans profil
-  // Après OAuth Google, si l'utilisateur n'a pas encore de profil,
-  // le rediriger vers /edit-profile?mode=onboarding pour compléter son profil
+  // Redirection pour utilisateurs authentifiés : toujours vers le dashboard
+  // (dès que la session est connue, pour éviter tout flash edit-profile ou contenu landing)
   useEffect(() => {
-    if (auth.loading || profileLoading) return;
-    if (!auth.user) return;
-
-    // Nouveau compte Google sans profil encore créé :
-    // on envoie directement vers le wizard de profil (EditProfilePage en mode onboarding)
-    if (!profile) {
-      // Essayer de récupérer le rôle depuis localStorage (sauvegardé avant OAuth)
-      const roleFromStorage = localStorage.getItem('mbourake_pending_role');
-      const params = new URLSearchParams({ mode: 'onboarding' });
-      if (roleFromStorage) {
-        params.set('role', roleFromStorage);
-      }
-      navigate(`/edit-profile?${params.toString()}`, { replace: true });
-      return;
-    }
-
-    // Si l'utilisateur a un profil complet, rediriger vers le dashboard
-    // sauf s'il arrive depuis le bouton Recherche (?recherche=1) pour voir la landing (localhost ou mbourake.com)
-    const fromRecherche = searchParams.get('recherche') === '1' || (typeof window !== 'undefined' && window.location.search.includes('recherche=1'));
-    if (fromRecherche) return;
-
-    const requiredFields = ['role', 'full_name', 'location'];
-    const hasRequiredFields = requiredFields.every(
-      field => profile[field] && profile[field].toString().trim().length > 0
-    );
-    const isProfileComplete = hasRequiredFields && 
-      (profile.role !== 'artisan' || profile.category_id);
-    
-    if (isProfileComplete) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [auth.loading, profileLoading, auth.user, profile, navigate, searchParams]);
+    if (auth.loading || !auth.user || fromRecherche) return;
+    navigate('/dashboard', { replace: true });
+  }, [auth.loading, auth.user, fromRecherche, navigate]);
 
   if (showLoading) {
-    return (
-      <div
-        className="min-h-screen bg-gray-50 flex items-center justify-center"
-        style={{ backgroundColor: '#f9fafb', minHeight: '100vh' }}
-      >
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-600 font-medium">Chargement...</p>
-        </div>
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] overflow-x-hidden selection:bg-brand-100 font-sans">
-      {/* Top Navbar */}
-      <nav className="bg-white/95 backdrop-blur-md px-4 md:px-8 lg:px-20 py-3 md:py-4 flex items-center justify-between border-b border-gray-100/50 shadow-sm sticky top-0 z-50">
-        {/* Logo Section */}
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2.5 group transition-all"
-        >
-          <span className="text-xl md:text-2xl font-black text-gray-900 tracking-tighter italic group-hover:text-brand-500 transition-colors">
-            Mboura<span className="text-brand-500">ké</span>
+    <div className="min-h-screen bg-[#FDFDFD] overflow-x-hidden selection:bg-brand-100 font-sans">
+      {/* Header — logo officiel + nav + CTA */}
+      <header className="bg-white border-b border-gray-100 px-4 md:px-8 lg:px-16 py-3 md:py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
+        <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
+          <img src="/logo-mbourake.svg" alt="Mbouraké" className="h-10 w-10 md:h-12 md:w-12 object-contain" />
+          <span className="text-lg md:text-xl font-black text-gray-800 tracking-tight uppercase">
+            MBOURAKÉ
           </span>
-          <div className="w-4 h-4 md:w-5 md:h-5 rounded-full border border-gray-200 group-hover:border-brand-300 flex items-center justify-center text-[9px] md:text-[10px] text-gray-400 group-hover:text-brand-500 font-bold transition-colors">
-            i
-          </div>
         </button>
 
-        {/* Navigation & Actions */}
-        <div className="flex items-center gap-2 md:gap-3 lg:gap-5">
-          {/* À propos - Desktop */}
-          <button 
-            onClick={() => navigate('/about')}
-            className="hidden lg:block text-gray-600 hover:text-brand-500 font-semibold text-sm transition-all duration-200 relative group"
-          >
-            À propos
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-brand-500 group-hover:w-full transition-all duration-200" />
+        <nav className="hidden md:flex items-center gap-6 lg:gap-8">
+          <button onClick={() => navigate('/marketplace')} className="text-gray-700 hover:text-brand-600 font-semibold text-sm transition-colors">
+            Artisan Marketplace
           </button>
+          <button onClick={() => navigate('/onboard?mode=login&role=client&redirect=' + encodeURIComponent('/create-project'))} className="text-gray-700 hover:text-brand-600 font-semibold text-sm transition-colors">
+            Demander un Service
+          </button>
+        </nav>
 
-          {/* Télécharger l'app Android */}
-          <div className="hidden lg:block">
-            <AndroidDownloadButton variant="nav" />
-          </div>
-
-          {/* Divider - Desktop */}
-          <div className="hidden md:block w-px h-6 bg-gray-200" />
-
-          {/* CTA Buttons */}
-          <div className="flex items-center gap-2 md:gap-3">
-            {isLoggedIn ? (
-              <>
-                <button 
-                  onClick={() => navigate('/dashboard')}
-                  className="px-4 md:px-5 py-2 md:py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-wider hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-md"
-                >
-                  Mon tableau de bord
-                </button>
-                <button 
-                  onClick={() => navigate('/artisans')}
-                  className="px-4 md:px-5 py-2 md:py-2.5 bg-brand-500 text-white rounded-xl font-black text-[10px] md:text-xs uppercase tracking-wider shadow-md shadow-brand-200/50 hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-300/50 active:scale-[0.97] transition-all duration-200"
-                >
-                  Explorer les artisans
-                </button>
-              </>
-            ) : (
-              <>
-                <button 
-                  onClick={() => navigate('/onboard?mode=signup')}
-                  className="px-4 md:px-5 py-2 md:py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-wider hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-md"
-                >
-                  S'inscrire
-                </button>
-                <button 
-                  onClick={() => navigate('/onboard?mode=login')}
-                  className="px-4 md:px-5 py-2 md:py-2.5 bg-brand-500 text-white rounded-xl font-black text-[10px] md:text-xs uppercase tracking-wider shadow-md shadow-brand-200/50 hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-300/50 active:scale-[0.97] transition-all duration-200"
-                >
-                  Connexion
-                </button>
-              </>
-            )}
-          </div>
+        {/* Menu mobile */}
+        <div className="md:hidden relative" ref={mobileMenuRef}>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-600 hover:text-brand-600" aria-label="Menu">
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+          {mobileMenuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl border border-gray-100 shadow-lg py-2 z-50">
+              <button onClick={() => { navigate('/marketplace'); setMobileMenuOpen(false); }} className="w-full px-4 py-3 text-left text-gray-700 font-semibold text-sm hover:bg-brand-50">
+                Artisan Marketplace
+              </button>
+              <button onClick={() => { navigate('/onboard?mode=login&role=client&redirect=' + encodeURIComponent('/create-project')); setMobileMenuOpen(false); }} className="w-full px-4 py-3 text-left text-gray-700 font-semibold text-sm hover:bg-brand-50">
+                Demander un Service
+              </button>
+              </div>
+          )}
         </div>
-      </nav>
 
-      {/* Hero Section */}
+        <div className="flex items-center gap-2">
+          {isLoggedIn ? (
+            <>
+              <button onClick={() => navigate('/dashboard')} className="px-4 py-2 text-gray-700 font-semibold text-sm hover:text-brand-600 hidden sm:block">
+                Tableau de bord
+              </button>
+              <button onClick={() => navigate('/marketplace')} className="px-5 py-2.5 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors shadow-md">
+                Explorer
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => navigate('/onboard?mode=signup')} className="px-4 py-2 text-gray-700 font-semibold text-sm hover:text-brand-600 hidden sm:block">
+                S&apos;inscrire
+              </button>
+              <button onClick={() => navigate('/onboard?mode=login')} className="px-5 py-2.5 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors shadow-md">
+                Se Connecter
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* Hero — image artisans + titre + barre recherche (style maquette) */}
       <section 
-        className="relative h-[650px] flex flex-col items-center justify-center text-center px-6 overflow-hidden"
+        className="relative min-h-[580px] md:min-h-[620px] flex flex-col justify-end pb-12 md:pb-16 px-6 overflow-hidden"
         style={{ 
-          backgroundImage: 'url("https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?auto=format&fit=crop&q=80")',
+          backgroundImage: 'url("/hero-mbourake.png")',
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
       >
-        <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />
-        <div className="relative z-10 w-full max-w-4xl animate-in fade-in zoom-in duration-700">
-          <h1 className="text-4xl md:text-7xl font-black text-white mb-10 tracking-tighter leading-[1.1]">
-            Trouvez les meilleurs <br />
-            <span className="text-brand-500">artisans</span> du Sénégal.
+        <div className="absolute inset-0 bg-black/50" />
+        <div className="relative z-10 w-full max-w-4xl mx-auto text-left">
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white mb-4 tracking-tight leading-tight">
+            Trouvez les meilleurs artisans pour vos projets !
           </h1>
-          
-          <div ref={searchContainerRef} className="w-full max-w-2xl mx-auto relative">
-            <form onSubmit={handleSearch} className="flex w-full bg-white rounded-2xl overflow-hidden shadow-2xl p-1.5 border-4 border-white/20 backdrop-blur-md transition-all focus-within:ring-4 ring-brand-500/30">
-              <div className="flex-1 flex items-center px-4 gap-3 text-gray-400">
-                <Search size={24} className="text-brand-500 shrink-0" />
-                <input 
-                  type="text" 
+          <p className="text-white/95 text-base md:text-lg max-w-2xl mb-4 leading-relaxed">
+            Rejoignez la plus grande plateforme pour trouver et engager des artisans qualifiés au Sénégal. Publiez vos projets, obtenez des devis, et achetez des produits artisanaux directement auprès des artisans.
+          </p>
+          <p className="text-white/90 text-sm md:text-base max-w-2xl mb-8 font-medium">
+            Devis gratuit. Vous ne payez qu&apos;après avoir accepté un devis.
+          </p>
+
+          {/* Barre recherche : quoi + lieu + Rechercher + Je suis un artisan */}
+          <div ref={searchContainerRef} className="relative">
+            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 p-3 bg-white/95 rounded-xl shadow-xl border border-white/20">
+              <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-gray-50 rounded-lg min-w-0">
+                <Search size={20} className="text-brand-500 shrink-0" />
+                <input
+                  type="text"
                   value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setShowSuggestions(true);
-                  }}
+                  onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(true); }}
                   onFocus={() => setShowSuggestions(true)}
-                  placeholder="Rechercher une catégorie ou un artisan (ex: Maçon, Couture...)"
-                  className="w-full py-4 outline-none text-gray-700 font-bold text-lg placeholder:font-medium min-w-0"
+                  placeholder="Que cherchez-vous ? Plomberie, menuiserie..."
+                  className="w-full py-1 outline-none text-gray-800 font-medium placeholder:text-gray-500 bg-transparent"
                   autoComplete="off"
                 />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => { setSearchQuery(''); setShowSuggestions(false); }}
-                    className="p-1 text-gray-400 hover:text-gray-600 shrink-0"
-                    aria-label="Effacer"
-                  >
-                    <X size={20} />
-                  </button>
-                )}
               </div>
-              <button type="submit" className="bg-brand-500 text-white px-10 py-4 font-black rounded-xl hover:bg-brand-600 transition-all uppercase tracking-widest text-xs shadow-lg shadow-brand-100 active:scale-95">
+              <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 rounded-lg sm:max-w-[200px]">
+                <MapPin size={20} className="text-brand-500 shrink-0" />
+                <input
+                  type="text"
+                  value={locationQuery}
+                  onChange={(e) => setLocationQuery(e.target.value)}
+                  placeholder="Lieu : Dakar..."
+                  className="w-full py-1 outline-none text-gray-800 font-medium placeholder:text-gray-500 bg-transparent"
+                />
+              </div>
+              <button type="submit" className="px-6 py-3 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors whitespace-nowrap">
                 Rechercher
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/onboard?mode=signup&role=artisan')}
+                className="flex items-center justify-center gap-2 px-4 py-3 text-gray-700 font-semibold text-sm hover:bg-brand-50 hover:text-brand-700 rounded-lg transition-colors border border-gray-200"
+              >
+                <User size={20} className="text-brand-500 shrink-0" />
+                Je suis un artisan
               </button>
             </form>
 
-            {/* Dropdown suggestions : catégories + artisans (comme page Artisans) */}
             {showSuggestions && hasSuggestions && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-gray-200 shadow-xl z-50 overflow-hidden max-h-[60vh] overflow-y-auto">
                 {suggestionCategories.length > 0 && (
                   <div className="p-2">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">
-                      Catégories
-                    </p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">Catégories</p>
                     {suggestionCategories.map((cat) => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => handleSelectCategory(cat.slug || String(cat.id))}
-                        className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl hover:bg-brand-50 text-left transition-colors"
-                      >
+                      <button key={cat.id} type="button" onClick={() => handleSelectCategory(cat.slug || String(cat.id))} className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg hover:bg-brand-50 text-left transition-colors">
                         <span className="font-bold text-gray-900 truncate">{cat.name}</span>
                         <ChevronRight size={18} className="text-gray-400 shrink-0" />
                       </button>
@@ -389,26 +344,13 @@ export function LandingPage() {
                 )}
                 {suggestionArtisans.length > 0 && (
                   <div className="p-2 border-t border-gray-100">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">
-                      Artisans
-                    </p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">Artisans</p>
                     {suggestionArtisans.map((artisan) => (
-                      <button
-                        key={artisan.id}
-                        type="button"
-                        onClick={() => handleSelectArtisan(artisan.id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-brand-50 text-left transition-colors"
-                      >
-                        <img
-                          src={artisan.img}
-                          alt=""
-                          className="w-10 h-10 rounded-full object-cover shrink-0"
-                        />
+                      <button key={artisan.id} type="button" onClick={() => handleSelectArtisan(artisan.id)} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-brand-50 text-left transition-colors">
+                        <img src={artisan.img} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-gray-900 truncate">{artisan.name}</p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {artisan.specialty} · {artisan.category}
-                          </p>
+                          <p className="text-xs text-gray-500 truncate">{artisan.specialty} · {artisan.category}</p>
                         </div>
                         <ChevronRight size={18} className="text-gray-400 shrink-0" />
                       </button>
@@ -418,23 +360,136 @@ export function LandingPage() {
               </div>
             )}
           </div>
-          
-          <div className="mt-10 flex flex-wrap justify-center gap-3">
-            {['Maçonnerie', 'Plomberie', 'Couture', 'Solaire', 'Mécanique'].map(tag => (
-              <button 
-                key={tag} 
-                onClick={() => { setSearchQuery(tag); setShowSuggestions(true); }} 
-                className="px-4 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white text-[10px] font-black uppercase tracking-widest hover:bg-brand-500 transition-all"
-              >
-                {tag}
+        </div>
+      </section>
+
+      {/* 3 cartes : Postez projet, Marketplace, Devenez partenaire */}
+      <section className="py-16 md:py-24 px-6 md:px-12 lg:px-20 bg-[#FDFDFD]">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
+            <div className="h-40 bg-gradient-to-br from-brand-100 to-brand-50 flex items-center justify-center">
+              <div className="w-16 h-16 bg-brand-500 rounded-xl flex items-center justify-center text-white">
+                <FileEdit size={28} />
+              </div>
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-black text-gray-900 mb-2">Postez votre Projet</h3>
+              <p className="text-gray-600 text-sm leading-relaxed mb-2">
+                Décrivez votre besoin, recevez rapidement des devis adaptés de nos artisans qualifiés.
+              </p>
+              <p className="text-brand-600 text-xs font-semibold mb-6">Devis gratuit, sans engagement. Vous ne payez qu&apos;après avoir accepté un devis.</p>
+              <button onClick={() => navigate('/onboard?mode=login&role=client&redirect=' + encodeURIComponent('/create-project'))} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
+                Demander un service
               </button>
-            ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
+            <div className="h-40 bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center">
+              <div className="w-16 h-16 bg-brand-500 rounded-xl flex items-center justify-center text-white">
+                <ShoppingBag size={28} />
+              </div>
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-black text-gray-900 mb-2">Explorez la Marketplace</h3>
+              <p className="text-gray-600 text-sm leading-relaxed mb-6">
+                Découvrez et achetez des produits artisanaux uniques créés par des artisans locaux.
+              </p>
+              <button onClick={() => navigate('/marketplace')} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
+                Explorer
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
+            <div className="h-40 bg-gradient-to-br from-brand-100 to-amber-50 flex items-center justify-center">
+              <div className="w-16 h-16 bg-brand-500 rounded-xl flex items-center justify-center text-white">
+                <Handshake size={28} />
+              </div>
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-black text-gray-900 mb-2">Devenez Partenaire</h3>
+              <p className="text-gray-600 text-sm leading-relaxed mb-6">
+                Connectez votre organisation, valorisez vos artisans, et accédez à des outils de suivi.
+              </p>
+              <button onClick={() => navigate('/about')} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
+                Contactez-nous
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Bandeau confiance */}
+      <section className="py-10 px-6 md:px-12 bg-white border-y border-gray-100">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center">
+                <Shield size={24} className="text-brand-600" />
+              </div>
+              <p className="text-sm font-bold text-gray-900">Paiement sécurisé</p>
+              <p className="text-xs text-gray-600">Wave, Orange Money et moyens locaux</p>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                <Star size={24} className="text-amber-600 fill-amber-600" />
+              </div>
+              <p className="text-sm font-bold text-gray-900">Avis vérifiés</p>
+              <p className="text-xs text-gray-600">Note et retours des clients</p>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center">
+                <CheckCircle size={24} className="text-green-600" />
+              </div>
+              <p className="text-sm font-bold text-gray-900">Devis gratuit</p>
+              <p className="text-xs text-gray-600">Vous ne payez qu&apos;après acceptation</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Notre approche produit */}
+      <section className="py-16 md:py-24 px-6 md:px-20 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
+              Une approche orientée artisans et développement local
+            </h2>
+            <p className="text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              Mbouraké met l'artisan au centre. Notre produit est conçu pour aider les professionnels
+              à mieux vivre de leur métier, gagner en visibilité et créer de la valeur durable dans les
+              quartiers, communes et régions du Sénégal.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-[#FDFDFD] border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <h3 className="font-black text-gray-900 text-lg mb-2">Impact terrain</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Chaque mission publiée peut devenir un revenu direct pour un artisan local et un service
+                plus fiable pour les familles et entreprises.
+              </p>
+            </div>
+            <div className="bg-[#FDFDFD] border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <h3 className="font-black text-gray-900 text-lg mb-2">Confiance et transparence</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Devis clairs, profils détaillés, suivi projet, messagerie et historique des échanges :
+                tout est pensé pour sécuriser la relation client-artisan.
+              </p>
+            </div>
+            <div className="bg-[#FDFDFD] border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <h3 className="font-black text-gray-900 text-lg mb-2">Croissance des artisans</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Visibilité digitale, certifications, réputation et accès à la demande : nous aidons les
+                artisans à structurer leur activité et développer leur entreprise.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Categories Grid */}
-      <section id="categories-section" className="py-24 px-6 md:px-20 bg-white scroll-mt-24">
+      <section id="categories-section" className="py-24 px-6 md:px-20 bg-[#FDFDFD] scroll-mt-24">
         <div className="flex flex-col items-center mb-20 text-center">
           <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight mb-4">Corps de métiers populaires</h2>
           <p className="text-gray-500 max-w-xl mb-8 font-medium leading-relaxed italic">
@@ -526,10 +581,9 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="bg-white border-t py-20 px-6 text-center">
-        <div className="mb-10">
-          <span className="text-3xl font-black text-gray-900 tracking-tighter italic">
-            Mboura <span className="text-brand-500">ké</span>
-          </span>
+        <div className="mb-10 flex items-center justify-center gap-2">
+          <img src="/logo-mbourake.svg" alt="Mbouraké" className="h-12 w-12 object-contain" />
+          <span className="text-2xl font-black text-gray-800 tracking-tight uppercase">MBOURAKÉ</span>
         </div>
         <div className="flex flex-wrap justify-center gap-6 mb-10">
           <button 
@@ -537,6 +591,12 @@ export function LandingPage() {
             className="text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
           >
             À propos
+          </button>
+          <button 
+            onClick={() => navigate('/aide')}
+            className="text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
+          >
+            Aide
           </button>
           <button 
             onClick={() => navigate('/artisans')}
@@ -549,7 +609,13 @@ export function LandingPage() {
             onClick={() => navigate('/onboard?mode=signup')}
             className="text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
           >
-            S'inscrire
+            S&apos;inscrire
+          </button>
+          <button 
+            onClick={() => navigate('/onboard?mode=login')}
+            className="text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
+          >
+            Se connecter
           </button>
         </div>
         <p className="text-gray-400 text-[9px] font-black uppercase tracking-[0.4em] mb-10 opacity-60">
