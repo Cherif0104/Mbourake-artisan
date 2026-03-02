@@ -270,30 +270,36 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Hero — image artisans + titre + barre recherche (style maquette) */}
+      {/* Hero — image mise en valeur + overlay texte pour lisibilité */}
       <section 
-        className="relative min-h-[580px] md:min-h-[620px] flex flex-col justify-end pb-12 md:pb-16 px-6 overflow-hidden"
+        className="relative min-h-[520px] sm:min-h-[560px] md:min-h-[620px] flex flex-col justify-end pb-8 sm:pb-12 md:pb-16 px-4 sm:px-6 overflow-hidden"
         style={{ 
           backgroundImage: 'url("/hero-mbourake.png")',
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
       >
-        <div className="absolute inset-0 bg-black/50" />
+        {/* Overlay général pour que l'image reste visible mais lisible */}
+        <div className="absolute inset-0 bg-black/40" />
+        {/* Gradient renforcé en bas : assombrit uniquement la zone du texte pour le mettre en valeur */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent pointer-events-none" />
         <div className="relative z-10 w-full max-w-4xl mx-auto text-left">
-          <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white mb-4 tracking-tight leading-tight">
-            Trouvez les meilleurs artisans pour vos projets !
-          </h1>
-          <p className="text-white/95 text-base md:text-lg max-w-2xl mb-4 leading-relaxed">
-            Rejoignez la plus grande plateforme pour trouver et engager des artisans qualifiés au Sénégal. Publiez vos projets, obtenez des devis, et achetez des produits artisanaux directement auprès des artisans.
-          </p>
-          <p className="text-white/90 text-sm md:text-base max-w-2xl mb-8 font-medium">
-            Devis gratuit. Vous ne payez qu&apos;après avoir accepté un devis.
-          </p>
+          {/* Bloc texte sur fond assombri pour meilleure lisibilité et mise en valeur */}
+          <div className="rounded-xl bg-black/30 backdrop-blur-[2px] p-4 sm:p-5 md:p-6 mb-6 max-w-2xl">
+            <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-black text-white mb-3 sm:mb-4 tracking-tight leading-tight">
+              Artisans & entrepreneurs : trouvez les talents pour vos projets
+            </h1>
+            <p className="text-white/95 text-sm sm:text-base md:text-lg max-w-2xl mb-3 sm:mb-4 leading-relaxed">
+              Rejoignez la plateforme pour engager des artisans qualifiés et des entrepreneurs au Sénégal. Publiez vos projets, obtenez des devis, et achetez des produits artisanaux auprès des artisans et des entreprises.
+            </p>
+            <p className="text-white/95 text-xs sm:text-sm md:text-base font-medium">
+              Devis gratuit. Vous ne payez qu&apos;après avoir accepté un devis.
+            </p>
+          </div>
 
-          {/* Barre recherche : quoi + lieu + Rechercher + Je suis un artisan */}
+          {/* Barre recherche : quoi + lieu + Rechercher + Artisan ou entrepreneur */}
           <div ref={searchContainerRef} className="relative">
-            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 p-3 bg-white/95 rounded-xl shadow-xl border border-white/20">
+            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 p-3 sm:p-3 bg-white/95 rounded-xl shadow-xl border border-white/20">
               <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-gray-50 rounded-lg min-w-0">
                 <Search size={20} className="text-brand-500 shrink-0" />
                 <input
@@ -325,7 +331,7 @@ export function LandingPage() {
                 className="flex items-center justify-center gap-2 px-4 py-3 text-gray-700 font-semibold text-sm hover:bg-brand-50 hover:text-brand-700 rounded-lg transition-colors border border-gray-200"
               >
                 <User size={20} className="text-brand-500 shrink-0" />
-                Je suis un artisan
+                Artisan ou entrepreneur
               </button>
             </form>
 
@@ -375,7 +381,7 @@ export function LandingPage() {
             <div className="p-6">
               <h3 className="text-xl font-black text-gray-900 mb-2">Postez votre Projet</h3>
               <p className="text-gray-600 text-sm leading-relaxed mb-2">
-                Décrivez votre besoin, recevez rapidement des devis adaptés de nos artisans qualifiés.
+                Décrivez votre besoin, recevez des devis adaptés d&apos;artisans et d&apos;entrepreneurs qualifiés.
               </p>
               <p className="text-brand-600 text-xs font-semibold mb-6">Devis gratuit, sans engagement. Vous ne payez qu&apos;après avoir accepté un devis.</p>
               <button onClick={() => navigate('/onboard?mode=login&role=client&redirect=' + encodeURIComponent('/create-project'))} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
@@ -393,7 +399,7 @@ export function LandingPage() {
             <div className="p-6">
               <h3 className="text-xl font-black text-gray-900 mb-2">Explorez la Marketplace</h3>
               <p className="text-gray-600 text-sm leading-relaxed mb-6">
-                Découvrez et achetez des produits artisanaux uniques créés par des artisans locaux.
+                Produits artisanaux et créations d&apos;entrepreneurs locaux : découvrez et achetez en direct.
               </p>
               <button onClick={() => navigate('/marketplace')} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
                 Explorer
@@ -410,7 +416,7 @@ export function LandingPage() {
             <div className="p-6">
               <h3 className="text-xl font-black text-gray-900 mb-2">Devenez Partenaire</h3>
               <p className="text-gray-600 text-sm leading-relaxed mb-6">
-                Connectez votre organisation, valorisez vos artisans, et accédez à des outils de suivi.
+                Artisans, entrepreneurs ou organisations : connectez-vous, valorisez vos talents et accédez aux outils de suivi.
               </p>
               <button onClick={() => navigate('/about')} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
                 Contactez-nous

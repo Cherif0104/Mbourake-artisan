@@ -1200,20 +1200,18 @@ export function Dashboard() {
         )}
       </main>
 
-      {/* CTA client : création projet rapide au-dessus du footer */}
+      {/* CTA client : bouton circulaire « Demander un projet » au-dessus du footer */}
       {!isArtisan && (
-        <div className="fixed bottom-24 left-0 right-0 z-30 px-4 pointer-events-none">
-          <div className="max-w-lg mx-auto">
-            <button
-              type="button"
-              onClick={() => navigate('/create-project')}
-              className="pointer-events-auto w-full rounded-2xl bg-brand-500 text-white py-4 px-5 shadow-xl shadow-brand-500/30 hover:bg-brand-600 transition-colors flex items-center justify-center gap-2 font-black"
-              aria-label="Nouveau projet"
-            >
-              <PlusCircle size={20} />
-              Nouveau projet
-            </button>
-          </div>
+        <div className="fixed bottom-24 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none">
+          <button
+            type="button"
+            onClick={() => navigate('/create-project')}
+            className="pointer-events-auto w-16 h-16 rounded-full bg-brand-500 text-white shadow-xl shadow-brand-500/30 hover:bg-brand-600 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+            aria-label="Demander un projet"
+            title="Demander un projet"
+          >
+            <PlusCircle size={28} strokeWidth={2.5} />
+          </button>
         </div>
       )}
 

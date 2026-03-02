@@ -254,6 +254,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          is_suspended: boolean | null
           is_verified: boolean | null
           location: string | null
           member_id: string | null
@@ -261,6 +262,8 @@ export type Database = {
           region: string | null
           role: string | null
           specialty: string | null
+          suspended_at: string | null
+          suspended_reason: string | null
           updated_at: string | null
         }
         Insert: {
@@ -274,6 +277,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          is_suspended?: boolean | null
           is_verified?: boolean | null
           location?: string | null
           member_id?: string | null
@@ -281,6 +285,8 @@ export type Database = {
           region?: string | null
           role?: string | null
           specialty?: string | null
+          suspended_at?: string | null
+          suspended_reason?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -294,6 +300,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          is_suspended?: boolean | null
           is_verified?: boolean | null
           location?: string | null
           member_id?: string | null
@@ -301,6 +308,8 @@ export type Database = {
           region?: string | null
           role?: string | null
           specialty?: string | null
+          suspended_at?: string | null
+          suspended_reason?: string | null
           updated_at?: string | null
         }
         Relationships: [

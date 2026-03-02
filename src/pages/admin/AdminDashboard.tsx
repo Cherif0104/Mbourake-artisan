@@ -2,7 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Briefcase, Shield, DollarSign, 
-  AlertCircle, CheckCircle, LogOut, Settings, Bell, AlertTriangle, Building2
+  AlertCircle, CheckCircle, LogOut, Settings, Bell, AlertTriangle, Building2,
+  Package, ShoppingBag
 } from 'lucide-react';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../../hooks/useAuth';
@@ -201,6 +202,8 @@ export function AdminDashboard() {
     { id: 'overview', path: '/admin', icon: <LayoutDashboard size={20} />, label: 'Vue d\'ensemble' },
     { id: 'users', path: '/admin/users', icon: <Users size={20} />, label: 'Utilisateurs' },
     { id: 'projects', path: '/admin/projects', icon: <Briefcase size={20} />, label: 'Projets' },
+    { id: 'boutique', path: '/admin/boutique', icon: <Package size={20} />, label: 'Boutique' },
+    { id: 'commandes', path: '/admin/commandes', icon: <ShoppingBag size={20} />, label: 'Commandes' },
     { id: 'escrows', path: '/admin/escrows', icon: <DollarSign size={20} />, label: 'Paiements' },
     { id: 'closures', path: '/admin/closures', icon: <CheckCircle size={20} />, label: 'Clôtures' },
     { id: 'verifications', path: '/admin/verifications', icon: <Shield size={20} />, label: 'Vérifications' },
@@ -456,6 +459,12 @@ export function AdminDashboard() {
                 </button>
                 <button type="button" onClick={() => navigate('/admin/projects')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                   <Briefcase size={14} /> Projets
+                </button>
+                <button type="button" onClick={() => navigate('/admin/boutique')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <Package size={14} /> Boutique
+                </button>
+                <button type="button" onClick={() => navigate('/admin/commandes')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <ShoppingBag size={14} /> Commandes
                 </button>
                 <button type="button" onClick={() => navigate('/admin/escrows')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                   <DollarSign size={14} /> Escrow

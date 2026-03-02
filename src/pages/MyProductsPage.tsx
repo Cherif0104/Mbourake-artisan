@@ -205,7 +205,7 @@ export function MyProductsPage() {
 
   const handleImagesUpload = async (files: FileList | null) => {
     if (!files || !profile || !isArtisan) return;
-    const selected = Array.from(files).slice(0, 5);
+    const selected = Array.from(files).slice(0, 10);
     if (selected.length === 0) return;
     setUploadingImages(true);
     try {
@@ -218,7 +218,7 @@ export function MyProductsPage() {
         const url = supabase.storage.from('photos').getPublicUrl(data.path).data.publicUrl;
         uploaded.push(url);
       }
-      setImageUrls((prev) => [...prev, ...uploaded].slice(0, 5));
+      setImageUrls((prev) => [...prev, ...uploaded].slice(0, 10));
       success(`${uploaded.length} image(s) ajoutée(s).`);
     } catch (e: any) {
       showError(e?.message ?? "Impossible d'uploader les images.");
@@ -433,7 +433,7 @@ export function MyProductsPage() {
           )}
         </section>
 
-        <section className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <section className="flex flex-col items-center gap-2">
           <button
             type="button"
             onClick={() => {
@@ -451,11 +451,15 @@ export function MyProductsPage() {
                 setShowCreateForm(true);
               }
             }}
-            className="w-full rounded-xl bg-brand-500 text-white text-sm font-bold py-3 flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors"
+            className="w-16 h-16 rounded-full bg-brand-500 text-white shadow-xl shadow-brand-500/30 hover:bg-brand-600 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+            aria-label={showCreateForm ? 'Fermer le formulaire' : 'Ajouter un nouvel article'}
+            title={showCreateForm ? 'Fermer le formulaire' : 'Ajouter un nouvel article'}
           >
-            <Plus size={18} />
-            {showCreateForm ? 'Fermer le formulaire' : 'Ajouter un nouvel article'}
+            <Plus size={28} strokeWidth={2.5} />
           </button>
+          <span className="text-xs font-semibold text-gray-500">
+            {showCreateForm ? 'Fermer' : 'Ajouter un article'}
+          </span>
 
           {showCreateForm && (
             <form onSubmit={handleCreateProduct} className="space-y-3 mt-4">
@@ -522,7 +526,7 @@ export function MyProductsPage() {
 
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-600 block">
-                  Photos du produit (max 5)
+                  Photos du produit (max 10)
                 </label>
                 <label className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-3 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 transition-colors">
                   <ImagePlus size={16} />

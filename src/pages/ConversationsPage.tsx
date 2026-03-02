@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, ArrowLeft, Clock, Search } from 'lucide-react';
+import { MessageSquare, ArrowLeft, Clock, Search, Briefcase, ShoppingBag, Inbox } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useNotifications } from '../hooks/useNotifications';
@@ -32,6 +32,8 @@ export function ConversationsPage() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  type MessageSection = 'projet' | 'commande' | 'divers';
+  const [messageSection, setMessageSection] = useState<MessageSection>('projet');
 
   useEffect(() => {
     if (!auth.user || !profile) return;
@@ -205,6 +207,12 @@ export function ConversationsPage() {
     return <LoadingOverlay />;
   }
 
+  const sectionTabs: { id: MessageSection; label: string; icon: React.ReactNode }[] = [
+    { id: 'projet', label: 'Projets', icon: <Briefcase size={16} /> },
+    { id: 'commande', label: 'Commandes', icon: <ShoppingBag size={16} /> },
+    { id: 'divers', label: 'Divers', icon: <Inbox size={16} /> },
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -220,11 +228,43 @@ export function ConversationsPage() {
             <h1 className="text-xl font-black text-gray-900">Messages</h1>
           </div>
         </div>
+        {/* Sections: Projet / Commande / Divers */}
+        <div className="max-w-lg mx-auto px-5 pb-3 flex gap-2">
+          {sectionTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setMessageSection(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                messageSection === tab.id
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </header>
 
       {/* Content */}
       <main className="max-w-lg mx-auto px-5 py-6">
-        {conversations.length > 0 && (
+        {messageSection === 'commande' && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center mb-6">
+            <ShoppingBag size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="font-medium text-gray-700 mb-1">Messages commandes</p>
+            <p className="text-sm text-gray-500">Les échanges liés à vos commandes marketplace apparaîtront ici.</p>
+          </div>
+        )}
+        {messageSection === 'divers' && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center mb-6">
+            <Inbox size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="font-medium text-gray-700 mb-1">Messages divers</p>
+            <p className="text-sm text-gray-500">Autres conversations et notifications.</p>
+          </div>
+        )}
+        {messageSection === 'projet' && conversations.length > 0 && (
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -240,13 +280,14 @@ export function ConversationsPage() {
           </div>
         )}
 
-        {conversations.length === 0 ? (
+        {messageSection === 'projet' && (
+          conversations.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
             <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <MessageSquare size={28} className="text-gray-300" />
             </div>
             <p className="text-gray-500 font-medium">Aucune discussion pour le moment</p>
-            <p className="text-sm text-gray-400 mt-1">Vos conversations apparaîtront ici dès le premier échange</p>
+            <p className="text-sm text-gray-400 mt-1">Vos conversations de projet apparaîtront ici dès le premier échange</p>
           </div>
         ) : filteredConversations.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
@@ -311,6 +352,7 @@ export function ConversationsPage() {
               );
             })}
           </div>
+        )
         )}
       </main>
     </div>

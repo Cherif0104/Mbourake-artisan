@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, User, Image as ImageIcon, ChevronLeft, ChevronRight, Star, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, MapPin, User, Image as ImageIcon, ChevronLeft, ChevronRight, Star, ShieldCheck, ShoppingCart } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '@shared';
 import { useAuth } from '../hooks/useAuth';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
+import { addToCart } from '../lib/cart';
+import { useToastContext } from '../contexts/ToastContext';
 
 type ProductRow = Database['public']['Tables']['products']['Row'];
 
@@ -26,6 +28,7 @@ export function MarketplaceProductPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { success } = useToastContext();
   const [loading, setLoading] = useState(true);
   const [product, setProduct] = useState<ProductWithArtisan | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -304,23 +307,45 @@ export function MarketplaceProductPage() {
             {product!.status === 'published' &&
               (product!.stock == null || product!.stock > 0) &&
               product!.profiles?.id !== user?.id && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!user) {
-                      navigate(
-                        `/onboard?mode=login&role=client&redirect=${encodeURIComponent(
-                          `/marketplace/${product!.id}/checkout`
-                        )}`
-                      );
-                    } else {
-                      navigate(`/marketplace/${product!.id}/checkout`);
-                    }
-                  }}
-                  className="mt-4 w-full rounded-xl bg-brand-500 text-white font-bold py-3 flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors"
-                >
-                  Commander
-                </button>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const price = Number(product!.price ?? 0);
+                      const promo = product!.promo_percent ?? 0;
+                      const img = Array.isArray(product!.images) && product!.images.length > 0 ? String(product!.images[0]) : null;
+                      addToCart({
+                        productId: product!.id,
+                        title: product!.title,
+                        price,
+                        promoPercent: promo > 0 ? promo : null,
+                        image: img,
+                      });
+                      success('Article ajouté au panier');
+                    }}
+                    className="flex-1 rounded-xl border-2 border-brand-500 text-brand-600 font-bold py-3 flex items-center justify-center gap-2 hover:bg-brand-50 transition-colors"
+                  >
+                    <ShoppingCart size={20} />
+                    Au panier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!user) {
+                        navigate(
+                          `/onboard?mode=login&role=client&redirect=${encodeURIComponent(
+                            `/marketplace/${product!.id}/checkout`
+                          )}`
+                        );
+                      } else {
+                        navigate(`/marketplace/${product!.id}/checkout`);
+                      }
+                    }}
+                    className="flex-1 rounded-xl bg-brand-500 text-white font-bold py-3 flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors"
+                  >
+                    Commander
+                  </button>
+                </div>
               )}
           </div>
         </div>

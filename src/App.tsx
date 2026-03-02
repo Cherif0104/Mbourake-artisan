@@ -45,6 +45,8 @@ import { AdminEscrows } from './pages/admin/AdminEscrows';
 import { AdminVerifications } from './pages/admin/AdminVerifications';
 import { AdminDisputes } from './pages/admin/AdminDisputes';
 import { AdminClosures } from './pages/admin/AdminClosures';
+import { AdminBoutique } from './pages/admin/AdminBoutique';
+import { AdminCommandes } from './pages/admin/AdminCommandes';
 import { AdminAffiliations } from './pages/admin/AdminAffiliations';
 import { RevisionsPage } from './pages/RevisionsPage';
 import { RequestRevisionPage } from './pages/RequestRevisionPage';
@@ -57,6 +59,8 @@ import { MyProductsPage } from './pages/MyProductsPage';
 import { MyCertificationsPage } from './pages/MyCertificationsPage';
 import { MyOrdersPage } from './pages/MyOrdersPage';
 import { MyShopOrdersPage } from './pages/MyShopOrdersPage';
+import { PanierPage } from './pages/PanierPage';
+import { CompteSuspenduPage } from './pages/CompteSuspenduPage';
 
 // Page affichée quand on ouvre /download/... dans l'app (fichier APK non servi)
 function DownloadUnavailablePage() {
@@ -183,11 +187,14 @@ function AppContent() {
       <Route path="/my-certifications" element={<PrivateRoute><MyCertificationsPage /></PrivateRoute>} />
       <Route path="/my-orders" element={<PrivateRoute><MyOrdersPage /></PrivateRoute>} />
       <Route path="/my-shop-orders" element={<PrivateRoute><MyShopOrdersPage /></PrivateRoute>} />
+      <Route path="/panier" element={<PrivateRoute><PanierPage /></PrivateRoute>} />
       
       {/* Admin Routes (layout commun avec sidebar) */}
       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>}>
         <Route path="users" element={<AdminUsers />} />
         <Route path="projects" element={<AdminProjects />} />
+        <Route path="boutique" element={<AdminBoutique />} />
+        <Route path="commandes" element={<AdminCommandes />} />
         <Route path="escrows" element={<AdminEscrows />} />
         <Route path="verifications" element={<AdminVerifications />} />
         <Route path="affiliations" element={<AdminAffiliations />} />
