@@ -79,6 +79,7 @@ export function Dashboard() {
   const [activityFilter, setActivityFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [activitySubTab, setActivitySubTab] = useState<'demandes' | 'devis' | 'revisions_attente' | 'revisions_envoyees'>('demandes');
   const [satisfactionStats, setSatisfactionStats] = useState<{ ratingAvg: number; reviewCount: number; satisfactionPercent: number } | null>(null);
+  const [recentReviews, setRecentReviews] = useState<Array<{ rating: number; comment: string | null; created_at: string }>>([]);
   
   const { signOut } = auth;
 
@@ -319,7 +320,7 @@ export function Dashboard() {
         try {
           const { data: reviews } = await supabase
             .from('reviews')
-            .select('rating')
+            .select('rating, comment, created_at')
             .eq('artisan_id', profile.id);
           const list = reviews || [];
           const count = list.length;
@@ -327,11 +328,23 @@ export function Dashboard() {
           const satisfiedCount = list.filter((r) => Number(r.rating) >= 4).length;
           const satisfactionPercent = count > 0 ? Math.round((satisfiedCount / count) * 100) : 0;
           setSatisfactionStats({ ratingAvg, reviewCount: count, satisfactionPercent });
+          setRecentReviews(
+            list
+              .sort((a, b) => new Date(String(b.created_at || 0)).getTime() - new Date(String(a.created_at || 0)).getTime())
+              .slice(0, 3)
+              .map((r) => ({
+                rating: Number(r.rating || 0),
+                comment: (r as any).comment ?? null,
+                created_at: String((r as any).created_at || ''),
+              }))
+          );
         } catch (_) {
           setSatisfactionStats(null);
+          setRecentReviews([]);
         }
       } else {
         setSatisfactionStats(null);
+        setRecentReviews([]);
         // Récupérer les projets du client, exclure les projets annulés pour l'affichage principal
         const { data: clientProjects } = await supabase
           .from('projects')
@@ -729,6 +742,17 @@ export function Dashboard() {
                   </div>
                 </div>
                 <p className="text-[10px] text-gray-400 mt-2">Satisfaction = part des avis à 4–5 étoiles</p>
+                {recentReviews.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide font-bold">Derniers retours clients</p>
+                    {recentReviews.map((rv, idx) => (
+                      <div key={idx} className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                        <p className="text-[11px] font-bold text-gray-700">Note {rv.rating}/5</p>
+                        <p className="text-xs text-gray-600 line-clamp-2">{rv.comment || 'Sans commentaire'}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
