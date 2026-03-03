@@ -178,10 +178,12 @@ export function LandingPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelectCategory = (slug: string) => {
+  const handleSelectCategory = (categoryName: string) => {
     setShowSuggestions(false);
     setSearchQuery('');
-    navigate(`/category/${slug}`);
+    const params = new URLSearchParams();
+    params.set('search', categoryName.trim());
+    navigate(`/marketplace?${params.toString()}`);
   };
 
   const handleSelectArtisan = (id: string) => {
@@ -196,7 +198,7 @@ export function LandingPage() {
     if (searchQuery.trim()) params.set('search', searchQuery.trim());
     if (locationQuery.trim()) params.set('region', locationQuery.trim());
     const qs = params.toString();
-    navigate(qs ? `/artisans?${qs}` : '/artisans');
+    navigate(qs ? `/marketplace?${qs}` : '/marketplace');
   };
 
   // Redirection pour utilisateurs authentifiés : toujours vers le dashboard
@@ -279,20 +281,20 @@ export function LandingPage() {
           backgroundPosition: 'center'
         }}
       >
-        {/* Overlay général pour que l'image reste visible mais lisible */}
-        <div className="absolute inset-0 bg-black/40" />
-        {/* Gradient renforcé en bas : assombrit uniquement la zone du texte pour le mettre en valeur */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent pointer-events-none" />
+        {/* Overlay léger pour laisser la photo du hero bien visible */}
+        <div className="absolute inset-0 bg-black/20" />
+        {/* Gradient en bas uniquement : assombrit la zone du texte sans masquer la photo */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent pointer-events-none" />
         <div className="relative z-10 w-full max-w-4xl mx-auto text-left">
-          {/* Bloc texte sur fond assombri pour meilleure lisibilité et mise en valeur */}
-          <div className="rounded-xl bg-black/30 backdrop-blur-[2px] p-4 sm:p-5 md:p-6 mb-6 max-w-2xl">
-            <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-black text-white mb-3 sm:mb-4 tracking-tight leading-tight">
+          {/* Bloc texte discret : fond très léger + ombre sur le texte pour lisibilité sans cacher la photo */}
+          <div className="rounded-xl bg-black/15 backdrop-blur-[1px] p-3 sm:p-4 md:p-5 mb-4 max-w-2xl">
+            <h1 className="text-lg sm:text-xl md:text-3xl lg:text-4xl font-black text-white mb-3 sm:mb-4 tracking-tight leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
               Artisans & entrepreneurs : trouvez les talents pour vos projets
             </h1>
-            <p className="text-white/95 text-sm sm:text-base md:text-lg max-w-2xl mb-3 sm:mb-4 leading-relaxed">
+            <p className="text-white/95 text-sm sm:text-base md:text-lg max-w-2xl mb-3 sm:mb-4 leading-relaxed [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
               Rejoignez la plateforme pour engager des artisans qualifiés et des entrepreneurs au Sénégal. Publiez vos projets, obtenez des devis, et achetez des produits artisanaux auprès des artisans et des entreprises.
             </p>
-            <p className="text-white/95 text-xs sm:text-sm md:text-base font-medium">
+            <p className="text-white/95 text-xs sm:text-sm md:text-base font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
               Devis gratuit. Vous ne payez qu&apos;après avoir accepté un devis.
             </p>
           </div>
@@ -341,7 +343,7 @@ export function LandingPage() {
                   <div className="p-2">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">Catégories</p>
                     {suggestionCategories.map((cat) => (
-                      <button key={cat.id} type="button" onClick={() => handleSelectCategory(cat.slug || String(cat.id))} className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg hover:bg-brand-50 text-left transition-colors">
+                      <button key={cat.id} type="button" onClick={() => handleSelectCategory(cat.name)} className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg hover:bg-brand-50 text-left transition-colors">
                         <span className="font-bold text-gray-900 truncate">{cat.name}</span>
                         <ChevronRight size={18} className="text-gray-400 shrink-0" />
                       </button>

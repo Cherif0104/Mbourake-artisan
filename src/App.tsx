@@ -49,7 +49,14 @@ import { AdminBoutique } from './pages/admin/AdminBoutique';
 import { AdminCommandes } from './pages/admin/AdminCommandes';
 import { AdminAffiliations } from './pages/admin/AdminAffiliations';
 import { AdminOrganisations } from './pages/admin/AdminOrganisations';
+import { AdminOrganisationDetail } from './pages/admin/AdminOrganisationDetail';
+import { AdminUserDetail } from './pages/admin/AdminUserDetail';
 import { AdminExports } from './pages/admin/AdminExports';
+import { AdminAudit } from './pages/admin/AdminAudit';
+import { AdminCommissions } from './pages/admin/AdminCommissions';
+import { AdminDeletionRequests } from './pages/admin/AdminDeletionRequests';
+import { AdminExecutive } from './pages/admin/AdminExecutive';
+import { AdminTraining } from './pages/admin/AdminTraining';
 import { RevisionsPage } from './pages/RevisionsPage';
 import { RequestRevisionPage } from './pages/RequestRevisionPage';
 import { RevisionResponsePage } from './pages/RevisionResponsePage';
@@ -64,6 +71,7 @@ import { MyShopOrdersPage } from './pages/MyShopOrdersPage';
 import { PanierPage } from './pages/PanierPage';
 import { CompteSuspenduPage } from './pages/CompteSuspenduPage';
 import { InvitePage } from './pages/InvitePage';
+import { LastRoutePersistence } from './components/LastRoutePersistence';
 
 // Page affichée quand on ouvre /download/... dans l'app (fichier APK non servi)
 function DownloadUnavailablePage() {
@@ -137,6 +145,7 @@ function AppContent() {
       <ScrollToTop />
       <PageTransition />
       <OfflineBanner />
+      <LastRoutePersistence />
       <Routes>
       {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
@@ -197,6 +206,7 @@ function AppContent() {
       {/* Admin Routes (layout commun avec sidebar) */}
       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>}>
         <Route path="users" element={<AdminUsers />} />
+        <Route path="users/:id" element={<AdminUserDetail />} />
         <Route path="projects" element={<AdminProjects />} />
         <Route path="boutique" element={<AdminBoutique />} />
         <Route path="commandes" element={<AdminCommandes />} />
@@ -204,7 +214,13 @@ function AppContent() {
         <Route path="verifications" element={<AdminVerifications />} />
         <Route path="affiliations" element={<AdminAffiliations />} />
         <Route path="organisations" element={<AdminOrganisations />} />
+        <Route path="organisations/:id" element={<AdminOrganisationDetail />} />
         <Route path="exports" element={<AdminExports />} />
+        <Route path="audit" element={<AdminAudit />} />
+        <Route path="commissions" element={<AdminCommissions />} />
+        <Route path="deletion-requests" element={<AdminDeletionRequests />} />
+        <Route path="executive" element={<AdminExecutive />} />
+        <Route path="training" element={<AdminTraining />} />
         <Route path="disputes" element={<AdminDisputes />} />
         <Route path="closures" element={<AdminClosures />} />
       </Route>

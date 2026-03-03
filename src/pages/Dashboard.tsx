@@ -783,19 +783,54 @@ export function Dashboard() {
             </div>
 
             {isArtisan && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate('/my-products')}
+                  className="mt-3 w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[88px] flex items-center justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-black text-gray-900">Ma boutique</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Gérez vos produits sur le marketplace
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                    <Megaphone size={18} className="text-brand-600" />
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/my-shop-orders')}
+                  className="mt-3 w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[88px] flex items-center justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-black text-gray-900">Commandes boutique</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Voir les commandes reçues
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                    <Package size={18} className="text-brand-600" />
+                  </div>
+                </button>
+              </>
+            )}
+
+            {!isArtisan && (
               <button
                 type="button"
-                onClick={() => navigate('/my-products')}
+                onClick={() => navigate('/my-orders')}
                 className="mt-3 w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[88px] flex items-center justify-between"
               >
                 <div>
-                  <p className="text-sm font-black text-gray-900">Ma boutique</p>
+                  <p className="text-sm font-black text-gray-900">Mes commandes</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Gérez vos produits sur le marketplace
+                    Vos achats sur le marketplace
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
-                  <Megaphone size={18} className="text-brand-600" />
+                  <ShoppingBag size={18} className="text-brand-600" />
                 </div>
               </button>
             )}

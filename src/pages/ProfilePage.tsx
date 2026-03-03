@@ -51,6 +51,16 @@ interface ArtisanProfile {
   } | null;
 }
 
+interface ProductPreview {
+  id: string;
+  title: string;
+  description: string | null;
+  price: number;
+  promo_percent: number | null;
+  status: string;
+  images: unknown;
+}
+
 export function ProfilePage() {
   const navigate = useNavigate();
   const auth = useAuth();
@@ -62,6 +72,7 @@ export function ProfilePage() {
   const [reviewStats, setReviewStats] = useState({ count: 0, avg: 0, projectsCount: 0, tier: 'Bronze' as 'Platine' | 'Or' | 'Argent' | 'Bronze' });
   const [affiliations, setAffiliations] = useState<Array<{ affiliation_type: string; affiliation_name: string | null }>>([]);
   const [certifications, setCertifications] = useState<Array<{ id: string; title: string; type: string; image_url: string | null; issuer: string | null }>>([]);
+  const [products, setProducts] = useState<ProductPreview[]>([]);
   const [artisanLoading, setArtisanLoading] = useState(true);
   const [showGallery, setShowGallery] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -165,6 +176,15 @@ export function ProfilePage() {
         .eq('artisan_id', userId)
         .order('created_at', { ascending: false });
       if (certsData) setCertifications(certsData);
+
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, title, description, price, promo_percent, status, images')
+        .eq('artisan_id', userId)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(12);
+      setProducts((productsData as ProductPreview[] | null) || []);
 
       setArtisanLoading(false);
     };
@@ -427,6 +447,58 @@ export function ProfilePage() {
           </div>
         </div>
 
+        {/* Avis clients (remonté pour visibilité) */}
+        <section className="bg-white border-b px-6 py-6">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
+            <Quote size={18} className="text-brand-500" />
+            Avis clients ({reviewStats.count})
+          </h3>
+          {reviews.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Star size={24} className="text-gray-300" />
+              </div>
+              <p className="text-gray-500 font-medium">Pas encore d&apos;avis</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reviews.map((review) => (
+                <div key={review.id} className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {review.client?.avatar_url ? (
+                        <img src={review.client.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={18} className="text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-gray-900 truncate">{review.client?.full_name || 'Client'}</p>
+                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                          {new Date(review.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-0.5 mt-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} size={14} className={i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {review.comment && <p className="text-gray-600 text-sm leading-relaxed">{review.comment}</p>}
+                  {review.artisan_response && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-xs font-bold text-brand-700 mb-1">Votre réponse</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">{review.artisan_response}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Bio */}
         {artisan.artisan?.bio && (
           <section className="bg-white border-b px-6 py-6">
@@ -522,6 +594,72 @@ export function ProfilePage() {
           </section>
         )}
 
+        {/* Boutique / Mes produits */}
+        <section className="bg-white border-b px-6 py-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <ShoppingBag size={18} className="text-brand-500" />
+              Boutique
+            </h3>
+            <span className="text-xs text-gray-400 font-bold">{products.length} article(s)</span>
+          </div>
+          {products.length === 0 ? (
+            <div className="text-sm text-gray-500 bg-gray-50 border border-gray-100 rounded-xl p-4">
+              Aucun article publié pour le moment.
+              <button
+                type="button"
+                onClick={() => navigate('/my-products')}
+                className="block mt-2 text-brand-600 font-bold hover:underline"
+              >
+                Gérer mes produits →
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {products.map((product) => {
+                const primaryImage =
+                  Array.isArray(product.images) && product.images.length > 0
+                    ? String(product.images[0])
+                    : null;
+                const promoActive =
+                  product.promo_percent != null && product.promo_percent > 0 && product.status !== 'sold_out';
+                const finalPrice = promoActive
+                  ? Number(product.price || 0) * (1 - (product.promo_percent || 0) / 100)
+                  : Number(product.price || 0);
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => navigate(`/marketplace/${product.id}`)}
+                    className="text-left bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden hover:border-brand-200 transition-colors"
+                  >
+                    <div className="aspect-[4/3] bg-gray-100 overflow-hidden">
+                      {primaryImage ? (
+                        <img src={primaryImage} alt={product.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                          <Image size={24} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="font-semibold text-gray-900 text-sm line-clamp-2">{product.title}</p>
+                      <p className="text-brand-600 font-bold text-xs mt-1">
+                        {promoActive && (
+                          <span className="text-gray-400 line-through mr-1">
+                            {Number(product.price || 0).toLocaleString('fr-FR')}
+                          </span>
+                        )}
+                        {finalPrice.toLocaleString('fr-FR')} FCFA
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         {/* Contact (pour soi on peut afficher le téléphone) */}
         <section className="bg-white border-b px-6 py-6">
           <h3 className="font-bold text-gray-900 mb-4">Contact</h3>
@@ -567,58 +705,6 @@ export function ProfilePage() {
               <p className="text-xs text-gray-500 font-bold uppercase">Avis</p>
             </div>
           </div>
-        </section>
-
-        {/* Avis clients */}
-        <section className="bg-white border-b px-6 py-6">
-          <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
-            <Quote size={18} className="text-brand-500" />
-            Avis clients ({reviewStats.count})
-          </h3>
-          {reviews.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Star size={24} className="text-gray-300" />
-              </div>
-              <p className="text-gray-500 font-medium">Pas encore d'avis</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {reviews.map((review) => (
-                <div key={review.id} className="bg-gray-50 rounded-2xl p-4">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {review.client?.avatar_url ? (
-                        <img src={review.client.avatar_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <User size={18} className="text-gray-400" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="font-bold text-gray-900 truncate">{review.client?.full_name || 'Client'}</p>
-                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                          {new Date(review.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-0.5 mt-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} size={14} className={i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  {review.comment && <p className="text-gray-600 text-sm leading-relaxed">{review.comment}</p>}
-                  {review.artisan_response && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-xs font-bold text-brand-700 mb-1">Votre réponse</p>
-                      <p className="text-sm text-gray-700 leading-relaxed">{review.artisan_response}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </section>
 
         {/* Actions : Modifier, Paramètres, Voir page publique, Ma boutique, Certifications, Déconnexion */}

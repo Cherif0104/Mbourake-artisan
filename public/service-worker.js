@@ -1,7 +1,7 @@
 // Bumper la version à chaque déploiement pour forcer la mise à jour des clients (skipWaiting + controllerchange → reload)
-const CACHE_NAME = 'mbourake-v2.4.0';
-const STATIC_CACHE_NAME = 'mbourake-static-v2.4.0';
-const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.4.0';
+const CACHE_NAME = 'mbourake-v2.5.0';
+const STATIC_CACHE_NAME = 'mbourake-static-v2.5.0';
+const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.5.0';
 
 // Assets à mettre en cache immédiatement
 const STATIC_ASSETS = [

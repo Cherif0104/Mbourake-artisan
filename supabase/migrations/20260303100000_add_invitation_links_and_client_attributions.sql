@@ -82,6 +82,7 @@ COMMENT ON TABLE invitation_links IS 'Liens d''invitation générés par les org
 ALTER TABLE invitation_links ENABLE ROW LEVEL SECURITY;
 
 -- Admins plateforme : tout
+DROP POLICY IF EXISTS "Admins manage invitation_links" ON invitation_links;
 CREATE POLICY "Admins manage invitation_links"
   ON invitation_links FOR ALL
   USING (
@@ -92,6 +93,7 @@ CREATE POLICY "Admins manage invitation_links"
   );
 
 -- Admin d'une chambre ou membre manager/admin_org : créer et lire les liens de son org
+DROP POLICY IF EXISTS "Org managers create and read invitation_links" ON invitation_links;
 CREATE POLICY "Org managers create and read invitation_links"
   ON invitation_links FOR ALL
   USING (
@@ -223,12 +225,14 @@ COMMENT ON TABLE client_attributions IS 'Attribution d''un client à une organis
 
 ALTER TABLE client_attributions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Admins read client_attributions" ON client_attributions;
 CREATE POLICY "Admins read client_attributions"
   ON client_attributions FOR SELECT
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
   );
 
+DROP POLICY IF EXISTS "Org members read their org client_attributions" ON client_attributions;
 CREATE POLICY "Org members read their org client_attributions"
   ON client_attributions FOR SELECT
   USING (
@@ -241,6 +245,7 @@ CREATE POLICY "Org members read their org client_attributions"
 
 -- Insert depuis la RPC consume_invitation (service role ou SECURITY DEFINER)
 -- On autorise l'insert pour l'utilisateur connecté quand client_id = auth.uid() (auto-attribution après inscription)
+DROP POLICY IF EXISTS "User can insert own client_attribution" ON client_attributions;
 CREATE POLICY "User can insert own client_attribution"
   ON client_attributions FOR INSERT
   WITH CHECK (client_id = auth.uid());

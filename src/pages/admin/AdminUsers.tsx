@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Filter, MoreVertical, User, Briefcase, Shield, CheckCircle, XCircle, Eye, Ban, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Search, Filter, MoreVertical, User, Briefcase, Shield } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useToastContext } from '../../contexts/ToastContext';
@@ -28,9 +29,6 @@ export function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [suspendingId, setSuspendingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -56,72 +54,6 @@ export function AdminUsers() {
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     return matchesSearch && matchesRole;
   });
-
-  const handleChangeRole = async (userId: string, newRole: string) => {
-    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
-    if (error) showError(error.message);
-    else showSuccess('Rôle mis à jour.');
-    fetchUsers();
-    setSelectedUser(null);
-  };
-
-  const handleSuspend = async (userId: string, suspend: boolean) => {
-    setSuspendingId(userId);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          is_suspended: suspend,
-          suspended_at: suspend ? new Date().toISOString() : null,
-          suspended_reason: suspend ? 'Suspendu par un administrateur' : null,
-        })
-        .eq('id', userId);
-      if (error) throw error;
-      showSuccess(suspend ? 'Compte suspendu.' : 'Compte réactivé.');
-      fetchUsers();
-      setSelectedUser((u) => (u?.id === userId ? { ...u, is_suspended: suspend } : u));
-    } catch (e: unknown) {
-      showError(e instanceof Error ? e.message : 'Erreur');
-    } finally {
-      setSuspendingId(null);
-    }
-  };
-
-  const handleDeleteAccount = async (userId: string) => {
-    if (!window.confirm('Supprimer définitivement ce compte et toutes ses données ? Cette action est irréversible.')) return;
-    setDeletingId(userId);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) {
-        showError('Session expirée. Reconnectez-vous.');
-        setDeletingId(null);
-        return;
-      }
-      const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      // En local, passer par le proxy Vite pour éviter les erreurs CORS preflight.
-      const fnUrl = isLocalhost
-        ? '/api/supabase-functions/v1/admin-delete-account'
-        : (baseUrl ? `${baseUrl.replace(/\/$/, '')}/functions/v1/admin-delete-account` : `${window.location.origin}/functions/v1/admin-delete-account`);
-      const res = await fetch(fnUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ user_id: userId }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(json?.error ?? `Erreur ${res.status}`);
-      }
-      showSuccess('Compte supprimé.');
-      setSelectedUser(null);
-      fetchUsers();
-    } catch (e: unknown) {
-      showError(e instanceof Error ? e.message : 'Erreur lors de la suppression');
-    } finally {
-      setDeletingId(null);
-    }
-  };
 
   const handleExportCsv = () => {
     const rows = filteredUsers;
@@ -262,12 +194,12 @@ export function AdminUsers() {
                     </p>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => setSelectedUser(user)}
-                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    <Link
+                      to={`/admin/users/${user.id}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                     >
-                      <MoreVertical size={18} />
-                    </button>
+                      <MoreVertical size={18} /> Détail
+                    </Link>
                   </td>
                 </tr>
               ))
@@ -275,132 +207,6 @@ export function AdminUsers() {
           </tbody>
         </table>
       </div>
-
-      {/* User Details Modal */}
-      {selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-full bg-brand-100 flex items-center justify-center overflow-hidden">
-                {selectedUser.avatar_url ? (
-                  <img src={selectedUser.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <User size={28} className="text-brand-600" />
-                )}
-              </div>
-              <div>
-                <h3 className="text-xl font-black text-gray-900">{selectedUser.full_name}</h3>
-                <p className="text-sm text-gray-500">{selectedUser.email}</p>
-              </div>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-gray-500">Rôle actuel</span>
-                <span className="font-bold text-gray-900 capitalize">{selectedUser.role}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b items-center">
-                <span className="text-gray-500">Statut compte</span>
-                <span className={`font-bold ${selectedUser.is_suspended ? 'text-amber-600' : 'text-green-600'}`}>
-                  {selectedUser.is_suspended ? 'Suspendu' : 'Actif'}
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-gray-500">Téléphone</span>
-                <span className="font-bold text-gray-900">{selectedUser.phone || '-'}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-gray-500">Région</span>
-                <span className="font-bold text-gray-900">{selectedUser.location || '-'}</span>
-              </div>
-              {selectedUser.role === 'artisan' && (
-                <div className="flex flex-col gap-2 py-2 border-b">
-                  <span className="text-gray-500 text-sm">Parcours F‑P‑L</span>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-3 py-1 rounded-full bg-gray-50 text-[11px] text-gray-700 border border-gray-200">
-                      F : {selectedUser.formalisation_status || 'à démarrer'}
-                    </span>
-                    <span className="px-3 py-1 rounded-full bg-gray-50 text-[11px] text-gray-700 border border-gray-200">
-                      P : {selectedUser.professionalisation_status || 'à démarrer'}
-                    </span>
-                    <span className="px-3 py-1 rounded-full bg-gray-50 text-[11px] text-gray-700 border border-gray-200">
-                      L : {selectedUser.labellisation_status || 'à démarrer'}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Changer le rôle</p>
-              <div className="grid grid-cols-3 gap-2">
-                {['client', 'artisan', 'admin'].map((role) => (
-                  <button
-                    key={role}
-                    onClick={() => handleChangeRole(selectedUser.id, role)}
-                    disabled={selectedUser.role === role}
-                    className={`py-2 rounded-xl font-bold text-sm capitalize transition-all ${
-                      selectedUser.role === role
-                        ? 'bg-brand-500 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {role}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3 mt-4">
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Suspension</p>
-              <div className="flex gap-2">
-                {selectedUser.is_suspended ? (
-                  <button
-                    type="button"
-                    onClick={() => handleSuspend(selectedUser.id, false)}
-                    disabled={suspendingId === selectedUser.id}
-                    className="flex-1 py-2 rounded-xl font-bold text-sm bg-green-100 text-green-700 hover:bg-green-200 transition-colors flex items-center justify-center gap-2"
-                  >
-                    {suspendingId === selectedUser.id ? '…' : null}
-                    <CheckCircle size={16} />
-                    Réactiver
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleSuspend(selectedUser.id, true)}
-                    disabled={suspendingId === selectedUser.id}
-                    className="flex-1 py-2 rounded-xl font-bold text-sm bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors flex items-center justify-center gap-2"
-                  >
-                    {suspendingId === selectedUser.id ? '…' : null}
-                    <Ban size={16} />
-                    Suspendre
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => handleDeleteAccount(selectedUser.id)}
-                disabled={deletingId === selectedUser.id}
-                className="w-full py-2.5 rounded-xl font-bold text-sm bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-              >
-                {deletingId === selectedUser.id ? 'Suppression…' : <Trash2 size={16} />}
-                Supprimer le compte
-              </button>
-            </div>
-
-            <button
-              onClick={() => setSelectedUser(null)}
-              className="w-full mt-6 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
-            >
-              Fermer
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

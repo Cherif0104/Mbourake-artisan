@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, Users, Briefcase, Shield, DollarSign, 
+import {
+  LayoutDashboard, Users, Briefcase, Shield, DollarSign,
   AlertCircle, CheckCircle, LogOut, Settings, Bell, AlertTriangle, Building2, Landmark,
-  Package, ShoppingBag, FileDown
+  Package, ShoppingBag, FileDown, Menu, X, ScrollText, GraduationCap
 } from 'lucide-react';
+import { useAdminPermissions } from '../../hooks/useAdminPermissions';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -51,6 +52,7 @@ export function AdminDashboard() {
   const [orgStats, setOrgStats] = useState<{ id: string; name: string; artisanCount: number; clientCount: number }[]>([]);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showBellMenu, setShowBellMenu] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
@@ -64,12 +66,13 @@ export function AdminDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const { can, isAdmin } = useAdminPermissions();
+
   useEffect(() => {
-    // Check admin access
-    if (profile && profile.role !== 'admin') {
+    if (profile && !isAdmin) {
       navigate('/dashboard', { replace: true });
     }
-  }, [profile, navigate]);
+  }, [profile, isAdmin, navigate]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -239,10 +242,12 @@ export function AdminDashboard() {
           orgArtisanCount[c.id] = 0;
           orgClientCount[c.id] = 0;
         });
-        const { data: affils } = await supabase.from('artisan_affiliations').select('chambre_id');
-        affils?.forEach((a: { chambre_id: string | null }) => {
-          if (a.chambre_id) orgArtisanCount[a.chambre_id] = (orgArtisanCount[a.chambre_id] || 0) + 1;
-        });
+        const { data: affils, error: affilsErr } = await supabase.from('artisan_affiliations').select('chambre_id');
+        if (!affilsErr && affils) {
+          affils.forEach((a: { chambre_id: string | null }) => {
+            if (a.chambre_id) orgArtisanCount[a.chambre_id] = (orgArtisanCount[a.chambre_id] || 0) + 1;
+          });
+        }
         try {
           const { data: attr } = await supabase.from('client_attributions').select('organisation_id');
           attr?.forEach((a: { organisation_id: string }) => {
@@ -281,20 +286,26 @@ export function AdminDashboard() {
     fetchStats();
   }, []);
 
-  const navItems = [
-    { id: 'overview', path: '/admin', icon: <LayoutDashboard size={20} />, label: 'Vue d\'ensemble' },
-    { id: 'users', path: '/admin/users', icon: <Users size={20} />, label: 'Utilisateurs' },
-    { id: 'projects', path: '/admin/projects', icon: <Briefcase size={20} />, label: 'Projets' },
-    { id: 'boutique', path: '/admin/boutique', icon: <Package size={20} />, label: 'Boutique' },
-    { id: 'commandes', path: '/admin/commandes', icon: <ShoppingBag size={20} />, label: 'Commandes' },
-    { id: 'escrows', path: '/admin/escrows', icon: <DollarSign size={20} />, label: 'Paiements' },
-    { id: 'closures', path: '/admin/closures', icon: <CheckCircle size={20} />, label: 'Clôtures' },
-    { id: 'verifications', path: '/admin/verifications', icon: <Shield size={20} />, label: 'Vérifications' },
-    { id: 'affiliations', path: '/admin/affiliations', icon: <Building2 size={20} />, label: 'Affiliations' },
-    { id: 'organisations', path: '/admin/organisations', icon: <Landmark size={20} />, label: 'Organisations' },
-    { id: 'disputes', path: '/admin/disputes', icon: <AlertTriangle size={20} />, label: 'Litiges' },
-    { id: 'exports', path: '/admin/exports', icon: <FileDown size={20} />, label: 'Exports' },
+  const allNavItems = [
+    { id: 'overview', path: '/admin', icon: <LayoutDashboard size={20} />, label: 'Vue d\'ensemble', module: 'governance' as const, action: 'read' as const },
+    { id: 'users', path: '/admin/users', icon: <Users size={20} />, label: 'Utilisateurs', module: 'users', action: 'read' },
+    { id: 'projects', path: '/admin/projects', icon: <Briefcase size={20} />, label: 'Projets', module: 'governance', action: 'read' },
+    { id: 'boutique', path: '/admin/boutique', icon: <Package size={20} />, label: 'Boutique', module: 'governance', action: 'read' },
+    { id: 'commandes', path: '/admin/commandes', icon: <ShoppingBag size={20} />, label: 'Commandes', module: 'governance', action: 'read' },
+    { id: 'escrows', path: '/admin/escrows', icon: <DollarSign size={20} />, label: 'Paiements', module: 'finance', action: 'read' },
+    { id: 'closures', path: '/admin/closures', icon: <CheckCircle size={20} />, label: 'Clôtures', module: 'finance', action: 'read' },
+    { id: 'verifications', path: '/admin/verifications', icon: <Shield size={20} />, label: 'Vérifications', module: 'users', action: 'read' },
+    { id: 'affiliations', path: '/admin/affiliations', icon: <Building2 size={20} />, label: 'Affiliations', module: 'organisations', action: 'read' },
+    { id: 'organisations', path: '/admin/organisations', icon: <Landmark size={20} />, label: 'Organisations', module: 'organisations', action: 'read' },
+    { id: 'disputes', path: '/admin/disputes', icon: <AlertTriangle size={20} />, label: 'Litiges', module: 'governance', action: 'read' },
+    { id: 'exports', path: '/admin/exports', icon: <FileDown size={20} />, label: 'Exports', module: 'bi', action: 'export' },
+    { id: 'audit', path: '/admin/audit', icon: <ScrollText size={20} />, label: 'Journal d\'audit', module: 'governance', action: 'read' },
+    { id: 'commissions', path: '/admin/commissions', icon: <DollarSign size={20} />, label: 'Commissions', module: 'finance', action: 'read' },
+    { id: 'deletion_requests', path: '/admin/deletion-requests', icon: <AlertTriangle size={20} />, label: 'Demandes suppression', module: 'governance', action: 'read' },
+    { id: 'executive', path: '/admin/executive', icon: <LayoutDashboard size={20} />, label: 'Dashboard exécutif', module: 'bi', action: 'read' },
+    { id: 'training', path: '/admin/training', icon: <GraduationCap size={20} />, label: 'Formation & cohortes', module: 'bi', action: 'read' },
   ];
+  const navItems = allNavItems.filter((item) => can(item.module, item.action));
 
   const isActive = (path: string) => {
     if (path === '/admin') return location.pathname === '/admin';
@@ -302,23 +313,42 @@ export function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className="w-72 bg-gray-900 text-white flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-white/10">
-          <h1 className="text-2xl font-black tracking-tight">
-            Mboura<span className="text-brand-500">ké</span>
-          </h1>
-          <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Panel Admin</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+      {/* Backdrop mobile (ferme le drawer au clic) */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          aria-label="Fermer le menu"
+        />
+      )}
+      {/* Sidebar: fixe desktop, drawer mobile */}
+      <aside
+        className={`fixed md:relative inset-y-0 left-0 z-50 w-72 bg-gray-900 text-white flex flex-col shrink-0 max-h-screen md:max-h-none md:min-h-screen transition-transform duration-200 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+      >
+        <div className="p-6 border-b border-white/10 shrink-0 flex items-start justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight">
+              Mboura<span className="text-brand-500">ké</span>
+            </h1>
+            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Panel Admin</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-2 -m-2 text-gray-400 hover:text-white rounded-lg"
+            aria-label="Fermer le menu"
+          >
+            <X size={20} />
+          </button>
         </div>
-        
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto min-h-0">
           {navItems.map((item) => (
             <Link
               key={item.id}
               to={item.path}
+              onClick={() => setSidebarOpen(false)}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
                 isActive(item.path)
                   ? 'bg-brand-500 text-white shadow-lg'
@@ -340,9 +370,7 @@ export function AdminDashboard() {
             </Link>
           ))}
         </nav>
-        
-        {/* User & Logout */}
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-white/10 shrink-0">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center font-black">
               {profile?.full_name?.[0] || 'A'}
@@ -364,16 +392,23 @@ export function AdminDashboard() {
           </button>
         </div>
       </aside>
-      
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col">
-        {/* Top Bar */}
-        <header className="bg-white border-b px-8 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-black text-gray-900">
+      <main className="flex-1 flex flex-col min-h-0 min-w-0">
+        <header className="sticky top-0 z-10 bg-white border-b px-4 sm:px-8 py-4 flex items-center gap-3 justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-2 -m-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+              aria-label="Ouvrir le menu"
+            >
+              <Menu size={24} />
+            </button>
+            <div className="min-w-0">
+            <h2 className="text-xl font-black text-gray-900 truncate">
               {navItems.find(n => isActive(n.path))?.label || 'Dashboard'}
             </h2>
-            <p className="text-sm text-gray-400">Gérez votre plateforme Mbourake</p>
+            <p className="text-sm text-gray-400 hidden sm:block">Gérez votre plateforme Mbourake</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative" ref={bellRef}>
@@ -424,9 +459,7 @@ export function AdminDashboard() {
             </div>
           </div>
         </header>
-        
-        {/* Content Area */}
-        <div className="flex-1 p-8 overflow-auto">
+        <div className="flex-1 p-8 overflow-auto min-h-0">
           {location.pathname === '/admin' ? (
             /* Vue d'ensemble minimaliste */
             <div className="space-y-6 max-w-5xl">
