@@ -68,7 +68,7 @@ export function useEscrow() {
 
         if (acceptedQuote?.artisan_id) {
           const quoteAmount = Number(acceptedQuote?.amount || 0);
-          const total = Number(escrowData.total_amount ?? 0) || quoteAmount;
+          const total = Math.max(Number(escrowData.total_amount ?? 0), quoteAmount) || quoteAmount;
           const payout = Number(escrowData.artisan_payout ?? 0) || (quoteAmount ? Math.round(quoteAmount * 0.85) : 0);
           const tva = Number(escrowData.tva_amount ?? 0);
           const commission = Number(escrowData.commission_amount ?? 0) || (total ? Math.round(total * 0.1) : 0);

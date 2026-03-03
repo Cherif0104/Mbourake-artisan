@@ -294,15 +294,19 @@ export async function notifyClientArtisanAbandoned(
 }
 
 /**
- * Notifie l'artisan quand le paiement est reçu (montant net uniquement)
+ * Notifie l'artisan quand le paiement est reçu (montant net uniquement).
+ * Si amount vaut 0, le message n'affiche pas de montant pour éviter "0 FCFA".
  */
 export async function notifyArtisanPaymentReceived(projectId: string, artisanId: string, amount: number) {
+  const amountText = amount > 0
+    ? `Vous avez reçu ${amount.toLocaleString('fr-FR')} FCFA. `
+    : 'Votre paiement a été enregistré. ';
   await createNotification({
     userId: artisanId,
     type: 'payment_received',
     title: 'Paiement reçu',
-    message: `Vous avez reçu ${amount.toLocaleString('fr-FR')} FCFA. Vous pouvez maintenant commencer les travaux.`,
-    data: { project_id: projectId },
+    message: `${amountText}Vous pouvez maintenant commencer les travaux.`,
+    data: { project_id: projectId, amount },
   });
 }
 

@@ -76,7 +76,7 @@ function DownloadUnavailablePage() {
         </div>
         <h1 className="text-xl font-black text-gray-900 mb-2">Téléchargement indisponible</h1>
         <p className="text-gray-600 text-sm mb-6">
-          Le fichier de l'application Android n'est pas encore disponible à cette adresse. Revenez à l'accueil et utilisez le bouton « Télécharger l'app Android » lorsque le lien sera configuré.
+          Le fichier n'est pas disponible à cette adresse. Revenez à l'accueil et utilisez « Télécharger sur mobile » dans le footer pour installer l'application Mbourake (PWA).
         </p>
         <button
           onClick={() => navigate('/')}

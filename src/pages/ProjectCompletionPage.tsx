@@ -188,11 +188,11 @@ export function ProjectCompletionPage() {
 
       if (updateError) throw updateError;
 
-      // 4. Notify artisan
+      // 4. Notify artisan (montant net versé : artisan_payout > total_amount > quote.amount)
       if (quote?.artisan_id && project?.title) {
         try {
           const payoutAmount = Number(escrow?.artisan_payout ?? 0) || Number(escrow?.total_amount ?? 0) || Number(quote?.amount ?? 0) || 0;
-          const amountForMessage = payoutAmount || Number(quote?.amount ?? 0);
+          const amountForMessage = Math.max(payoutAmount, Number(quote?.amount ?? 0));
           await notifyArtisanPaymentReceived(id, quote.artisan_id, amountForMessage);
 
           // Also notify about the rating

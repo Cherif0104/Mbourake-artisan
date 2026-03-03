@@ -113,12 +113,17 @@ export function useProfile() {
         (currentUser.user_metadata?.picture as string | undefined) ||
         null;
 
+      // Ne jamais rétrograder un admin : si le profil existant a role = 'admin', conserver admin
+      let roleToWrite = input.role;
+      const { data: existing } = await supabase.from('profiles').select('role').eq('id', currentUser.id).maybeSingle();
+      if ((existing as { role?: string } | null)?.role === 'admin') roleToWrite = 'admin';
+
       // Update or create Profile
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: currentUser.id,
         email: currentUser.email ?? null,
         full_name: input.full_name,
-        role: input.role,
+        role: roleToWrite,
         avatar_url: avatarFromProvider,
         phone: input.phone ?? null,
         // Conserver location comme champ combiné pour compatibilité
@@ -133,7 +138,7 @@ export function useProfile() {
       if (profileError) throw profileError;
 
       // If Artisan, update/create Artisan record
-      if (input.role === 'artisan') {
+      if (roleToWrite === 'artisan') {
         const { error: artisanError } = await supabase.from('artisans').upsert({
           id: currentUser.id,
           user_id: currentUser.id,
