@@ -99,7 +99,11 @@ export function AdminUsers() {
         return;
       }
       const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
-      const fnUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/functions/v1/admin-delete-account` : `${window.location.origin}/functions/v1/admin-delete-account`;
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      // En local, passer par le proxy Vite pour éviter les erreurs CORS preflight.
+      const fnUrl = isLocalhost
+        ? '/api/supabase-functions/v1/admin-delete-account'
+        : (baseUrl ? `${baseUrl.replace(/\/$/, '')}/functions/v1/admin-delete-account` : `${window.location.origin}/functions/v1/admin-delete-account`);
       const res = await fetch(fnUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

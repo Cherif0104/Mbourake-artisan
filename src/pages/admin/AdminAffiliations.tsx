@@ -45,10 +45,19 @@ export function AdminAffiliations() {
   }, [filter]);
 
   useEffect(() => {
-    supabase.from('chambres_metier').select('id, name').order('name').then(({ data }) => {
+    supabase.from('chambres_metier').select('id, name').order('name').then(({ data, error }) => {
+      if (error) {
+        const msg = `${error.code || ''} ${error.message || ''}`.toLowerCase();
+        if (msg.includes('pgrst205') || msg.includes('could not find the table') || msg.includes('404')) {
+          setChambres([]);
+          return;
+        }
+        showError(error.message);
+        return;
+      }
       setChambres((data as { id: string; name: string }[]) || []);
     });
-  }, []);
+  }, [showError]);
 
   const loadAffiliations = async () => {
     try {
@@ -70,7 +79,14 @@ export function AdminAffiliations() {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        const msg = `${error.code || ''} ${error.message || ''}`.toLowerCase();
+        if (msg.includes('pgrst205') || msg.includes('could not find the table') || msg.includes('404')) {
+          setAffiliations([]);
+          return;
+        }
+        throw error;
+      }
       setAffiliations(data || []);
     } catch (err: any) {
       console.error('Error loading affiliations:', err);

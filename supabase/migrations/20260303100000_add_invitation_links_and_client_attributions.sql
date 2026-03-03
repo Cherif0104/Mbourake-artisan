@@ -1,5 +1,65 @@
 -- Migration: Liens d'invitation (artisans / clients) et attributions clients
 -- Phase 3 du plan super admin
+-- Prérequis : chambres_metier et organisation_members. Si absents (migrations antérieures non jouées), on les crée ici.
+
+-- Créer chambres_metier si elle n'existe pas (dépendance de invitation_links et client_attributions)
+CREATE TABLE IF NOT EXISTS chambres_metier (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  region TEXT NOT NULL,
+  address TEXT,
+  phone TEXT,
+  email TEXT,
+  admin_id UUID REFERENCES profiles(id),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE chambres_metier ADD COLUMN IF NOT EXISTS organisation_type TEXT DEFAULT 'chambre';
+
+ALTER TABLE chambres_metier ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Chambres actives visibles par tous" ON chambres_metier;
+CREATE POLICY "Chambres actives visibles par tous" ON chambres_metier FOR SELECT USING (is_active = true);
+DROP POLICY IF EXISTS "Seuls les admins gèrent les chambres" ON chambres_metier;
+CREATE POLICY "Seuls les admins gèrent les chambres" ON chambres_metier FOR ALL
+  USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'));
+
+-- Créer organisation_members si elle n'existe pas (référencée dans les policies)
+CREATE TABLE IF NOT EXISTS organisation_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  organisation_id UUID NOT NULL REFERENCES chambres_metier(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN (
+    'admin_org', 'manager', 'formateur', 'facilitateur', 'conseil_client', 'gestionnaire_dossiers'
+  )),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, organisation_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_organisation_members_user ON organisation_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_organisation_members_org ON organisation_members(organisation_id);
+
+ALTER TABLE organisation_members ENABLE ROW LEVEL SECURITY;
+
+-- Policies organisation_members (au cas où la migration 20260302 n'a pas été jouée)
+DROP POLICY IF EXISTS "Admins manage organisation_members" ON organisation_members;
+CREATE POLICY "Admins manage organisation_members"
+  ON organisation_members FOR ALL
+  USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'));
+
+DROP POLICY IF EXISTS "Chambre admin manages members" ON organisation_members;
+CREATE POLICY "Chambre admin manages members"
+  ON organisation_members FOR ALL
+  USING (EXISTS (SELECT 1 FROM chambres_metier cm WHERE cm.id = organisation_members.organisation_id AND cm.admin_id = auth.uid()))
+  WITH CHECK (EXISTS (SELECT 1 FROM chambres_metier cm WHERE cm.id = organisation_members.organisation_id AND cm.admin_id = auth.uid()));
+
+DROP POLICY IF EXISTS "Members read own row" ON organisation_members;
+CREATE POLICY "Members read own row"
+  ON organisation_members FOR SELECT
+  USING (user_id = auth.uid());
 
 -- Table des liens d'invitation
 CREATE TABLE IF NOT EXISTS invitation_links (

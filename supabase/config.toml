@@ -6,3 +6,6 @@
 # Le JWT est vérifié manuellement dans la fonction pour les requêtes POST.
 [functions.delete-my-account]
 verify_jwt = false
+
+[functions.admin-delete-account]
+verify_jwt = false

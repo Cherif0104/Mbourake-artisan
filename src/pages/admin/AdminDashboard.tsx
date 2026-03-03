@@ -125,18 +125,13 @@ export function AdminDashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'disputed');
 
-      // F‑P‑L : leads de formalisation (artisans sans statut) et formalisation complétée
-      const { count: formalisationLeads } = await supabase
+      // F‑P‑L : éviter les 400 si colonnes FPL non déployées (calcul côté front)
+      const { data: artisanProfilesForFpl } = await supabase
         .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'artisan')
-        .is('formalisation_status', null);
-
-      const { count: formalisationCompleted } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'artisan')
-        .eq('formalisation_status', 'valide');
+        .select('*')
+        .eq('role', 'artisan');
+      const formalisationLeads = (artisanProfilesForFpl || []).filter((p: any) => !p.formalisation_status).length;
+      const formalisationCompleted = (artisanProfilesForFpl || []).filter((p: any) => p.formalisation_status === 'valide').length;
       
       // Fetch project trends (derniers 30 jours)
       const thirtyDaysAgo = new Date();
@@ -211,10 +206,11 @@ export function AdminDashboard() {
       );
 
       // F-P-L (formalisation / professionnalisation / labellisation)
-      const { data: fplProfiles } = await supabase
-        .from('profiles')
-        .select('formalisation_status, professionalisation_status, labellisation_status')
-        .eq('role', 'artisan');
+      const fplProfiles = (artisanProfilesForFpl || []) as Array<{
+        formalisation_status?: string | null;
+        professionalisation_status?: string | null;
+        labellisation_status?: string | null;
+      }>;
       const fplForm = new Map<string, number>();
       const fplPro = new Map<string, number>();
       const fplLab = new Map<string, number>();
@@ -233,31 +229,37 @@ export function AdminDashboard() {
       setFplStats(fplRows.sort((a, b) => b.count - a.count));
 
       // Par organisation (chambres + affiliations / attributions)
-      const { data: chambres } = await supabase.from('chambres_metier').select('id, name');
-      const orgArtisanCount: Record<string, number> = {};
-      const orgClientCount: Record<string, number> = {};
-      (chambres || []).forEach((c: { id: string }) => {
-        orgArtisanCount[c.id] = 0;
-        orgClientCount[c.id] = 0;
-      });
-      const { data: affils } = await supabase.from('artisan_affiliations').select('chambre_id');
-      affils?.forEach((a: { chambre_id: string | null }) => {
-        if (a.chambre_id) orgArtisanCount[a.chambre_id] = (orgArtisanCount[a.chambre_id] || 0) + 1;
-      });
       try {
-        const { data: attr } = await supabase.from('client_attributions').select('organisation_id');
-        attr?.forEach((a: { organisation_id: string }) => {
-          orgClientCount[a.organisation_id] = (orgClientCount[a.organisation_id] || 0) + 1;
+        const { data: chambres, error: chambresErr } = await supabase.from('chambres_metier').select('id, name');
+        if (chambresErr) throw chambresErr;
+
+        const orgArtisanCount: Record<string, number> = {};
+        const orgClientCount: Record<string, number> = {};
+        (chambres || []).forEach((c: { id: string }) => {
+          orgArtisanCount[c.id] = 0;
+          orgClientCount[c.id] = 0;
         });
-      } catch (_) { /* table peut ne pas exister */ }
-      setOrgStats(
-        (chambres || []).map((c: { id: string; name: string }) => ({
-          id: c.id,
-          name: c.name,
-          artisanCount: orgArtisanCount[c.id] || 0,
-          clientCount: orgClientCount[c.id] || 0,
-        }))
-      );
+        const { data: affils } = await supabase.from('artisan_affiliations').select('chambre_id');
+        affils?.forEach((a: { chambre_id: string | null }) => {
+          if (a.chambre_id) orgArtisanCount[a.chambre_id] = (orgArtisanCount[a.chambre_id] || 0) + 1;
+        });
+        try {
+          const { data: attr } = await supabase.from('client_attributions').select('organisation_id');
+          attr?.forEach((a: { organisation_id: string }) => {
+            orgClientCount[a.organisation_id] = (orgClientCount[a.organisation_id] || 0) + 1;
+          });
+        } catch (_) { /* table peut ne pas exister */ }
+        setOrgStats(
+          (chambres || []).map((c: { id: string; name: string }) => ({
+            id: c.id,
+            name: c.name,
+            artisanCount: orgArtisanCount[c.id] || 0,
+            clientCount: orgClientCount[c.id] || 0,
+          }))
+        );
+      } catch (_) {
+        setOrgStats([]);
+      }
       
       setStats({
         totalUsers: totalUsers || 0,

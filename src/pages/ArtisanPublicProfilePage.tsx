@@ -821,7 +821,7 @@ export function ArtisanPublicProfilePage() {
                   )}
                   
                   {/* Réponse de l'artisan */}
-                  {review.artisan_response && (
+                  {false && review.artisan_response && (
                     <div className="mt-3 pt-3 border-t border-gray-200">
                       <div className="flex items-start gap-2 mb-2">
                         <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
@@ -847,7 +847,7 @@ export function ArtisanPublicProfilePage() {
                   )}
 
                   {/* Bouton pour répondre (seulement si c'est le profil de l'artisan connecté) */}
-                  {!review.artisan_response && user?.id === id && (
+                  {false && !review.artisan_response && user?.id === id && (
                     <button
                       onClick={() => {
                         const reviewId = review.id;
@@ -1019,7 +1019,7 @@ export function ArtisanPublicProfilePage() {
       )}
 
       {/* Modal pour répondre à un commentaire */}
-      {selectedReviewId && (
+      {false && selectedReviewId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
