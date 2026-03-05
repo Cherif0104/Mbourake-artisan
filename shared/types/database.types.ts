@@ -859,6 +859,10 @@ export type Database = {
         }
         Returns: string
       }
+      get_accepted_quote_artisan_for_project: {
+        Args: { p_project_id: string }
+        Returns: string | null
+      }
     }
     Enums: {
       credit_transaction_type: "purchase" | "usage" | "refund"

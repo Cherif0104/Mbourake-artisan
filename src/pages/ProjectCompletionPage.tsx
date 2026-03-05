@@ -110,6 +110,24 @@ export function ProjectCompletionPage() {
           }
         }
 
+        // Dernier recours : RPC qui contourne RLS (évite "aucun devis retrouvé" à la clôture)
+        if (!qData?.artisan_id) {
+          const { data: rpcArtisanId, error: rpcErr } = await supabase.rpc('get_accepted_quote_artisan_for_project', {
+            p_project_id: id,
+          });
+          if (!rpcErr && rpcArtisanId) {
+            const aid = rpcArtisanId as string;
+            qData = { id: '', artisan_id: aid, amount: null, status: 'accepted', created_at: null };
+            setQuote(qData);
+            const { data: art } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url')
+              .eq('id', aid)
+              .maybeSingle();
+            setArtisan(art || null);
+          }
+        }
+
         // Accès : client OU artisan assigné (alignement côté artisan)
         const clientFlag = pData.client_id === auth.user.id;
         const artisanFlag = qData?.artisan_id === auth.user.id;

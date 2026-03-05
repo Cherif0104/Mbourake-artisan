@@ -47,7 +47,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const supabaseUrl = (env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
     return {
-      base: './',
+      base: '/',
       server: {
         port: 3002,
         host: '0.0.0.0',
