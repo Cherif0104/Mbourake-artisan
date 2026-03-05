@@ -43,6 +43,7 @@ function getNotificationTarget(notification: Notification): string {
   if (type === 'quote_revision_requested' && data?.project_id && data?.revision_id) return `/projects/${data.project_id}?revision=${data.revision_id}`;
   if (type === 'quote_revision_requested') return '/revisions';
   if (type === 'project_completed' && data?.project_id) return `/projects/${data.project_id}#suivi`;
+  if (type === 'system' && (data?.kind === 'rating_received' || data?.rating != null)) return '/avis-recus';
   if (data?.project_id && ['new_project', 'quote_accepted', 'quote_rejected', 'quote_revision_responded', 'system', 'dispute_raised'].includes(type)) {
     if (type === 'system' && data?.kind === 'quote_revision_requested' && data?.revision_id) return `/projects/${data.project_id}?revision=${data.revision_id}`;
     return `/projects/${data.project_id}#devis`;

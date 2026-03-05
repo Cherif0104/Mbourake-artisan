@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, FileText, Download, Mail, CheckCircle, Clock, 
-  X, AlertCircle, Filter, DollarSign, Calendar, Eye, Printer
+  X, AlertCircle, Filter, DollarSign, Calendar, Eye, Printer, Lock, UnlockCircle
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -18,6 +18,15 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   cancelled: { label: 'Annulée', color: 'bg-gray-100 text-gray-500 border border-gray-200', icon: <X size={16} /> },
 };
 
+const PRESTATION_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  held: { label: 'Client a payé – En attente versement plateforme', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
+  advance_paid: { label: 'Client a payé – En attente versement plateforme', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
+  released: { label: 'Versé', color: 'bg-green-100 text-green-700 border border-green-200', icon: <UnlockCircle size={16} /> },
+  frozen: { label: 'En attente résolution', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
+  refunded: { label: 'Remboursé', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <X size={16} /> },
+  pending: { label: 'En attente paiement client', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <Clock size={16} /> },
+};
+
 export function InvoicesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -25,6 +34,7 @@ export function InvoicesPage() {
   const { info } = useToastContext();
   
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [prestations, setPrestations] = useState<Array<{ escrow: any; project: any }>>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -33,7 +43,28 @@ export function InvoicesPage() {
   useEffect(() => {
     if (!user || !profile) return;
     fetchInvoices();
+    if (profile.role === 'artisan') fetchPrestations();
   }, [user, profile, filterStatus]);
+
+  const fetchPrestations = async () => {
+    if (!user || profile?.role !== 'artisan') return;
+    const { data: acceptedQuotes } = await supabase
+      .from('quotes')
+      .select('project_id')
+      .eq('artisan_id', user.id)
+      .eq('status', 'accepted');
+    const projectIds = (acceptedQuotes || []).map(q => q.project_id).filter(Boolean);
+    if (projectIds.length === 0) {
+      setPrestations([]);
+      return;
+    }
+    const { data: escrowsData } = await supabase
+      .from('escrows')
+      .select('*, projects(id, title, project_number, status)')
+      .in('project_id', projectIds)
+      .order('created_at', { ascending: false });
+    setPrestations((escrowsData || []).map(e => ({ escrow: e, project: e.projects })));
+  };
 
   const fetchInvoices = async () => {
     if (!user || !profile) return;
@@ -146,6 +177,56 @@ export function InvoicesPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
+        {/* Prestations réalisées (artisan) */}
+        {profile?.role === 'artisan' && (
+          <section className="mb-6">
+            <h2 className="font-bold text-gray-900 mb-3">Prestations réalisées</h2>
+            <p className="text-sm text-gray-500 mb-3">État des paiements par projet (client a payé, versement plateforme, litige).</p>
+            {prestations.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
+                <DollarSign size={32} className="mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500">Aucune prestation avec paiement pour le moment.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {prestations.map(({ escrow, project }) => {
+                  const statusKey = (project?.status === 'disputed' ? 'frozen' : escrow?.status) || 'pending';
+                  const config = PRESTATION_STATUS[statusKey] || PRESTATION_STATUS.pending;
+                  return (
+                    <div
+                      key={escrow.id}
+                      className="bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="font-bold text-gray-900 truncate">{project?.title || project?.project_number || 'Projet'}</p>
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 flex-shrink-0 ${config.color}`}>
+                          {config.icon}
+                          {config.label}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-500">
+                        <span>Montant: {Number(escrow?.total_amount || 0).toLocaleString('fr-FR')} FCFA</span>
+                        {escrow?.artisan_payout != null && (
+                          <span className="text-gray-700">Reliquat: {Number(escrow.artisan_payout).toLocaleString('fr-FR')} FCFA</span>
+                        )}
+                      </div>
+                      {project?.id && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                          className="mt-2 text-xs text-brand-500 font-bold hover:underline"
+                        >
+                          Voir le projet
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-2xl p-4 border border-gray-100">

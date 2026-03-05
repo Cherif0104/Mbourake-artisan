@@ -133,7 +133,7 @@ export function RatingModal({
           type: 'system',
           title: 'Nouvelle note reçue',
           message: `Vous avez reçu une note de ${rating}/5 pour le projet "${projectTitle}".${comment ? ' Commentaire: ' + comment.substring(0, 100) : ''}`,
-          data: { project_id: projectId, rating }
+          data: { project_id: projectId, rating, kind: 'rating_received' }
         });
       } catch (notifErr) {
         console.error('Error notifying artisan:', notifErr);

@@ -815,6 +815,21 @@ export function Dashboard() {
                     <Package size={18} className="text-brand-600" />
                   </div>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/avis-recus')}
+                  className="mt-3 w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[88px] flex items-center justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-black text-gray-900">Avis reçus</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Notes et historique
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                    <Star size={18} className="text-amber-600 fill-amber-500" />
+                  </div>
+                </button>
               </>
             )}
 

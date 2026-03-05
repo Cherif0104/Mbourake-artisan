@@ -4,13 +4,13 @@ import {
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
   Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
-  ChevronRight, X, MapPin, User, FileEdit, ShoppingBag, Handshake, Menu, Shield
+  ChevronRight, X, MapPin, User, FileEdit, ShoppingBag, Handshake, Menu, Shield, Download
 } from 'lucide-react';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
-import { DownloadOnMobileButton } from '../components/DownloadOnMobileButton';
+import { usePWAInstall } from '../contexts/PWAInstallContext';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { supabase } from '../lib/supabase';
 
@@ -38,6 +38,7 @@ export function LandingPage() {
   const auth = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { success: showSuccess } = useToastContext();
+  const pwaInstall = usePWAInstall();
   const { categories: dbCategories, loading } = useDiscovery();
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
@@ -612,7 +613,17 @@ export function LandingPage() {
           >
             Artisans
           </button>
-          <DownloadOnMobileButton />
+          {pwaInstall?.canInstall && (
+            <button
+              type="button"
+              onClick={() => pwaInstall.promptInstall()}
+              className="flex items-center gap-2 text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
+              aria-label="Installer l'application sur votre téléphone"
+            >
+              <Download size={18} />
+              Installer l&apos;application
+            </button>
+          )}
           <button 
             onClick={() => navigate('/onboard?mode=signup')}
             className="text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"

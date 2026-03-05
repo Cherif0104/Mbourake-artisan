@@ -40,13 +40,16 @@ function playNotificationSound() {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'new_project' | 'new_quote' | 'quote_accepted' | 'quote_rejected' | 'project_completed' | 'payment_received' | 'verification_approved' | 'verification_rejected' | 'new_message' | 'system';
+  type: 'new_project' | 'new_quote' | 'quote_accepted' | 'quote_rejected' | 'project_completed' | 'payment_received' | 'verification_approved' | 'verification_rejected' | 'new_message' | 'quote_revision_requested' | 'quote_revision_responded' | 'dispute_raised' | 'system';
   title: string;
   message: string | null;
   data: Record<string, any>;
   is_read: boolean;
   created_at: string;
 }
+
+/** Nom de l’événement émis à chaque nouvelle notification (pour toast / vibration type appli native). */
+export const NEW_NOTIFICATION_EVENT = 'mbourake-new-notification';
 
 export function useNotifications() {
   const { user } = useAuth();
@@ -160,17 +163,7 @@ export function useNotifications() {
 
     fetchNotifications();
 
-    // En développement (localhost avec React StrictMode + Vite),
-    // les effets sont montés/démontés plusieurs fois et Supabase Realtime
-    // peut spammer la console avec des erreurs de WebSocket.
-    // Pour éviter ce bruit et les re-renders visuels gênants,
-    // on désactive l'abonnement temps-réel en DEV et on ne garde
-    // que le fetch classique.
-    if (import.meta.env.DEV) {
-      return;
-    }
-
-    // Subscribe to new notifications
+    // Abonnement temps réel : nouvelles notifications sans rafraîchir la page
     const channel = supabase
       .channel('notifications_realtime')
       .on(
@@ -186,6 +179,30 @@ export function useNotifications() {
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
           playNotificationSound();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent(NEW_NOTIFICATION_EVENT, { detail: newNotification }));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as Notification;
+          const oldRow = payload.old as { is_read?: boolean } | undefined;
+          setNotifications(prev =>
+            prev.map(n => (n.id === updated.id ? { ...n, ...updated } : n))
+          );
+          if (updated.is_read && !oldRow?.is_read) {
+            setUnreadCount(prev => Math.max(0, prev - 1));
+          } else if (!updated.is_read && oldRow?.is_read) {
+            setUnreadCount(prev => prev + 1);
+          }
         }
       )
       .subscribe();
@@ -194,6 +211,19 @@ export function useNotifications() {
       supabase.removeChannel(channel);
     };
   }, [user, fetchNotifications]);
+
+  // Badge type appli native : titre de l’onglet avec nombre de non lus
+  useEffect(() => {
+    const base = 'Mbourake';
+    if (unreadCount > 0) {
+      document.title = `(${unreadCount}) ${base}`;
+    } else {
+      document.title = base;
+    }
+    return () => {
+      document.title = base;
+    };
+  }, [unreadCount]);
 
   const unreadMessageCount = notifications.filter(
     n => !n.is_read && n.type === 'new_message'

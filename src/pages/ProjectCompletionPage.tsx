@@ -197,7 +197,7 @@ export function ProjectCompletionPage() {
             type: 'system',
             title: 'Nouvelle note reçue',
             message: `Vous avez reçu une note de ${rating}/5 pour le projet "${project.title}".`,
-            data: { project_id: id, rating }
+            data: { project_id: id, rating, kind: 'rating_received' }
           });
         } catch (notifErr) {
           console.error('Notification error:', notifErr);

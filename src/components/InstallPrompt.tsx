@@ -12,10 +12,10 @@ function getInstallInstructions(browser: PWAInstallBrowser | null, isIOS: boolea
     return {
       steps: (
         <>
-          <p>Pour ajouter Mbouraké sur votre écran d&apos;accueil :</p>
-          <ol className="list-decimal list-inside space-y-1 ml-2 mt-1">
-            <li>Appuyez sur le bouton <span className="font-bold">Partager</span></li>
-            <li>Sélectionnez <span className="font-bold">Sur l&apos;écran d&apos;accueil</span></li>
+          <p className="font-medium text-gray-700">Sur iPhone, en 2 étapes :</p>
+          <ol className="list-decimal list-inside space-y-1.5 ml-2 mt-2 text-gray-600">
+            <li>Appuyez sur <span className="font-bold text-gray-800">Partager</span> (icône en bas de Safari)</li>
+            <li>Choisissez <span className="font-bold text-gray-800">« Ajouter à l&apos;écran d&apos;accueil »</span> puis <span className="font-bold text-gray-800">« Ajouter »</span></li>
           </ol>
         </>
       ),
@@ -34,7 +34,7 @@ function getInstallInstructions(browser: PWAInstallBrowser | null, isIOS: boolea
   if (browser === 'other-mobile') {
     return { steps: <>Ouvrez le menu du navigateur et cherchez « Ajouter à l&apos;écran d&apos;accueil » ou « Installer l&apos;application ».</>, showButton: false };
   }
-  return { steps: <>Ajoutez Mbouraké à votre écran d&apos;accueil pour y accéder comme une app.</>, showButton: true };
+  return { steps: <>Un clic sur <strong>Télécharger</strong> et l&apos;app s&apos;installe sur votre téléphone.</>, showButton: true };
 }
 
 /**
@@ -66,14 +66,14 @@ export function InstallPrompt() {
       ctx.setDeferredPrompt(e as BeforeInstallPromptEvent);
       ctx.setInstallBrowser('android-chrome');
       const dismissed = localStorage.getItem('pwa-install-dismissed');
-      if (!dismissed) setTimeout(() => ctx.setShowBanner(true), 3000);
+      if (!dismissed) setTimeout(() => ctx.setShowBanner(true), 800);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     if (iOS || ctx.installBrowser) {
       const dismissed = localStorage.getItem('pwa-install-dismissed');
-      if (!dismissed) setTimeout(() => ctx.setShowBanner(true), 5000);
+      if (!dismissed) setTimeout(() => ctx.setShowBanner(true), 1200);
     }
 
     return () => {
@@ -114,17 +114,18 @@ export function InstallPrompt() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="font-black text-gray-900 mb-1">Installez l&apos;app Mbouraké</h3>
+            <h3 className="font-black text-gray-900 mb-1">Téléchargez Mbourake sur votre téléphone</h3>
             <div className="text-sm text-gray-600 space-y-1">{steps}</div>
 
             <div className="flex gap-2 mt-4 flex-wrap items-center">
               {showButton && ctx.deferredPrompt && (
                 <button
                   onClick={handleInstall}
-                  className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors"
+                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 px-5 py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors text-base"
+                  aria-label="Télécharger l'application"
                 >
-                  <Download size={18} />
-                  Installer
+                  <Download size={20} />
+                  Télécharger
                 </button>
               )}
               <button

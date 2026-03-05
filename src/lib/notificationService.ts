@@ -327,13 +327,13 @@ export async function notifyArtisanPaymentHeldWithBreakdown(
   const commissionPercent = total_amount > 0
     ? Math.round((commission_amount / total_amount) * 100)
     : 0;
-  const msg = `Paiement du client reçu et sécurisé (${total_amount.toLocaleString('fr-FR')} FCFA). ` +
-    `Après déduction TVA et commission plateforme (${commissionPercent}%), votre reliquat : ${artisan_payout.toLocaleString('fr-FR')} FCFA. ` +
-    `Conformément aux CGV, ce montant vous sera versé à la clôture du projet.`;
+  const msg = `Le client a sécurisé votre argent (${total_amount.toLocaleString('fr-FR')} FCFA). ` +
+    `Après déduction TVA et commission (${commissionPercent}%), votre reliquat : ${artisan_payout.toLocaleString('fr-FR')} FCFA. ` +
+    `Le projet peut continuer. Ce montant vous sera versé à la clôture du projet (CGV).`;
   await createNotification({
     userId: artisanId,
     type: 'payment_received',
-    title: 'Paiement reçu et sécurisé',
+    title: 'Le client a sécurisé votre argent',
     message: msg,
     data: {
       project_id: projectId,

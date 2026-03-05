@@ -20,6 +20,7 @@ const NOTIFICATION_ICONS: Record<string, { icon: React.ReactNode; color: string;
   new_message: { icon: <MessageSquare size={16} />, color: 'text-brand-600', bg: 'bg-brand-100' },
   quote_revision_requested: { icon: <AlertTriangle size={16} />, color: 'text-yellow-600', bg: 'bg-yellow-100' },
   quote_revision_responded: { icon: <FileText size={16} />, color: 'text-blue-600', bg: 'bg-blue-100' },
+  dispute_raised: { icon: <AlertTriangle size={16} />, color: 'text-orange-600', bg: 'bg-orange-100' },
   system: { icon: <Bell size={16} />, color: 'text-gray-600', bg: 'bg-gray-100' },
 };
 
@@ -116,7 +117,9 @@ export function NotificationBell() {
         break;
       case 'system':
       case 'dispute_raised':
-        if (data?.project_id) {
+        if (data?.kind === 'rating_received' || data?.rating != null) {
+          navigate('/avis-recus');
+        } else if (data?.project_id) {
           if (data?.kind === 'quote_revision_requested' && data?.revision_id) {
             navigate(`/projects/${data.project_id}?revision=${data.revision_id}`);
           } else {

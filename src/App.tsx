@@ -5,6 +5,7 @@ import { OfflineBanner } from './components/OfflineBanner';
 import { ScrollToTop } from './components/ScrollToTop';
 import { PageTransition } from './components/PageTransition';
 import { InstallPrompt } from './components/InstallPrompt';
+import { NotificationRealtimeToaster } from './components/NotificationRealtimeToaster';
 import { PWAInstallProvider } from './contexts/PWAInstallContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useToastContext } from './contexts/ToastContext';
@@ -34,6 +35,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { InvoicesPage } from './pages/InvoicesPage';
+import { AvisRecusPage } from './pages/AvisRecusPage';
 import { ArtisanPublicProfilePage } from './pages/ArtisanPublicProfilePage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { AboutPage } from './pages/AboutPage';
@@ -85,7 +87,7 @@ function DownloadUnavailablePage() {
         </div>
         <h1 className="text-xl font-black text-gray-900 mb-2">Téléchargement indisponible</h1>
         <p className="text-gray-600 text-sm mb-6">
-          Le fichier n'est pas disponible à cette adresse. Revenez à l'accueil et utilisez « Télécharger sur mobile » dans le footer pour installer l'application Mbourake (PWA).
+          Le fichier n'est pas disponible à cette adresse. Revenez à l'accueil et utilisez « Installer l'application » dans le footer pour installer Mbourake sur votre téléphone.
         </p>
         <button
           onClick={() => navigate('/')}
@@ -187,6 +189,7 @@ function AppContent() {
       <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
       <Route path="/expenses" element={<PrivateRoute><ExpensesPage /></PrivateRoute>} />
       <Route path="/invoices" element={<PrivateRoute><InvoicesPage /></PrivateRoute>} />
+      <Route path="/avis-recus" element={<PrivateRoute><AvisRecusPage /></PrivateRoute>} />
       <Route path="/conversations" element={<PrivateRoute><ConversationsPage /></PrivateRoute>} />
       <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
       {/* Tableau de bord Chambre de Métiers */}
@@ -230,6 +233,7 @@ function AppContent() {
       <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <InstallPrompt />
+      <NotificationRealtimeToaster />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </ErrorBoundary>
   );
