@@ -1,7 +1,7 @@
 // Bumper la version à chaque déploiement pour forcer la mise à jour des clients (skipWaiting + controllerchange → reload)
-const CACHE_NAME = 'mbourake-v2.5.0';
-const STATIC_CACHE_NAME = 'mbourake-static-v2.5.0';
-const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.5.0';
+const CACHE_NAME = 'mbourake-v2.6.0';
+const STATIC_CACHE_NAME = 'mbourake-static-v2.6.0';
+const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.6.0';
 
 // Assets à mettre en cache immédiatement
 const STATIC_ASSETS = [
@@ -84,7 +84,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network First pour les pages HTML
+  // Network First pour les pages HTML — SPA : 404/500 → servir index.html pour éviter écran blanc au refresh
   if (request.destination === 'document') {
     event.respondWith(
       fetch(request)
@@ -94,15 +94,16 @@ self.addEventListener('fetch', (event) => {
             caches.open(DYNAMIC_CACHE_NAME).then((cache) => {
               cache.put(request, responseToCache);
             });
+            return response;
+          }
+          if (response.status === 404 || response.status === 500) {
+            return caches.match('/index.html').then((cached) => cached || response);
           }
           return response;
         })
         .catch(() => {
           return caches.match(request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            // Fallback vers index.html pour SPA routing
+            if (cachedResponse) return cachedResponse;
             return caches.match('/index.html');
           });
         })

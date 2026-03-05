@@ -72,6 +72,7 @@ import { PanierPage } from './pages/PanierPage';
 import { CompteSuspenduPage } from './pages/CompteSuspenduPage';
 import { InvitePage } from './pages/InvitePage';
 import { LastRoutePersistence } from './components/LastRoutePersistence';
+import { CREDITS_ENABLED } from './config/features';
 
 // Page affichée quand on ouvre /download/... dans l'app (fichier APK non servi)
 function DownloadUnavailablePage() {
@@ -179,7 +180,7 @@ function AppContent() {
       <Route path="/projects/:id/awaiting-payment" element={<PrivateRoute><ProjectAwaitingPaymentPage /></PrivateRoute>} />
       <Route path="/projects/:id/completion" element={<PrivateRoute><ProjectCompletionPage /></PrivateRoute>} />
       <Route path="/chat/:projectId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
-      <Route path="/credits" element={<PrivateRoute><CreditsPage /></PrivateRoute>} />
+      <Route path="/credits" element={CREDITS_ENABLED ? <PrivateRoute><CreditsPage /></PrivateRoute> : <Navigate to="/dashboard" replace />} />
       <Route path="/verification" element={<PrivateRoute><VerificationPage /></PrivateRoute>} />
       <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
       <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />

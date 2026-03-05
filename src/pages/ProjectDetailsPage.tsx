@@ -28,6 +28,7 @@ import {
 } from '../lib/notificationService';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { LoadingSpinner } from '../components/SkeletonScreen';
+import { CREDITS_ENABLED } from '../config/features';
 
 const PROJECT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: 'Brouillon', color: 'bg-gray-100 text-gray-600' },
@@ -549,34 +550,33 @@ export function ProjectDetailsPage() {
       setActionLoading(true);
       const oldStatus = quote.status;
 
-      // 1) Débiter les crédits de l'artisan avant de marquer le devis comme accepté
-      //    (unité : nombre de crédits consommés par devis accepté)
-      // Chaque projet accepté coûte 10 crédits
-      const COST_PER_ACCEPTED_QUOTE = 10;
-      try {
-        const { error: creditError } = await supabase.rpc('consume_credits_for_quote', {
-          p_artisan_id: quote.artisan_id,
-          p_project_id: id,
-          p_quote_id: quote.id,
-          p_cost: COST_PER_ACCEPTED_QUOTE,
-        });
+      // 1) Débiter les crédits de l'artisan (désactivé si CREDITS_ENABLED = false : on ne bloque plus les artisans)
+      if (CREDITS_ENABLED) {
+        const COST_PER_ACCEPTED_QUOTE = 10;
+        try {
+          const { error: creditError } = await supabase.rpc('consume_credits_for_quote', {
+            p_artisan_id: quote.artisan_id,
+            p_project_id: id,
+            p_quote_id: quote.id,
+            p_cost: COST_PER_ACCEPTED_QUOTE,
+          });
 
-        if (creditError) {
-          // Manque de crédits : empêcher l'acceptation et informer le client
-          if (creditError.message?.includes('insufficient_credits')) {
-            showError("L'artisan n'a pas assez de crédits pour ce projet. Demandez-lui de recharger son compte.");
-          } else {
-            console.error('Erreur lors du débit des crédits de l\'artisan :', creditError);
-            showError("Impossible de débiter les crédits de l'artisan pour ce projet.");
+          if (creditError) {
+            if (creditError.message?.includes('insufficient_credits')) {
+              showError("L'artisan n'a pas assez de crédits pour ce projet. Demandez-lui de recharger son compte.");
+            } else {
+              console.error('Erreur lors du débit des crédits de l\'artisan :', creditError);
+              showError("Impossible de débiter les crédits de l'artisan pour ce projet.");
+            }
+            setActionLoading(false);
+            return;
           }
+        } catch (creditErr: any) {
+          console.error('Unexpected error in consume_credits_for_quote:', creditErr);
+          showError("Une erreur est survenue lors du débit des crédits de l'artisan.");
           setActionLoading(false);
           return;
         }
-      } catch (creditErr: any) {
-        console.error('Unexpected error in consume_credits_for_quote:', creditErr);
-        showError("Une erreur est survenue lors du débit des crédits de l'artisan.");
-        setActionLoading(false);
-        return;
       }
 
       // 2) Marquer le devis comme accepté

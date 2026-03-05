@@ -1,13 +1,13 @@
 /**
- * Overlay de chargement validé — utilisé pour tous les chargements, refresh et transitions.
- * Même visuel partout : fond blanc, logo M, cercles flottants, "Chargement...".
+ * Overlay de chargement — utilisé pour chargements, refresh et transitions.
+ * z-index élevé pour rester au-dessus des modales (évite conflits / tremblements).
  * @param contentOnly — si true, n'utilise pas fixed (remplit le parent positionné)
  */
 export function LoadingOverlay({ className = '', contentOnly }: { className?: string; contentOnly?: boolean }) {
   return (
     <div
       className={`flex items-center justify-center bg-white ${contentOnly ? 'absolute inset-0' : 'fixed inset-0 z-[9999]'} ${className}`}
-      style={{ pointerEvents: 'auto' }}
+      style={{ pointerEvents: 'auto', contain: 'layout' }}
       aria-hidden="true"
       aria-busy="true"
     >

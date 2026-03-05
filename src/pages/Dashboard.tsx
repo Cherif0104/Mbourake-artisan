@@ -14,6 +14,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { supabase } from '../lib/supabase';
 import { NotificationBell } from '../components/NotificationBell';
+import { CREDITS_ENABLED } from '../config/features';
 
 type TabId = 'home' | 'activity' | 'profile';
 
@@ -678,9 +679,9 @@ export function Dashboard() {
               </button>
             )}
             
-            {isArtisan && !needsProfileCompletion && (verificationStatus === 'unverified' || (creditBalance !== null && creditBalance < 20)) && (() => {
+            {isArtisan && !needsProfileCompletion && (verificationStatus === 'unverified' || (CREDITS_ENABLED && creditBalance !== null && creditBalance < 20)) && (() => {
               const showCertif = verificationStatus === 'unverified';
-              const showCredits = creditBalance !== null && creditBalance < 20;
+              const showCredits = CREDITS_ENABLED && creditBalance !== null && creditBalance < 20;
               const both = showCertif && showCredits;
               return (
                 <div className="grid grid-cols-2 gap-3">
@@ -1328,8 +1329,8 @@ export function Dashboard() {
               )}
             </div>
 
-            {/* Bouton crédits pour les artisans */}
-            {isArtisan && (
+            {/* Bouton crédits pour les artisans (masqué si crédits désactivés) */}
+            {isArtisan && CREDITS_ENABLED && (
               <button
                 onClick={() => navigate('/credits')}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors"

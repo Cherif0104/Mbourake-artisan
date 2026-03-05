@@ -1,14 +1,44 @@
 import { useState, useEffect } from 'react';
 import { X, Download, Smartphone } from 'lucide-react';
-import { usePWAInstall } from '../contexts/PWAInstallContext';
+import { usePWAInstall, type PWAInstallBrowser } from '../contexts/PWAInstallContext';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+function getInstallInstructions(browser: PWAInstallBrowser | null, isIOS: boolean): { steps: React.ReactNode; showButton: boolean } {
+  if (isIOS || browser === 'ios') {
+    return {
+      steps: (
+        <>
+          <p>Pour ajouter Mbouraké sur votre écran d&apos;accueil :</p>
+          <ol className="list-decimal list-inside space-y-1 ml-2 mt-1">
+            <li>Appuyez sur le bouton <span className="font-bold">Partager</span></li>
+            <li>Sélectionnez <span className="font-bold">Sur l&apos;écran d&apos;accueil</span></li>
+          </ol>
+        </>
+      ),
+      showButton: false,
+    };
+  }
+  if (browser === 'android-firefox') {
+    return { steps: <>Ouvrez le menu (⋮) puis « Installer » ou « Ajouter à l&apos;écran d&apos;accueil ».</>, showButton: false };
+  }
+  if (browser === 'android-samsung') {
+    return { steps: <>Ouvrez le menu puis « Ajouter la page à » → « Écran d&apos;accueil ».</>, showButton: false };
+  }
+  if (browser === 'android-edge') {
+    return { steps: <>Ouvrez le menu (⋯) puis « Applications » → « Installer cette application ».</>, showButton: false };
+  }
+  if (browser === 'other-mobile') {
+    return { steps: <>Ouvrez le menu du navigateur et cherchez « Ajouter à l&apos;écran d&apos;accueil » ou « Installer l&apos;application ».</>, showButton: false };
+  }
+  return { steps: <>Ajoutez Mbouraké à votre écran d&apos;accueil pour y accéder comme une app.</>, showButton: true };
+}
+
 /**
- * Composant pour inviter l'utilisateur à installer l'application PWA.
+ * Bandeau d'installation PWA. Compatible Chrome, Safari, Firefox, Samsung, Edge.
  * X = fermer (le bandeau peut réapparaître plus tard).
  * "Ne plus proposer" = ne plus jamais afficher le bandeau.
  */
@@ -34,19 +64,16 @@ export function InstallPrompt() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       ctx.setDeferredPrompt(e as BeforeInstallPromptEvent);
+      ctx.setInstallBrowser('android-chrome');
       const dismissed = localStorage.getItem('pwa-install-dismissed');
-      if (!dismissed) {
-        setTimeout(() => ctx.setShowBanner(true), 3000);
-      }
+      if (!dismissed) setTimeout(() => ctx.setShowBanner(true), 3000);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    if (iOS) {
+    if (iOS || ctx.installBrowser) {
       const dismissed = localStorage.getItem('pwa-install-dismissed');
-      if (!dismissed) {
-        setTimeout(() => ctx.setShowBanner(true), 5000);
-      }
+      if (!dismissed) setTimeout(() => ctx.setShowBanner(true), 5000);
     }
 
     return () => {
@@ -74,11 +101,12 @@ export function InstallPrompt() {
     ctx?.setShowBanner(false);
   };
 
-  if (!ctx || ctx.isStandalone || !ctx.showBanner) return null;
-  if (!ctx.deferredPrompt && !ctx.isIOS) return null;
+  if (!ctx || ctx.isStandalone || !ctx.showBanner || !ctx.canInstall) return null;
+
+  const { steps, showButton } = getInstallInstructions(ctx.installBrowser, ctx.isIOS);
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-in slide-in-from-bottom-4 duration-300">
+    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[100] animate-in slide-in-from-bottom-4 duration-300" role="dialog" aria-label="Installer l'application">
       <div className="bg-white rounded-2xl shadow-2xl border-2 border-brand-200 p-4 md:p-6">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center flex-shrink-0">
@@ -87,22 +115,10 @@ export function InstallPrompt() {
 
           <div className="flex-1 min-w-0">
             <h3 className="font-black text-gray-900 mb-1">Installez l&apos;app Mbouraké</h3>
-            {ctx.isIOS ? (
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>Pour ajouter Mbouraké sur votre écran d&apos;accueil :</p>
-                <ol className="list-decimal list-inside space-y-1 ml-2">
-                  <li>Appuyez sur le bouton <span className="font-bold">Partager</span> <span className="inline-block w-4 h-4 bg-gray-300 rounded" /></li>
-                  <li>Sélectionnez <span className="font-bold">Sur l&apos;écran d&apos;accueil</span></li>
-                </ol>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600">
-                Ajoutez Mbouraké à votre écran d&apos;accueil pour y accéder comme une app.
-              </p>
-            )}
+            <div className="text-sm text-gray-600 space-y-1">{steps}</div>
 
             <div className="flex gap-2 mt-4 flex-wrap items-center">
-              {!ctx.isIOS && ctx.deferredPrompt && (
+              {showButton && ctx.deferredPrompt && (
                 <button
                   onClick={handleInstall}
                   className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors"

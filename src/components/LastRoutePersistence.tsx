@@ -24,7 +24,7 @@ function isExcluded(pathname: string): boolean {
 export function LastRoutePersistence() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const hasRestoredRef = useRef(false);
 
   // Sauvegarder la route à chaque navigation (sauf routes exclues)
@@ -39,10 +39,9 @@ export function LastRoutePersistence() {
     }
   }, [location.pathname, location.search]);
 
-  // Restaurer la dernière route si on est sur / et que l'utilisateur est connecté
+  // Restaurer la dernière route si on est sur / (connecté ou non) pour éviter le retour à l'accueil au retour sur l'app
   useEffect(() => {
     if (authLoading) return;
-    if (!user) return;
     if (location.pathname !== '/') return;
     if (location.search && location.search.includes('recherche=1')) return;
     if (hasRestoredRef.current) return;
@@ -57,7 +56,7 @@ export function LastRoutePersistence() {
     } catch {
       // ignore
     }
-  }, [authLoading, user, location.pathname, location.search, navigate]);
+  }, [authLoading, location.pathname, location.search, navigate]);
 
   return null;
 }
