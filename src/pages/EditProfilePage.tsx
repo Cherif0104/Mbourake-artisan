@@ -555,20 +555,16 @@ export function EditProfilePage() {
         localStorage.removeItem('mbourake_pending_mode');
       }
       
-      // Rediriger vers le profil unifié ou le dashboard après sauvegarde
+      // Rediriger vers le profil unifié ou le dashboard après sauvegarde (SPA, sans rechargement)
       setTimeout(() => {
-        try {
-          if (isMounted && typeof window !== 'undefined') {
-            if (isOnboarding && currentStep === totalSteps) {
-              window.location.href = '/dashboard';
-            } else {
-              window.location.href = '/profile';
-            }
+        if (isMounted) {
+          if (isOnboarding && currentStep === totalSteps) {
+            navigate('/dashboard', { replace: true });
+          } else {
+            navigate('/profile', { replace: true });
           }
-        } catch (e) {
-          console.warn('[EditProfilePage] Erreur lors de la navigation:', e);
         }
-      }, 1500);
+      }, 800);
       
     } catch (err) {
       console.error('[EditProfilePage] Save error:', err);

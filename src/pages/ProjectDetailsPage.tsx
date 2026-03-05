@@ -113,6 +113,8 @@ export function ProjectDetailsPage() {
   const [quoteRevisions, setQuoteRevisions] = useState<any[]>([]);
   const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null);
   const [abandonQuoteId, setAbandonQuoteId] = useState<string | null>(null);
+  /** Artisan du devis accepté récupéré via RPC quand les devis ne sont pas visibles (RLS) — pour afficher la notation */
+  const [resolvedArtisanForRating, setResolvedArtisanForRating] = useState<{ artisan_id: string; full_name: string | null; avatar_url: string | null } | null>(null);
   
   // Ref pour éviter les recharges intempestifs
   const fetchDetailsRef = useRef(false);
@@ -391,13 +393,38 @@ export function ProjectDetailsPage() {
     }
   }, [project, loading]);
 
+  // Récupérer l'artisan du devis accepté via RPC si les devis ne sont pas visibles (RLS) — pour notation / bouton "Noter"
+  useEffect(() => {
+    if (!id || !project || !auth.user || project.client_id !== auth.user.id) return;
+    if (!['completed', 'completion_requested'].includes(project.status || '')) return;
+    const accepted = quotes.find((q: any) => q.status === 'accepted');
+    if (accepted?.artisan_id) {
+      setResolvedArtisanForRating(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data: rpcArtisanId } = await supabase.rpc('get_accepted_quote_artisan_for_project', { p_project_id: id });
+      if (cancelled || !rpcArtisanId) return;
+      const { data: profile } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', rpcArtisanId).maybeSingle();
+      if (cancelled) return;
+      setResolvedArtisanForRating({
+        artisan_id: rpcArtisanId as string,
+        full_name: profile?.full_name ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [id, project?.id, project?.status, project?.client_id, quotes, auth.user]);
+
   // Ouverture automatique du modal de notation : projet terminé, client, pas encore noté
   useEffect(() => {
     if (loading || !project || !id || !auth.user) return;
     if (project.status !== 'completed') return;
     if (project.client_id !== auth.user.id) return;
     const accepted = quotes.find((q: any) => q.status === 'accepted');
-    if (!accepted?.artisan_id) return;
+    const artisanId = accepted?.artisan_id ?? resolvedArtisanForRating?.artisan_id;
+    if (!artisanId) return;
     if (ratingAutoOpenedRef.current) return;
 
     let cancelled = false;
@@ -407,7 +434,7 @@ export function ProjectDetailsPage() {
         .select('id')
         .eq('project_id', id)
         .eq('client_id', auth.user!.id)
-        .eq('artisan_id', accepted.artisan_id)
+        .eq('artisan_id', artisanId)
         .maybeSingle();
       if (cancelled) return;
       if (!data) {
@@ -416,7 +443,7 @@ export function ProjectDetailsPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [loading, id, project?.status, project?.client_id, quotes, auth.user]);
+  }, [loading, id, project?.status, project?.client_id, quotes, resolvedArtisanForRating, auth.user]);
 
   // Redirection selon l'étape de la timeline : dès qu'on ouvre un projet (ou qu'on clique "Voir les détails"),
   // on est renvoyé vers la page correspondant à l'étape en cours (payment, thank-you, work, completion).
@@ -2323,8 +2350,8 @@ export function ProjectDetailsPage() {
         </div>
       )}
 
-      {/* Bottom Actions - CLIENT (Projet terminé) */}
-      {isClient && project.status === 'completed' && (acceptedQuote || escrow) && (
+      {/* Bottom Actions - CLIENT (Projet terminé) — afficher si on a le devis accepté ou l'artisan résolu via RPC */}
+      {isClient && project.status === 'completed' && (acceptedQuote || escrow || resolvedArtisanForRating) && (
         <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-gray-100 bg-white/95 backdrop-blur-md shadow-[0_-2px_20px_rgba(0,0,0,0.04)]">
           <div className="max-w-lg mx-auto px-4 pt-4 pb-5">
             <button
@@ -2385,14 +2412,15 @@ export function ProjectDetailsPage() {
         </button>
       )}
 
-      {/* Rating Modal - s'affiche automatiquement après clôture */}
+      {/* Rating Modal - s'affiche automatiquement après clôture ou au clic "Noter l'artisan" */}
       {showRatingModal && (() => {
         const acceptedQuote = quotes.find(q => q.status === 'accepted');
-        if (!acceptedQuote || !project) return null;
+        const artisanProfile = acceptedQuote?.profiles;
+        const artisanId = acceptedQuote?.artisan_id ?? resolvedArtisanForRating?.artisan_id;
+        const artisanName = artisanProfile?.full_name ?? resolvedArtisanForRating?.full_name ?? 'Artisan';
+        const artisanAvatar = artisanProfile?.avatar_url ?? resolvedArtisanForRating?.avatar_url ?? undefined;
+        if (!artisanId || !project) return null;
 
-        // Récupérer les infos de l'artisan depuis la relation
-        const artisanProfile = acceptedQuote.profiles;
-        
         return (
           <RatingModal
             isOpen={showRatingModal}
@@ -2402,11 +2430,12 @@ export function ProjectDetailsPage() {
             }}
             projectId={id!}
             projectTitle={project.title}
-            artisanId={acceptedQuote.artisan_id}
-            artisanName={artisanProfile?.full_name || 'Artisan'}
-            artisanAvatar={artisanProfile?.avatar_url}
+            artisanId={artisanId}
+            artisanName={artisanName}
+            artisanAvatar={artisanAvatar}
             onSuccess={() => {
               setShowRatingModal(false);
+              setResolvedArtisanForRating(null);
               navigate('/dashboard');
             }}
           />

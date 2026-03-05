@@ -308,7 +308,11 @@ export function RevisionsPage() {
 
                     {revision.status !== 'pending' && (
                       <button
-                        onClick={() => navigate(`/projects/${revision.project_id}`)}
+                        onClick={() => {
+                          const pid = revision.project_id || revision.projects?.id;
+                          if (pid) navigate(`/projects/${pid}`);
+                          else navigate('/revisions');
+                        }}
                         className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
                       >
                         <FileText size={16} />

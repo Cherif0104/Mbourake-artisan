@@ -49,37 +49,37 @@ export function ProjectCompletionPage() {
         if (pError) throw pError;
         setProject(pData);
 
-        // Fetch escrow
-        const { data: eData } = await supabase
-          .from('escrows')
-          .select('*')
-          .eq('project_id', id)
-          .maybeSingle();
+        // RPC en priorité : contourne RLS et garantit de retrouver l'artisan du devis accepté (client a bien accepté un devis pour arriver jusqu'ici)
+        let qData: any = null;
+        const [escrowRes, rpcRes, quoteRes] = await Promise.all([
+          supabase.from('escrows').select('*').eq('project_id', id).maybeSingle(),
+          supabase.rpc('get_accepted_quote_artisan_for_project', { p_project_id: id }),
+          supabase.from('quotes').select('id, artisan_id, amount, status, created_at').eq('project_id', id).eq('status', 'accepted').maybeSingle(),
+        ]);
+
+        const eData = escrowRes.data;
         setEscrow(eData || null);
 
-        // Fetch accepted quote (sans join pour éviter RLS / FK)
-        let qData: any = null;
-        const { data: qRow, error: qErr } = await supabase
-          .from('quotes')
-          .select('id, artisan_id, amount, status, created_at')
-          .eq('project_id', id)
-          .eq('status', 'accepted')
-          .maybeSingle();
+        const rpcArtisanId = rpcRes.data as string | null;
+        const qRow = quoteRes.data;
+        const qErr = quoteRes.error;
 
-        if (!qErr && qRow) {
+        if (rpcArtisanId) {
+          qData = { id: '', artisan_id: rpcArtisanId, amount: null, status: 'accepted', created_at: null };
+          setQuote(qData);
+          const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', rpcArtisanId).maybeSingle();
+          setArtisan(art || null);
+        }
+
+        if (!qData && !qErr && qRow) {
           qData = qRow;
           setQuote(qRow);
           if (qRow.artisan_id) {
-            const { data: art } = await supabase
-              .from('profiles')
-              .select('id, full_name, avatar_url')
-              .eq('id', qRow.artisan_id)
-              .maybeSingle();
+            const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', qRow.artisan_id).maybeSingle();
             setArtisan(art || null);
           }
         }
 
-        // Fallback : devis accepté via révision (quote peut ne pas avoir status 'accepted' selon RLS)
         if (!qData) {
           const { data: revRow } = await supabase
             .from('quote_revisions')
@@ -99,32 +99,10 @@ export function ProjectCompletionPage() {
               qData = qById;
               setQuote(qById);
               if (qById.artisan_id) {
-                const { data: art } = await supabase
-                  .from('profiles')
-                  .select('id, full_name, avatar_url')
-                  .eq('id', qById.artisan_id)
-                  .maybeSingle();
+                const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', qById.artisan_id).maybeSingle();
                 setArtisan(art || null);
               }
             }
-          }
-        }
-
-        // Dernier recours : RPC qui contourne RLS (évite "aucun devis retrouvé" à la clôture)
-        if (!qData?.artisan_id) {
-          const { data: rpcArtisanId, error: rpcErr } = await supabase.rpc('get_accepted_quote_artisan_for_project', {
-            p_project_id: id,
-          });
-          if (!rpcErr && rpcArtisanId) {
-            const aid = rpcArtisanId as string;
-            qData = { id: '', artisan_id: aid, amount: null, status: 'accepted', created_at: null };
-            setQuote(qData);
-            const { data: art } = await supabase
-              .from('profiles')
-              .select('id, full_name, avatar_url')
-              .eq('id', aid)
-              .maybeSingle();
-            setArtisan(art || null);
           }
         }
 
