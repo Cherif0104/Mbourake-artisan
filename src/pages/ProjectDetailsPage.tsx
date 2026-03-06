@@ -122,6 +122,7 @@ export function ProjectDetailsPage() {
   const fetchDetailsRef = useRef(false);
   const ratingAutoOpenedRef = useRef(false);
   const redirectToStepPageScheduledRef = useRef(false);
+  const singleAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const fetchDetails = async () => {
     if (!id) return;
@@ -1280,6 +1281,7 @@ export function ProjectDetailsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <audio ref={singleAudioRef} playsInline className="sr-only" aria-hidden />
       {/* Header */}
       <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
@@ -1642,14 +1644,17 @@ export function ProjectDetailsPage() {
               </div>
             )}
 
-            {/* Audio Description */}
+            {/* Audio Description — <audio> playsInline pour mobile/PWA */}
             {project.audio_description_url && (
               <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-4">
                 <button 
                   type="button"
                   onClick={() => {
-                    const a = new Audio(project.audio_description_url);
-                    a.play().catch(() => showError('Impossible de lire la description vocale.'));
+                    const el = singleAudioRef.current;
+                    if (el) {
+                      el.src = project.audio_description_url!;
+                      el.play().catch(() => showError('Impossible de lire la description vocale.'));
+                    }
                   }}
                   className="w-12 h-12 bg-brand-500 text-white rounded-full flex items-center justify-center shadow-lg flex-shrink-0"
                 >
@@ -1978,14 +1983,17 @@ export function ProjectDetailsPage() {
                           </div>
                         )}
 
-                        {/* Audio Message */}
+                        {/* Audio Message — <audio> playsInline pour mobile/PWA */}
                         {quote.audio_message_url && (
                           <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-3">
                             <button
                               type="button"
                               onClick={() => {
-                                const a = new Audio(quote.audio_message_url);
-                                a.play().catch(() => showError('Impossible de lire le message vocal.'));
+                                const el = singleAudioRef.current;
+                                if (el) {
+                                  el.src = quote.audio_message_url!;
+                                  el.play().catch(() => showError('Impossible de lire le message vocal.'));
+                                }
                               }}
                               className="w-10 h-10 bg-brand-500 text-white rounded-full flex items-center justify-center"
                             >

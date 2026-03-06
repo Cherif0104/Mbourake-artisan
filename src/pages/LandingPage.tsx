@@ -4,7 +4,8 @@ import {
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
   Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
-  ChevronRight, X, MapPin, User, FileEdit, ShoppingBag, Handshake, Menu, Shield, Download
+  ChevronRight, X, MapPin, User, ShoppingBag, Menu, Shield, Download,
+  ShoppingCart, MessageCircle
 } from 'lucide-react';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
@@ -29,8 +30,20 @@ interface ArtisanSuggestion {
   img: string;
 }
 
+/** Produit minimal pour la section "Produits à la une" */
+interface FeaturedProduct {
+  id: string;
+  title: string | null;
+  price: number;
+  images: string[] | null;
+  artisan_id: string | null;
+  profiles?: { id: string; full_name: string | null; avatar_url: string | null } | null;
+}
+
 const MAX_SUGGESTION_CATEGORIES = 10;
 const MAX_SUGGESTION_ARTISANS = 6;
+const MAX_FEATURED_PRODUCTS = 8;
+const MAX_FEATURED_ARTISANS = 8;
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -48,6 +61,8 @@ export function LandingPage() {
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
+  const [featuredProductsLoading, setFeaturedProductsLoading] = useState(false);
 
   // Éviter la page blanche : après 3 s, afficher la landing même si auth/profile chargent encore
   useEffect(() => {
@@ -167,6 +182,43 @@ export function LandingPage() {
       setArtisans(list);
     };
     fetchArtisans();
+  }, []);
+
+  // Produits à la une (marketplace) : 8 derniers publiés
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      setFeaturedProductsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            id,
+            title,
+            price,
+            images,
+            artisan_id,
+            profiles!products_artisan_id_fkey(id, full_name, avatar_url)
+          `)
+          .eq('status', 'published')
+          .order('created_at', { ascending: false })
+          .limit(MAX_FEATURED_PRODUCTS);
+
+        if (error) {
+          const code = (error as any)?.code;
+          const msg = (error.message || '').toLowerCase();
+          const isMissing = code === 'PGRST205' || msg.includes('does not exist') || msg.includes('relation') || msg.includes('42p01');
+          if (!isMissing && import.meta.env.DEV) console.warn('Landing: products fetch failed', error);
+          setFeaturedProducts([]);
+        } else {
+          setFeaturedProducts((data as FeaturedProduct[]) || []);
+        }
+      } catch {
+        setFeaturedProducts([]);
+      } finally {
+        setFeaturedProductsLoading(false);
+      }
+    };
+    fetchFeaturedProducts();
   }, []);
 
   // Fermer le dropdown recherche et le menu mobile au clic extérieur
@@ -372,60 +424,147 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* 3 cartes : Postez projet, Marketplace, Devenez partenaire */}
-      <section className="py-16 md:py-24 px-6 md:px-12 lg:px-20 bg-[#FDFDFD]">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
-            <div className="h-40 bg-gradient-to-br from-brand-100 to-brand-50 flex items-center justify-center">
-              <div className="w-16 h-16 bg-brand-500 rounded-xl flex items-center justify-center text-white">
-                <FileEdit size={28} />
-              </div>
+      {/* Produits à la une — marketplace-first */}
+      <section className="py-16 md:py-20 px-6 md:px-12 lg:px-20 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col items-center mb-10 text-center">
+            <h2 className="text-2xl md:text-4xl font-black text-gray-900 tracking-tight mb-2">Produits à la une</h2>
+            <p className="text-gray-500 max-w-xl text-sm md:text-base">Découvrez les créations des artisans et commandez en direct.</p>
+            <div className="h-1.5 w-24 bg-brand-500 rounded-full mt-4" />
+          </div>
+          {featuredProductsLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
             </div>
-            <div className="p-6">
-              <h3 className="text-xl font-black text-gray-900 mb-2">Postez votre Projet</h3>
-              <p className="text-gray-600 text-sm leading-relaxed mb-2">
-                Décrivez votre besoin, recevez des devis adaptés d&apos;artisans et d&apos;entrepreneurs qualifiés.
-              </p>
-              <p className="text-brand-600 text-xs font-semibold mb-6">Devis gratuit, sans engagement. Vous ne payez qu&apos;après avoir accepté un devis.</p>
-              <button onClick={() => navigate('/onboard?mode=login&role=client&redirect=' + encodeURIComponent('/create-project'))} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
-                Demander un service
+          ) : featuredProducts.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {featuredProducts.map((prod) => {
+                const imgList = Array.isArray(prod.images) && prod.images.length > 0 ? prod.images : [];
+                const primaryImage = imgList[0] ?? null;
+                const priceDisplay = Number(prod.price || 0).toLocaleString('fr-FR');
+                return (
+                  <div
+                    key={prod.id}
+                    className="bg-[#FDFDFD] border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow flex flex-col"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/marketplace/${prod.id}`)}
+                      className="aspect-[4/3] bg-gray-100 w-full overflow-hidden flex-shrink-0"
+                    >
+                      {primaryImage ? (
+                        <img src={primaryImage} alt={prod.title ?? 'Produit'} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                          <ShoppingBag size={32} />
+                        </div>
+                      )}
+                    </button>
+                    <div className="p-3 md:p-4 flex flex-col flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/marketplace/${prod.id}`)}
+                        className="text-left"
+                      >
+                        <h3 className="font-bold text-gray-900 text-sm line-clamp-2 mb-1">{prod.title || 'Sans titre'}</h3>
+                        <p className="text-brand-600 font-black text-sm">{priceDisplay} FCFA</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isLoggedIn) {
+                            navigate(`/onboard?mode=login&role=client&redirect=${encodeURIComponent(`/marketplace/${prod.id}/checkout`)}`);
+                          } else {
+                            navigate(`/marketplace/${prod.id}/checkout`);
+                          }
+                        }}
+                        className="mt-2 w-full py-2.5 rounded-xl bg-brand-500 text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors"
+                      >
+                        <ShoppingCart size={16} />
+                        Commander
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          {!featuredProductsLoading && featuredProducts.length > 0 && (
+            <div className="flex justify-center mt-8">
+              <button
+                type="button"
+                onClick={() => navigate('/marketplace')}
+                className="px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl text-sm hover:bg-gray-200 transition-colors flex items-center gap-2"
+              >
+                Voir toute la marketplace
+                <ArrowUpRight size={18} />
               </button>
             </div>
-          </div>
+          )}
+        </div>
+      </section>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
-            <div className="h-40 bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center">
-              <div className="w-16 h-16 bg-brand-500 rounded-xl flex items-center justify-center text-white">
-                <ShoppingBag size={28} />
-              </div>
+      {/* Artisans à découvrir */}
+      <section className="py-16 md:py-20 px-6 md:px-12 lg:px-20 bg-[#FDFDFD]">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col items-center mb-10 text-center">
+            <h2 className="text-2xl md:text-4xl font-black text-gray-900 tracking-tight mb-2">Artisans à découvrir</h2>
+            <p className="text-gray-500 max-w-xl text-sm md:text-base">Trouvez l&apos;artisan qu&apos;il vous faut et demandez un devis.</p>
+            <div className="h-1.5 w-24 bg-brand-500 rounded-full mt-4" />
+          </div>
+          {artisans.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {artisans.slice(0, MAX_FEATURED_ARTISANS).map((artisan) => (
+                <div
+                  key={artisan.id}
+                  className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow flex flex-col"
+                >
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/artisans/${artisan.id}`)}
+                    className="p-4 flex flex-col items-center text-center"
+                  >
+                    <img
+                      src={artisan.img}
+                      alt={artisan.name}
+                      className="w-20 h-20 rounded-full object-cover border-2 border-gray-100 mb-3"
+                    />
+                    <h3 className="font-bold text-gray-900 text-sm line-clamp-1">{artisan.name}</h3>
+                    <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{artisan.specialty}</p>
+                    <p className="text-[10px] text-brand-600 font-semibold uppercase tracking-wide mt-1">{artisan.category}</p>
+                  </button>
+                  <div className="p-3 pt-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isLoggedIn) {
+                          navigate(`/onboard?mode=login&role=client&redirect=${encodeURIComponent(`/create-project?artisan=${artisan.id}`)}`);
+                        } else {
+                          navigate(`/create-project?artisan=${artisan.id}`);
+                        }
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-brand-500 text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors"
+                    >
+                      <MessageCircle size={16} />
+                      Contacter
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="p-6">
-              <h3 className="text-xl font-black text-gray-900 mb-2">Explorez la Marketplace</h3>
-              <p className="text-gray-600 text-sm leading-relaxed mb-6">
-                Produits artisanaux et créations d&apos;entrepreneurs locaux : découvrez et achetez en direct.
-              </p>
-              <button onClick={() => navigate('/marketplace')} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
-                Explorer
+          ) : null}
+          {artisans.length > 0 && (
+            <div className="flex justify-center mt-8">
+              <button
+                type="button"
+                onClick={() => navigate('/artisans')}
+                className="px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl text-sm hover:bg-gray-200 transition-colors flex items-center gap-2"
+              >
+                Voir tous les artisans
+                <ArrowUpRight size={18} />
               </button>
             </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
-            <div className="h-40 bg-gradient-to-br from-brand-100 to-amber-50 flex items-center justify-center">
-              <div className="w-16 h-16 bg-brand-500 rounded-xl flex items-center justify-center text-white">
-                <Handshake size={28} />
-              </div>
-            </div>
-            <div className="p-6">
-              <h3 className="text-xl font-black text-gray-900 mb-2">Devenez Partenaire</h3>
-              <p className="text-gray-600 text-sm leading-relaxed mb-6">
-                Artisans, entrepreneurs ou organisations : connectez-vous, valorisez vos talents et accédez aux outils de suivi.
-              </p>
-              <button onClick={() => navigate('/about')} className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors">
-                Contactez-nous
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 

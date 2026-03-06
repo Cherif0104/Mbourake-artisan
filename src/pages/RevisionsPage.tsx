@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle, FileText, Clock, CheckCircle, XCircle, MessageCircle, Play, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -86,6 +86,7 @@ export function RevisionsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+      <audio ref={audioRef} playsInline className="sr-only" aria-hidden />
       {/* Header */}
       <header className="bg-white sticky top-0 z-30 shadow-sm border-b border-gray-100">
         <div className="max-w-lg mx-auto px-5 py-4 flex items-center gap-4">
@@ -242,11 +243,18 @@ export function RevisionsPage() {
                       <p className="text-sm text-gray-600 leading-relaxed">{revision.client_comments}</p>
                     </div>
 
-                    {/* Message vocal */}
+                    {/* Message vocal — <audio> playsInline pour lecture sur mobile/PWA */}
                     {revision.audio_url && (
                       <div className="bg-brand-50 rounded-xl p-3 mb-3 border border-brand-200 flex items-center gap-3">
                         <button
-                          onClick={() => new Audio(revision.audio_url).play()}
+                          type="button"
+                          onClick={() => {
+                            const el = audioRef.current;
+                            if (el) {
+                              el.src = revision.audio_url!;
+                              el.play().catch(() => showError('Impossible de lire le message vocal.'));
+                            }
+                          }}
                           className="w-10 h-10 bg-brand-500 text-white rounded-full flex items-center justify-center flex-shrink-0"
                         >
                           <Play fill="currentColor" size={14} />

@@ -1,6 +1,16 @@
-import { useState, useEffect } from 'react';
-import { X, Download, Smartphone } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Download, Smartphone, ListOrdered } from 'lucide-react';
 import { usePWAInstall, type PWAInstallBrowser } from '../contexts/PWAInstallContext';
+
+const PWA_DISMISSED_KEY = 'pwa-install-dismissed';
+
+function isDismissed(): boolean {
+  try {
+    return localStorage.getItem(PWA_DISMISSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -45,6 +55,7 @@ function getInstallInstructions(browser: PWAInstallBrowser | null, isIOS: boolea
 export function InstallPrompt() {
   const ctx = usePWAInstall();
   const [mounted, setMounted] = useState(false);
+  const timeoutIdsRef = useRef<number[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -61,23 +72,31 @@ export function InstallPrompt() {
     const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     ctx.setIsIOS(iOS);
 
+    const scheduleShow = (delay: number) => {
+      const id = window.setTimeout(() => {
+        if (isDismissed()) return;
+        ctx.setShowBanner(true);
+      }, delay);
+      timeoutIdsRef.current.push(id);
+    };
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       ctx.setDeferredPrompt(e as BeforeInstallPromptEvent);
       ctx.setInstallBrowser('android-chrome');
-      const dismissed = localStorage.getItem('pwa-install-dismissed');
-      if (!dismissed) setTimeout(() => ctx.setShowBanner(true), 800);
+      if (!isDismissed()) scheduleShow(800);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     if (iOS || ctx.installBrowser) {
-      const dismissed = localStorage.getItem('pwa-install-dismissed');
-      if (!dismissed) setTimeout(() => ctx.setShowBanner(true), 1200);
+      if (!isDismissed()) scheduleShow(1200);
     }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      timeoutIdsRef.current.forEach((id) => clearTimeout(id));
+      timeoutIdsRef.current = [];
     };
   }, [ctx, mounted]);
 
@@ -87,7 +106,9 @@ export function InstallPrompt() {
     const { outcome } = await ctx.deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       ctx.setShowBanner(false);
-      localStorage.setItem('pwa-install-dismissed', 'true');
+      try {
+        localStorage.setItem(PWA_DISMISSED_KEY, 'true');
+      } catch (_) {}
     }
     ctx.setDeferredPrompt(null);
   };
@@ -97,8 +118,14 @@ export function InstallPrompt() {
   };
 
   const handleNeverShow = () => {
-    localStorage.setItem('pwa-install-dismissed', 'true');
+    try {
+      localStorage.setItem(PWA_DISMISSED_KEY, 'true');
+    } catch (_) {}
     ctx?.setShowBanner(false);
+  };
+
+  const handleScrollToSteps = () => {
+    document.getElementById('pwa-install-steps')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
   if (!ctx || ctx.isStandalone || !ctx.showBanner || !ctx.canInstall) return null;
@@ -115,10 +142,10 @@ export function InstallPrompt() {
 
           <div className="flex-1 min-w-0">
             <h3 className="font-black text-gray-900 mb-1">Téléchargez Mbourake sur votre téléphone</h3>
-            <div className="text-sm text-gray-600 space-y-1">{steps}</div>
+            <div id="pwa-install-steps" className="text-sm text-gray-600 space-y-1">{steps}</div>
 
             <div className="flex gap-2 mt-4 flex-wrap items-center">
-              {showButton && ctx.deferredPrompt && (
+              {showButton && ctx.deferredPrompt ? (
                 <button
                   onClick={handleInstall}
                   className="flex-1 min-w-[140px] flex items-center justify-center gap-2 px-5 py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors text-base"
@@ -127,7 +154,17 @@ export function InstallPrompt() {
                   <Download size={20} />
                   Télécharger
                 </button>
-              )}
+              ) : !showButton ? (
+                <button
+                  type="button"
+                  onClick={handleScrollToSteps}
+                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 px-5 py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors text-base"
+                  aria-label="Voir les étapes d'installation"
+                >
+                  <ListOrdered size={20} />
+                  Voir les étapes
+                </button>
+              ) : null}
               <button
                 onClick={handleClose}
                 className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"

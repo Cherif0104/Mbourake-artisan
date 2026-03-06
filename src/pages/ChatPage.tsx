@@ -67,8 +67,9 @@ export function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** Un seul <audio> dans le DOM pour la lecture sur mobile/PWA (playsInline, déclenché par gesture). */
+  const singleAudioRef = useRef<HTMLAudioElement | null>(null);
 
   /** Hauteurs fixes pour les barres audio (évite le recalcul à chaque render) */
   const AUDIO_BAR_HEIGHTS = [10, 14, 8, 16, 11, 13, 9, 15, 12, 10, 14, 11];
@@ -209,28 +210,25 @@ export function ChatPage() {
     }
   }, [messages, auth.user?.id]);
 
-  // Handle audio playback
+  // Handle audio playback — utilise un <audio> dans le DOM pour iOS/PWA (playsInline)
   const toggleAudioPlayback = (messageId: string, audioUrl: string) => {
-    const currentAudio = audioRefs.current.get(messageId);
-    
-    if (playingAudioId === messageId && currentAudio) {
-      currentAudio.pause();
+    const el = singleAudioRef.current;
+    if (!el) return;
+
+    if (playingAudioId === messageId && !el.paused) {
+      el.pause();
       setPlayingAudioId(null);
-    } else {
-      // Pause any currently playing audio
-      audioRefs.current.forEach((audio) => audio.pause());
-      
-      // Create or get audio element
-      let audio = audioRefs.current.get(messageId);
-      if (!audio) {
-        audio = new Audio(audioUrl);
-        audio.onended = () => setPlayingAudioId(null);
-        audioRefs.current.set(messageId, audio);
-      }
-      
-      audio.play();
-      setPlayingAudioId(messageId);
+      return;
     }
+
+    el.pause();
+    el.src = audioUrl;
+    el.onended = () => setPlayingAudioId(null);
+    const playPromise = el.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => setPlayingAudioId(null));
+    }
+    setPlayingAudioId(messageId);
   };
 
   const handleSendMessage = async () => {
@@ -260,13 +258,14 @@ export function ChatPage() {
 
   const handleAudioComplete = async (blob: Blob) => {
     if (!projectId || !auth.user) return;
-    
+
     setSending(true);
     try {
-      const fileName = `${auth.user.id}/${Date.now()}.webm`;
+      const ext = (blob.type || '').includes('mp4') ? 'm4a' : 'webm';
+      const fileName = `messages/${auth.user.id}/${Date.now()}.${ext}`;
       const { data, error } = await supabase.storage
         .from('audio')
-        .upload(`messages/${fileName}`, blob);
+        .upload(fileName, blob);
       
       if (error) throw error;
       const audioUrl = supabase.storage.from('audio').getPublicUrl(data.path).data.publicUrl;
@@ -347,6 +346,14 @@ export function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
+      {/* Élément audio unique pour la lecture des messages vocaux (mobile/PWA : playsInline requis sur iOS). */}
+      <audio
+        ref={singleAudioRef}
+        playsInline
+        className="sr-only"
+        aria-hidden
+      />
+
       {/* Header */}
       <header className="px-4 py-3 bg-white border-b shadow-sm flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">

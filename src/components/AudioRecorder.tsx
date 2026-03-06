@@ -24,10 +24,20 @@ export function AudioRecorder({ onRecordingComplete, onDelete }: AudioRecorderPr
     };
   }, []);
 
+  /** MIME type préféré pour la lecture sur iOS/Safari (audio/mp4) et ailleurs (audio/webm). */
+  const getPreferredAudioMimeType = (): string => {
+    if (typeof MediaRecorder === 'undefined') return 'audio/webm';
+    if (MediaRecorder.isTypeSupported('audio/mp4')) return 'audio/mp4';
+    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) return 'audio/webm;codecs=opus';
+    return 'audio/webm';
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = getPreferredAudioMimeType();
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -38,12 +48,12 @@ export function AudioRecorder({ onRecordingComplete, onDelete }: AudioRecorderPr
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const type = mediaRecorderRef.current?.mimeType || mimeType || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
         onRecordingComplete(blob);
-        
-        // Stop all tracks
+
         stream.getTracks().forEach(track => track.stop());
       };
 

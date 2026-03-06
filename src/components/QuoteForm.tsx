@@ -80,9 +80,10 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
       let audioUrl = null;
       let proformaUrl = null;
 
-      // Upload audio if exists
+      // Upload audio if exists (extension m4a sur iOS, webm ailleurs — compatible mobile/PWA)
       if (audioBlob) {
-        const fileName = `${artisanId}/quotes/${Date.now()}.webm`;
+        const ext = (audioBlob.type || '').includes('mp4') ? 'm4a' : 'webm';
+        const fileName = `${artisanId}/quotes/${Date.now()}.${ext}`;
         const { data, error } = await supabase.storage
           .from('audio')
           .upload(fileName, audioBlob);
