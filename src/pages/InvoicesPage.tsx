@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, FileText, Download, Mail, CheckCircle, Clock, 
-  X, AlertCircle, Filter, DollarSign, Calendar, Eye, Printer, Lock, UnlockCircle
+  X, AlertCircle, Filter, DollarSign, Calendar, Eye, Printer, Lock, Unlock
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -21,7 +21,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 const PRESTATION_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   held: { label: 'Client a payé – En attente versement plateforme', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
   advance_paid: { label: 'Client a payé – En attente versement plateforme', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  released: { label: 'Versé', color: 'bg-green-100 text-green-700 border border-green-200', icon: <UnlockCircle size={16} /> },
+  released: { label: 'Versé', color: 'bg-green-100 text-green-700 border border-green-200', icon: <Unlock size={16} /> },
   frozen: { label: 'En attente résolution', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
   refunded: { label: 'Remboursé', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <X size={16} /> },
   pending: { label: 'En attente paiement client', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <Clock size={16} /> },
@@ -146,9 +146,9 @@ export function InvoicesPage() {
     downloadInvoicePDF(invoiceData);
   };
 
-  const handleSendInvoice = async (invoice: any) => {
-    // TODO: Envoyer l'email avec la facture
-    info('Envoi email à implémenter');
+  const handleSendInvoice = async (_invoice: any) => {
+    // Envoi par email non implémenté : à brancher sur un service (Resend, SendGrid, etc.)
+    info('Envoi de la facture par email : bientôt disponible.');
   };
 
   const totalInvoices = invoices.length;
@@ -413,10 +413,12 @@ export function InvoicesPage() {
                     {invoice.status === 'sent' && profile?.role === 'artisan' && (
                       <button
                         onClick={() => handleSendInvoice(invoice)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+                        title="Envoi par email : bientôt disponible"
+                        className="px-4 py-2 bg-gray-300 text-gray-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed"
+                        disabled
                       >
                         <Mail size={16} />
-                        Envoyer
+                        Envoyer (bientôt)
                       </button>
                     )}
                   </div>

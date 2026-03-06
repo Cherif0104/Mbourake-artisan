@@ -60,7 +60,7 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
     
     // Empêcher la double soumission
     if (isSubmitting || loading) {
-      console.log('[DEBUG QuoteForm] Submission already in progress, ignoring duplicate submit');
+      if (import.meta.env.DEV) console.warn('QuoteForm: submission already in progress, ignoring duplicate submit');
       return;
     }
     
@@ -76,7 +76,6 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
     try {
       // SUPPRIMÉ : Plus de vérification préalable - on laisse passer tous les devis
       // Si un devis existe, on le mettra à jour ou on en créera un nouveau
-      console.log('[DEBUG QuoteForm] Submitting quote - Project:', projectId, 'Artisan:', artisanId);
 
       let audioUrl = null;
       let proformaUrl = null;
@@ -153,8 +152,7 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
       if (insertError && (insertError.code === '23505' || insertError.code === '409' || 
           insertError.message?.includes('duplicate') || insertError.message?.includes('unique') ||
           insertError.message?.includes('Conflict'))) {
-        console.log('[DEBUG QuoteForm] Quote exists, updating most recent quote instead');
-        console.log('[DEBUG QuoteForm] Insert error details:', insertError);
+        if (import.meta.env.DEV) console.warn('QuoteForm: quote exists, updating most recent quote instead', insertError?.message);
         
         // Récupérer le devis le plus récent pour cet artisan/projet
         // Utiliser .maybeSingle() au lieu de .single() pour éviter l'erreur 406
@@ -166,10 +164,9 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
           .order('created_at', { ascending: false })
           .limit(1);
 
-        console.log('[DEBUG QuoteForm] Existing quotes fetched:', existingQuoteArray);
 
         if (fetchError) {
-          console.error('[DEBUG QuoteForm] Error fetching existing quote:', fetchError);
+          if (import.meta.env.DEV) console.error('QuoteForm: error fetching existing quote:', fetchError);
           throw new Error(`Erreur lors de la récupération du devis existant: ${fetchError.message}`);
         }
 
@@ -214,13 +211,11 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
           
           const updatedQuote = updatedQuoteArray && updatedQuoteArray.length > 0 ? updatedQuoteArray[0] : null;
           quoteId = updatedQuote?.id || existingQuote.id;
-          console.log('[DEBUG QuoteForm] Quote updated successfully:', quoteId);
         } else {
           // Si on ne trouve pas le devis existant malgré l'erreur 409,
           // c'est probablement que le devis existe mais n'est pas visible (RLS ou autre)
           // Dans ce cas, considérer comme un succès - le devis existe déjà
-          console.warn('[DEBUG QuoteForm] 409 error but quote not found - likely RLS blocking or already exists');
-          console.warn('[DEBUG QuoteForm] Considering as success - quote may already exist');
+          if (import.meta.env.DEV) console.warn('QuoteForm: 409, quote may already exist (RLS or duplicate)');
           
           // Afficher un message informatif mais continuer
           // Le devis existe probablement déjà en base, même s'il n'est pas visible
@@ -236,7 +231,6 @@ export function QuoteForm({ projectId, artisanId, isUrgent = false, onSuccess, o
       } else {
         // Insertion réussie
         quoteId = insertedQuote?.id || null;
-        console.log('[DEBUG QuoteForm] Quote created successfully:', quoteId);
       }
 
       // Récupérer le devis créé/mis à jour pour les prochaines étapes

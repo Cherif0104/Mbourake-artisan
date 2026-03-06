@@ -115,7 +115,9 @@ export function ProjectDetailsPage() {
   const [abandonQuoteId, setAbandonQuoteId] = useState<string | null>(null);
   /** Artisan du devis accepté récupéré via RPC quand les devis ne sont pas visibles (RLS) — pour afficher la notation */
   const [resolvedArtisanForRating, setResolvedArtisanForRating] = useState<{ artisan_id: string; full_name: string | null; avatar_url: string | null } | null>(null);
-  
+  /** Artisan du devis accepté résolu via RPC pour l'artisan (demande clôture, bandeaux) quand quotes ne contient pas le devis accepté */
+  const [resolvedAcceptedArtisanId, setResolvedAcceptedArtisanId] = useState<string | null>(null);
+
   // Ref pour éviter les recharges intempestifs
   const fetchDetailsRef = useRef(false);
   const ratingAutoOpenedRef = useRef(false);
@@ -125,10 +127,7 @@ export function ProjectDetailsPage() {
     if (!id) return;
     
     // Attendre que l'utilisateur soit chargé avant de fetch
-    if (auth.loading || !auth.user) {
-      console.log('[DEBUG] Waiting for user to be loaded...');
-      return;
-    }
+    if (auth.loading || !auth.user) return;
     
     setLoading(true);
     setError(null);
@@ -235,9 +234,6 @@ export function ProjectDetailsPage() {
     let qData: any[] = [];
     let qError: any = null;
 
-    console.log('[DEBUG] Fetching quotes for project:', id);
-    console.log('[DEBUG] Current user:', auth.user?.id);
-
     // Tentative 1: Avec relation explicite - SANS FILTRE DE STATUT
     const { data: qDataWithProfile, error: qErrorWithProfile } = await supabase
       .from('quotes')
@@ -253,15 +249,9 @@ export function ProjectDetailsPage() {
       .eq('project_id', id)
       .order('created_at', { ascending: false });
 
-    console.log('[DEBUG] Quotes with profile - Data:', qDataWithProfile);
-    console.log('[DEBUG] Quotes with profile - Error:', qErrorWithProfile);
-
     if (!qErrorWithProfile && qDataWithProfile) {
       qData = qDataWithProfile || [];
-      console.log('[DEBUG] Successfully fetched', qData.length, 'quotes with profile');
     } else {
-      console.warn('[DEBUG] Error fetching quotes with profile, trying fallback:', qErrorWithProfile);
-      
       // Tentative 2: Sans relation (fallback) - SANS FILTRE DE STATUT
       const { data: qDataFallback, error: qErrorFallback } = await supabase
         .from('quotes')
@@ -269,26 +259,17 @@ export function ProjectDetailsPage() {
         .eq('project_id', id)
         .order('created_at', { ascending: false });
       
-      console.log('[DEBUG] Quotes fallback - Data:', qDataFallback);
-      console.log('[DEBUG] Quotes fallback - Error:', qErrorFallback);
-      
       if (!qErrorFallback && qDataFallback) {
         qData = qDataFallback || [];
-        console.log('[DEBUG] Successfully fetched', qData.length, 'quotes without profile');
-        
         // Récupérer les profils séparément si nécessaire
         if (qData.length > 0) {
           const artisanIds = [...new Set(qData.map(q => q.artisan_id).filter(Boolean))];
-          console.log('[DEBUG] Fetching profiles for artisan IDs:', artisanIds);
           
           if (artisanIds.length > 0) {
             const { data: profilesData, error: profilesError } = await supabase
               .from('profiles')
               .select('id, full_name, avatar_url, role')
               .in('id', artisanIds);
-            
-            console.log('[DEBUG] Profiles data:', profilesData);
-            console.log('[DEBUG] Profiles error:', profilesError);
             
             // Fusionner les profils avec les devis
             qData = qData.map(quote => ({
@@ -298,14 +279,11 @@ export function ProjectDetailsPage() {
           }
         }
       } else {
-        console.error('[DEBUG] Error fetching quotes (fallback):', qErrorFallback);
+        if (import.meta.env.DEV) console.error('Error fetching quotes (fallback):', qErrorFallback);
         qError = qErrorFallback;
       }
     }
 
-    console.log('[DEBUG] Final quotes array length:', qData.length);
-    console.log('[DEBUG] Final quotes:', qData.map(q => ({ id: q.id, status: q.status, artisan_id: q.artisan_id })));
-    
     setQuotes(qData);
 
     // Fetch quote revisions pour ce projet
@@ -416,6 +394,25 @@ export function ProjectDetailsPage() {
     })();
     return () => { cancelled = true; };
   }, [id, project?.id, project?.status, project?.client_id, quotes, auth.user]);
+
+  // Artisan : résoudre le devis accepté via RPC si la liste quotes ne le contient pas (ex. acceptation via révision) — pour demande clôture et bandeaux
+  useEffect(() => {
+    if (!id || !project || !auth.user || profile?.role !== 'artisan') return;
+    if (!['payment_received', 'in_progress', 'completion_requested'].includes(project.status || '')) return;
+    const accepted = quotes.find((q: any) => q.status === 'accepted');
+    if (accepted?.artisan_id === auth.user.id) {
+      setResolvedAcceptedArtisanId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data: rpcArtisanId } = await supabase.rpc('get_accepted_quote_artisan_for_project', { p_project_id: id });
+      if (cancelled) return;
+      if (rpcArtisanId === auth.user?.id) setResolvedAcceptedArtisanId(rpcArtisanId as string);
+      else setResolvedAcceptedArtisanId(null);
+    })();
+    return () => { cancelled = true; };
+  }, [id, project?.id, project?.status, quotes, profile?.role, auth.user]);
 
   // Ouverture automatique du modal de notation : projet terminé, client, pas encore noté
   useEffect(() => {
@@ -1069,7 +1066,6 @@ export function ProjectDetailsPage() {
       }
       
       // Mettre à jour le statut du projet - SANS .single() pour éviter l'erreur
-      console.log('[DEBUG] Cancelling project:', id, 'User:', auth.user.id);
       const { data: updateData, error: projectError } = await supabase
         .from('projects')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
@@ -1077,23 +1073,18 @@ export function ProjectDetailsPage() {
         .eq('client_id', auth.user.id) // Vérifier explicitement que c'est le bon client
         .select('id, status');
       
-      console.log('[DEBUG] Update result - Data:', updateData);
-      console.log('[DEBUG] Update result - Error:', projectError);
-      
       if (projectError) {
-        console.error('[DEBUG] Failed to update project:', projectError);
+        if (import.meta.env.DEV) console.error('Failed to update project:', projectError);
         throw new Error(`Erreur lors de la mise à jour: ${projectError.message}`);
       }
       
       // Vérifier que l'update a bien fonctionné
       if (!updateData || updateData.length === 0) {
-        console.error('[DEBUG] No rows updated - RLS might be blocking or project not found');
         throw new Error('Impossible de mettre à jour le projet. Vérifiez que vous êtes bien le propriétaire du projet.');
       }
       
       const updatedProject = updateData[0];
       if (updatedProject.status !== 'cancelled') {
-        console.warn('[DEBUG] Update might have failed - status is:', updatedProject.status);
         throw new Error('Le statut du projet n\'a pas été correctement mis à jour.');
       }
       
@@ -1210,9 +1201,9 @@ export function ProjectDetailsPage() {
   // Artisan requests completion
   const handleRequestCompletion = async () => {
     if (!id) return;
-    // Sécuriser le flux : on ne peut demander la clôture que si un devis a été accepté
-    // (sinon le client ne pourra pas noter l'artisan correctement).
-    if (!acceptedQuote) {
+    // Sécuriser le flux : on ne peut demander la clôture que si un devis a été accepté (liste ou RPC)
+    const canRequest = acceptedQuote || (isArtisan && resolvedAcceptedArtisanId === auth.user?.id);
+    if (!canRequest) {
       showError(
         "Impossible de demander la clôture : aucun devis accepté n'est associé à ce projet."
       );
@@ -1273,9 +1264,12 @@ export function ProjectDetailsPage() {
   const hasAcceptedRevision = quoteRevisions.some((r: any) => r.status === 'accepted');
   const hasAcceptedRevisionForQuote = (quoteId: string) =>
     quoteRevisions.some((r: any) => r.quote_id === quoteId && r.status === 'accepted');
+  // Devis accepté résolu via RPC si absent de la liste (acceptation via révision, RLS, etc.)
+  const effectiveHasAcceptedQuote = !!acceptedQuote || !!resolvedArtisanForRating || !!resolvedAcceptedArtisanId;
+  const isArtisanAssigned = acceptedQuote?.artisan_id === auth.user?.id || resolvedAcceptedArtisanId === auth.user?.id;
   // Statut affiché : si devis ou révision accepté(e) mais projet encore open/quote_received (cache client)
   const displayStatus =
-    (acceptedQuote || hasAcceptedRevision) && ['open', 'quote_received'].includes(project?.status || '')
+    (acceptedQuote || hasAcceptedRevision || !!resolvedAcceptedArtisanId) && ['open', 'quote_received'].includes(project?.status || '')
       ? 'quote_accepted'
       : (project?.status || '');
 
@@ -1318,7 +1312,7 @@ export function ProjectDetailsPage() {
         )}
 
         {/* Montant du projet côté artisan (devis accepté = prix révisé le cas échéant) */}
-        {isArtisan && acceptedQuote?.artisan_id === auth.user?.id && acceptedQuote?.amount != null && (
+        {isArtisan && isArtisanAssigned && acceptedQuote?.amount != null && (
           <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6">
             <p className="text-xs font-bold text-green-800 uppercase tracking-wide mb-1">Montant du projet</p>
             <p className="text-2xl font-black text-green-900">
@@ -1331,7 +1325,7 @@ export function ProjectDetailsPage() {
         )}
 
         {/* Section "En attente de paiement" pour l'artisan (avec escrow actif) */}
-        {isArtisan && acceptedQuote?.artisan_id === auth.user?.id && 
+        {isArtisan && isArtisanAssigned && 
          escrow && escrow.status === 'pending' && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-6">
             <div className="flex items-center gap-3 mb-3">
@@ -1364,7 +1358,7 @@ export function ProjectDetailsPage() {
         
         {/* Section "En attente de paiement" pour l'artisan - mode bypass sans escrow */}
         {isArtisan &&
-          acceptedQuote?.artisan_id === auth.user?.id &&
+          isArtisanAssigned &&
           !escrow &&
           (project?.status === 'quote_accepted' || project?.status === 'payment_pending') && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-6">
@@ -1436,7 +1430,7 @@ export function ProjectDetailsPage() {
          escrow &&
          isPhaseSuivi &&
          project.status !== 'completed' &&
-         (isClient || (isArtisan && acceptedQuote?.artisan_id === auth.user?.id)) && (
+         (isClient || (isArtisan && isArtisanAssigned)) && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
             <p className="text-sm font-medium text-amber-800 mb-2">En cas de différend avec l&apos;autre partie, vous pouvez signaler un litige.</p>
             <p className="text-xs text-amber-700 mb-3">Le projet sera mis en attente. Seul l&apos;administrateur pourra débloquer la situation.</p>
@@ -1526,7 +1520,7 @@ export function ProjectDetailsPage() {
           {/* Bouton Passer à l'étape suivante : action selon statut et rôle */}
           {acceptedQuote &&
            isPhaseSuivi &&
-           (isClient || (isArtisan && acceptedQuote?.artisan_id === auth.user?.id)) && (
+           (isClient || (isArtisan && isArtisanAssigned)) && (
             <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
               {/* Étape suivante = Demander la clôture (travaux terminés) */}
               {(project.status === 'payment_received' || project.status === 'in_progress' || escrow?.status === 'held') &&
@@ -1806,7 +1800,6 @@ export function ProjectDetailsPage() {
               {(isArtisan || isClient) && (
                 <button
                   onClick={() => {
-                    console.log('[DEBUG] Manual refresh requested');
                     fetchDetails();
                   }}
                   className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
@@ -2367,7 +2360,7 @@ export function ProjectDetailsPage() {
 
       {/* Bottom Actions - ARTISAN (Travaux en cours) */}
       {isArtisan &&
-       (acceptedQuote?.artisan_id === auth.user?.id || (escrow && ['held', 'advance_paid'].includes(escrow.status))) &&
+       (isArtisanAssigned || (escrow && ['held', 'advance_paid'].includes(escrow.status))) &&
        isPhaseSuivi &&
        !['completion_requested', 'completed'].includes(project?.status || '') && (
         <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-gray-100 bg-white/95 backdrop-blur-md shadow-[0_-2px_20px_rgba(0,0,0,0.04)]">
@@ -2384,7 +2377,7 @@ export function ProjectDetailsPage() {
       )}
 
       {/* En attente client - ARTISAN */}
-      {isArtisan && (acceptedQuote?.artisan_id === auth.user?.id || escrow) && 
+      {isArtisan && (isArtisanAssigned || escrow) && 
        project.status === 'completion_requested' && (
         <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-gray-100 bg-white/95 backdrop-blur-md shadow-[0_-2px_20px_rgba(0,0,0,0.04)]">
           <div className="max-w-lg mx-auto px-4 pt-4 pb-5">
@@ -2402,7 +2395,7 @@ export function ProjectDetailsPage() {
       )}
 
       {/* Floating Chat Button - Disponible si un devis accepté existe et que le projet est dans un statut compatible */}
-      {acceptedQuote && ['quote_received', 'quote_accepted', 'in_progress', 'completion_requested', 'completed', 'expired', 'cancelled'].includes(displayStatus) && (
+      {(acceptedQuote || effectiveHasAcceptedQuote) && ['quote_received', 'quote_accepted', 'in_progress', 'completion_requested', 'completed', 'expired', 'cancelled'].includes(displayStatus) && (
         <button 
           onClick={() => navigate(`/chat/${id}`)}
           className="fixed bottom-28 right-4 w-14 h-14 bg-brand-500 text-white rounded-full shadow-lg flex items-center justify-center z-30 hover:bg-brand-600 transition-colors"
@@ -2416,7 +2409,7 @@ export function ProjectDetailsPage() {
       {showRatingModal && (() => {
         const acceptedQuote = quotes.find(q => q.status === 'accepted');
         const artisanProfile = acceptedQuote?.profiles;
-        const artisanId = acceptedQuote?.artisan_id ?? resolvedArtisanForRating?.artisan_id;
+        const artisanId = acceptedQuote?.artisan_id ?? resolvedArtisanForRating?.artisan_id ?? resolvedAcceptedArtisanId;
         const artisanName = artisanProfile?.full_name ?? resolvedArtisanForRating?.full_name ?? 'Artisan';
         const artisanAvatar = artisanProfile?.avatar_url ?? resolvedArtisanForRating?.avatar_url ?? undefined;
         if (!artisanId || !project) return null;

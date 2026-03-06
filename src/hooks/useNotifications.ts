@@ -19,7 +19,7 @@ function playNotificationSound() {
         g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
         o.start(ctx.currentTime);
         o.stop(ctx.currentTime + 0.15);
-      } catch {}
+      } catch { /* fallback son non bloquant : ignorer si Web Audio échoue */ }
     });
   } catch {
     try {
@@ -33,7 +33,7 @@ function playNotificationSound() {
       g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
       o.start(ctx.currentTime);
       o.stop(ctx.currentTime + 0.15);
-    } catch {}
+    } catch { /* ignorer : échec son non bloquant */ }
   }
 }
 

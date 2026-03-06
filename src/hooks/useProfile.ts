@@ -169,10 +169,8 @@ export function useProfile() {
             });
 
           if (walletError) {
-            console.error('[useProfile] Erreur lors de la création du wallet avec crédits de bienvenue:', walletError);
+            if (import.meta.env.DEV) console.error('useProfile: erreur création wallet crédits de bienvenue:', walletError);
             // Ne pas faire échouer la création du profil si l'ajout de crédits échoue
-          } else {
-            console.log('[useProfile] 500 crédits de bienvenue accordés au nouvel artisan:', currentUser.id);
           }
         } else {
           // Si le wallet existe déjà mais a moins de 500 crédits, lui donner 500 crédits minimum
@@ -185,10 +183,8 @@ export function useProfile() {
               })
               .eq('artisan_id', currentUser.id);
 
-            if (walletUpdateError) {
-              console.error('[useProfile] Erreur lors de l\'attribution des crédits de bienvenue:', walletUpdateError);
-            } else {
-              console.log('[useProfile] 500 crédits de bienvenue accordés à l\'artisan existant:', currentUser.id);
+            if (walletUpdateError && import.meta.env.DEV) {
+              console.error('useProfile: erreur attribution crédits de bienvenue:', walletUpdateError);
             }
           }
         }

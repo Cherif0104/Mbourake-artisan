@@ -424,7 +424,7 @@ export async function ensureProjectChatExists(
       if (messageError) {
         console.error('Error creating welcome message:', messageError);
       } else {
-        console.log(`Chat créé automatiquement pour le projet ${projectId}`);
+        if (import.meta.env.DEV) console.log('Chat créé automatiquement pour le projet', projectId);
       }
     }
   } catch (error) {
