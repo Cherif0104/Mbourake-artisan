@@ -48,7 +48,8 @@ function getNotificationTarget(notification: Notification): string {
     if (type === 'system' && data?.kind === 'quote_revision_requested' && data?.revision_id) return `/projects/${data.project_id}?revision=${data.revision_id}`;
     return `/projects/${data.project_id}#devis`;
   }
-  if (['payment_received', 'verification_approved', 'verification_rejected'].includes(type)) return '/dashboard';
+  if (type === 'payment_received') return '/invoices';
+  if (['verification_approved', 'verification_rejected'].includes(type)) return '/dashboard';
   return '/dashboard';
 }
 
@@ -59,7 +60,13 @@ export function NotificationsPage() {
   const handleClick = (notification: Notification) => {
     markAsRead(notification.id);
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    navigate(getNotificationTarget(notification));
+    const target = getNotificationTarget(notification);
+    const data = typeof notification.data === 'string' ? (() => { try { return JSON.parse(notification.data); } catch { return {}; } })() : (notification.data || {});
+    if (notification.type === 'payment_received') {
+      navigate(target, { state: { fromPaymentNotification: true, project_id: data?.project_id } });
+    } else {
+      navigate(target);
+    }
   };
 
   if (loading) {

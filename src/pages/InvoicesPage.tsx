@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, FileText, Download, Mail, CheckCircle, Clock, 
   X, AlertCircle, Filter, DollarSign, Calendar, Eye, Printer, Lock, Unlock
@@ -27,24 +27,47 @@ const PRESTATION_STATUS: Record<string, { label: string; color: string; icon: Re
   pending: { label: 'En attente paiement client', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <Clock size={16} /> },
 };
 
+/** Libellés côté client : tous les paiements effectués (escrow par projet) */
+const CLIENT_PAYMENT_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  held: { label: 'Payé – En attente déblocage', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
+  advance_paid: { label: 'Payé – En attente déblocage', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
+  released: { label: 'Déblocage effectué', color: 'bg-green-100 text-green-700 border border-green-200', icon: <Unlock size={16} /> },
+  frozen: { label: 'En attente résolution', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
+  refunded: { label: 'Remboursé', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <X size={16} /> },
+  pending: { label: 'En attente de paiement', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <Clock size={16} /> },
+};
+
 export function InvoicesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { profile } = useProfile();
   const { info } = useToastContext();
-  
+  const paymentsSectionRef = useRef<HTMLElement>(null);
+
   const [invoices, setInvoices] = useState<any[]>([]);
   const [prestations, setPrestations] = useState<Array<{ escrow: any; project: any }>>([]);
+  const [clientPaiements, setClientPaiements] = useState<Array<{ escrow: any; project: any }>>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [tableUnavailable, setTableUnavailable] = useState(false);
 
+  const fromPaymentNotification = (location.state as { fromPaymentNotification?: boolean; project_id?: string } | null)?.fromPaymentNotification;
+  const highlightProjectId = (location.state as { project_id?: string } | null)?.project_id;
+
   useEffect(() => {
     if (!user || !profile) return;
     fetchInvoices();
     if (profile.role === 'artisan') fetchPrestations();
+    if (profile.role === 'client') fetchClientPaiements();
   }, [user, profile, filterStatus]);
+
+  // Quand on arrive depuis la notification "Paiement reçu", scroll vers la section Paiements reçus
+  useEffect(() => {
+    if (!fromPaymentNotification || loading || !paymentsSectionRef.current) return;
+    paymentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [fromPaymentNotification, loading]);
 
   const fetchPrestations = async () => {
     if (!user || profile?.role !== 'artisan') return;
@@ -65,6 +88,38 @@ export function InvoicesPage() {
       .order('created_at', { ascending: false });
     setPrestations((escrowsData || []).map(e => ({ escrow: e, project: e.projects })));
   };
+
+  const fetchClientPaiements = async () => {
+    if (!user || profile?.role !== 'client') return;
+    const { data: projectsData } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('client_id', user.id);
+    const projectIds = (projectsData || []).map((p: any) => p.id).filter(Boolean);
+    if (projectIds.length === 0) {
+      setClientPaiements([]);
+      return;
+    }
+    const { data: escrowsData } = await supabase
+      .from('escrows')
+      .select('*, projects(id, title, project_number, status)')
+      .in('project_id', projectIds)
+      .order('created_at', { ascending: false });
+    setClientPaiements((escrowsData || []).map((e: any) => ({ escrow: e, project: e.projects })));
+  };
+
+  const now = new Date();
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const thisYearStart = new Date(now.getFullYear(), 0, 1).toISOString();
+  const totalReleased = prestations
+    .filter(({ escrow }) => escrow?.status === 'released')
+    .reduce((sum, { escrow }) => sum + Number(escrow?.artisan_payout ?? escrow?.total_amount ?? 0), 0);
+  const releasedThisMonth = prestations
+    .filter(({ escrow }) => escrow?.status === 'released' && (escrow?.updated_at && new Date(escrow.updated_at) >= new Date(thisMonthStart)))
+    .reduce((sum, { escrow }) => sum + Number(escrow?.artisan_payout ?? escrow?.total_amount ?? 0), 0);
+  const releasedThisYear = prestations
+    .filter(({ escrow }) => escrow?.status === 'released' && (escrow?.updated_at && new Date(escrow.updated_at) >= new Date(thisYearStart)))
+    .reduce((sum, { escrow }) => sum + Number(escrow?.artisan_payout ?? escrow?.total_amount ?? 0), 0);
 
   const fetchInvoices = async () => {
     if (!user || !profile) return;
@@ -177,21 +232,22 @@ export function InvoicesPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
-        {/* Prestations réalisées (artisan) */}
-        {profile?.role === 'artisan' && (
+        {/* Paiements effectués (client) — tous les paiements / dépenses par projet (escrow) */}
+        {profile?.role === 'client' && (
           <section className="mb-6">
-            <h2 className="font-bold text-gray-900 mb-3">Prestations réalisées</h2>
-            <p className="text-sm text-gray-500 mb-3">État des paiements par projet (client a payé, versement plateforme, litige).</p>
-            {prestations.length === 0 ? (
+            <h2 className="font-bold text-gray-900 mb-3">Paiements effectués</h2>
+            <p className="text-sm text-gray-500 mb-3">Tous vos paiements par projet (garantie puis déblocage). Chaque prestation est liée à un projet.</p>
+            {clientPaiements.length === 0 ? (
               <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
                 <DollarSign size={32} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">Aucune prestation avec paiement pour le moment.</p>
+                <p className="text-sm text-gray-500">Aucun paiement pour le moment.</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {prestations.map(({ escrow, project }) => {
+                {clientPaiements.map(({ escrow, project }) => {
                   const statusKey = (project?.status === 'disputed' ? 'frozen' : escrow?.status) || 'pending';
-                  const config = PRESTATION_STATUS[statusKey] || PRESTATION_STATUS.pending;
+                  const config = CLIENT_PAYMENT_STATUS[statusKey] || CLIENT_PAYMENT_STATUS.pending;
+                  const total = Number(escrow?.total_amount ?? 0);
                   return (
                     <div
                       key={escrow.id}
@@ -204,11 +260,9 @@ export function InvoicesPage() {
                           {config.label}
                         </span>
                       </div>
-                      <div className="flex justify-between text-sm text-gray-500">
-                        <span>Montant: {Number(escrow?.total_amount || 0).toLocaleString('fr-FR')} FCFA</span>
-                        {escrow?.artisan_payout != null && (
-                          <span className="text-gray-700">Reliquat: {Number(escrow.artisan_payout).toLocaleString('fr-FR')} FCFA</span>
-                        )}
+                      <div className="flex justify-between text-sm text-gray-700">
+                        <span>Montant payé</span>
+                        <span className="font-bold">{total.toLocaleString('fr-FR')} FCFA</span>
                       </div>
                       {project?.id && (
                         <button
@@ -227,76 +281,184 @@ export function InvoicesPage() {
           </section>
         )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-white rounded-2xl p-4 border border-gray-100">
-            <div className="flex items-center gap-2 mb-2">
-              <FileText size={18} className="text-brand-500" />
-              <p className="text-xs text-gray-500 font-medium">Total factures</p>
-            </div>
-            <p className="text-2xl font-black text-gray-900">{totalInvoices}</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {totalAmount.toLocaleString('fr-FR')} FCFA
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-2xl p-4 border border-gray-100">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle size={18} className="text-green-500" />
-              <p className="text-xs text-gray-500 font-medium">Payées</p>
-            </div>
-            <p className="text-2xl font-black text-green-600">
-              {paidAmount.toLocaleString('fr-FR')} FCFA
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              {invoices.filter(i => i.status === 'paid').length} facture(s)
-            </p>
-          </div>
-        </div>
+        {/* Paiements reçus (artisan) — tous les paiements reçus par projet (escrow) */}
+        {profile?.role === 'artisan' && (
+          <section ref={paymentsSectionRef} className="mb-6 scroll-mt-4">
+            <h2 className="font-bold text-gray-900 mb-3">Paiements reçus</h2>
+            <p className="text-sm text-gray-500 mb-3">Tous vos paiements reçus par projet. Coût de la prestation, commission prélevée et montant net versé (déblocage escrow). Chaque prestation est liée à un projet.</p>
 
-        {/* Pending Amount Warning */}
-        {pendingAmount > 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
-            <AlertCircle size={20} className="text-yellow-600 flex-shrink-0" />
-            <div>
-              <p className="font-bold text-yellow-800 text-sm">En attente de paiement</p>
-              <p className="text-sm text-yellow-700">
-                {pendingAmount.toLocaleString('fr-FR')} FCFA
-              </p>
-            </div>
-          </div>
+            {/* Solde : total, ce mois, cette année */}
+            {(totalReleased > 0 || releasedThisMonth > 0 || releasedThisYear > 0) && (
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
+                  <p className="text-xs text-gray-500 font-medium">Total versé</p>
+                  <p className="text-lg font-black text-gray-900">{totalReleased.toLocaleString('fr-FR')} FCFA</p>
+                </div>
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
+                  <p className="text-xs text-gray-500 font-medium">Ce mois</p>
+                  <p className="text-lg font-black text-brand-600">{releasedThisMonth.toLocaleString('fr-FR')} FCFA</p>
+                </div>
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
+                  <p className="text-xs text-gray-500 font-medium">Cette année</p>
+                  <p className="text-lg font-black text-green-600">{releasedThisYear.toLocaleString('fr-FR')} FCFA</p>
+                </div>
+              </div>
+            )}
+
+            {prestations.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
+                <DollarSign size={32} className="mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500">Aucune prestation avec paiement pour le moment.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {prestations.map(({ escrow, project }) => {
+                  const statusKey = (project?.status === 'disputed' ? 'frozen' : escrow?.status) || 'pending';
+                  const config = PRESTATION_STATUS[statusKey] || PRESTATION_STATUS.pending;
+                  const total = Number(escrow?.total_amount ?? 0);
+                  const net = escrow?.artisan_payout != null ? Number(escrow.artisan_payout) : total;
+                  const fees = total - net;
+                  const isHighlighted = highlightProjectId && project?.id === highlightProjectId;
+                  return (
+                    <div
+                      key={escrow.id}
+                      className={`bg-white rounded-2xl p-4 border shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all ${
+                        isHighlighted ? 'border-brand-400 ring-2 ring-brand-200' : 'border-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="font-bold text-gray-900 truncate">{project?.title || project?.project_number || 'Projet'}</p>
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 flex-shrink-0 ${config.color}`}>
+                          {config.icon}
+                          {config.label}
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between text-gray-600">
+                          <span>Coût prestation</span>
+                          <span className="font-medium">{total.toLocaleString('fr-FR')} FCFA</span>
+                        </div>
+                        {fees > 0 && (
+                          <div className="flex justify-between text-gray-500">
+                            <span>Commission / frais</span>
+                            <span className="font-medium">− {fees.toLocaleString('fr-FR')} FCFA</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-gray-900 font-bold pt-1 border-t border-gray-100">
+                          <span>Net reçu</span>
+                          <span className="text-green-600">{net.toLocaleString('fr-FR')} FCFA</span>
+                        </div>
+                      </div>
+                      {project?.id && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                          className="mt-2 text-xs text-brand-500 font-bold hover:underline"
+                        >
+                          Voir le projet
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         )}
 
-        {/* Filters */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          <button
-            onClick={() => setFilterStatus('all')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-              filterStatus === 'all'
-                ? 'bg-brand-500 text-white'
-                : 'bg-white border border-gray-200 text-gray-600'
-            }`}
-          >
-            Toutes
-          </button>
-          {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-            <button
-              key={key}
-              onClick={() => setFilterStatus(key)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
-                filterStatus === key
-                  ? 'bg-brand-500 text-white'
-                  : 'bg-white border border-gray-200 text-gray-600'
-              }`}
-            >
-              {config.icon}
-              {config.label}
-            </button>
-          ))}
-        </div>
+        {/* Stats + Filtres + Liste factures : masqués pour l'artisan si table indisponible (workflow = escrow uniquement) */}
+        {!(profile?.role === 'artisan' && tableUnavailable) && (
+          <>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText size={18} className="text-brand-500" />
+                  <p className="text-xs text-gray-500 font-medium">Total factures</p>
+                </div>
+                <p className="text-2xl font-black text-gray-900">{totalInvoices}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {totalAmount.toLocaleString('fr-FR')} FCFA
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle size={18} className="text-green-500" />
+                  <p className="text-xs text-gray-500 font-medium">Payées</p>
+                </div>
+                <p className="text-2xl font-black text-green-600">
+                  {paidAmount.toLocaleString('fr-FR')} FCFA
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {invoices.filter(i => i.status === 'paid').length} facture(s)
+                </p>
+              </div>
+            </div>
 
-        {/* Invoices List */}
-        {tableUnavailable ? (
+            {pendingAmount > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+                <AlertCircle size={20} className="text-yellow-600 flex-shrink-0" />
+                <div>
+                  <p className="font-bold text-yellow-800 text-sm">En attente de paiement</p>
+                  <p className="text-sm text-yellow-700">
+                    {pendingAmount.toLocaleString('fr-FR')} FCFA
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Filtres : simplifiés pour l'artisan (Toutes / Payées uniquement) */}
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+              <button
+                onClick={() => setFilterStatus('all')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  filterStatus === 'all'
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-white border border-gray-200 text-gray-600'
+                }`}
+              >
+                Toutes
+              </button>
+              {profile?.role === 'artisan' ? (
+                <button
+                  onClick={() => setFilterStatus('paid')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
+                    filterStatus === 'paid'
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-white border border-gray-200 text-gray-600'
+                  }`}
+                >
+                  {STATUS_CONFIG.paid.icon}
+                  {STATUS_CONFIG.paid.label}
+                </button>
+              ) : (
+                Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                  <button
+                    key={key}
+                    onClick={() => setFilterStatus(key)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
+                      filterStatus === key
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-white border border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {config.icon}
+                    {config.label}
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Message artisan quand table factures indisponible */}
+        {profile?.role === 'artisan' && tableUnavailable && (
+          <p className="text-sm text-gray-500 mb-4 text-center">
+            Le détail des factures (brouillon, envoyée, etc.) sera disponible lorsque le module sera activé. En attendant, vos paiements reçus ci-dessus reflètent les déblocages escrow.
+          </p>
+        )}
+
+        {/* Invoices List (caché pour artisan si table factures indisponible) */}
+        {profile?.role === 'artisan' && tableUnavailable ? null : tableUnavailable ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
             <FileText size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500 font-medium">Factures en préparation</p>

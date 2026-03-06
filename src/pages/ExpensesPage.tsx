@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Plus, Receipt, TrendingUp, Filter, Calendar, 
-  DollarSign, Package, Wrench, Truck, Settings, FileText,
-  Upload, X, Image as ImageIcon
+  ArrowLeft, Plus, Receipt, TrendingUp, DollarSign, Package, Wrench, Truck, Settings, FileText,
+  Upload, X, Image as ImageIcon, Info, Wallet
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -29,6 +28,7 @@ export function ExpensesPage() {
   
   const [expenses, setExpenses] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [revenueByEscrow, setRevenueByEscrow] = useState<Array<{ escrow: any; project: any }>>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
@@ -50,7 +50,29 @@ export function ExpensesPage() {
     if (!user || !profile) return;
     fetchExpenses();
     fetchProjects();
+    if (profile.role === 'artisan') fetchRevenue();
   }, [user, profile]);
+
+  const fetchRevenue = async () => {
+    if (!user || profile?.role !== 'artisan') return;
+    const { data: acceptedQuotes } = await supabase
+      .from('quotes')
+      .select('project_id')
+      .eq('artisan_id', user.id)
+      .eq('status', 'accepted');
+    const projectIds = (acceptedQuotes || []).map((q: any) => q.project_id).filter(Boolean);
+    if (projectIds.length === 0) {
+      setRevenueByEscrow([]);
+      return;
+    }
+    const { data: escrowsData } = await supabase
+      .from('escrows')
+      .select('*, projects(id, title, project_number)')
+      .in('project_id', projectIds)
+      .eq('status', 'released')
+      .order('updated_at', { ascending: false });
+    setRevenueByEscrow((escrowsData || []).map((e: any) => ({ escrow: e, project: e.projects })));
+  };
 
   const fetchExpenses = async () => {
     if (!user) return;
@@ -184,6 +206,11 @@ export function ExpensesPage() {
   };
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
+  const totalRevenue = revenueByEscrow.reduce(
+    (sum, { escrow }) => sum + Number(escrow?.artisan_payout ?? escrow?.total_amount ?? 0),
+    0
+  );
+  const balance = totalRevenue - totalExpenses;
   const categoryTotals = expenses.reduce((acc, exp) => {
     acc[exp.category] = (acc[exp.category] || 0) + parseFloat(exp.amount || 0);
     return acc;
@@ -212,6 +239,47 @@ export function ExpensesPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
+        {/* Bloc explicatif (artisan) */}
+        {profile?.role === 'artisan' && (
+          <div className="mb-6 p-4 bg-brand-50 border border-brand-100 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <Info size={20} className="text-brand-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-brand-900 text-sm mb-1">À quoi sert ce module ?</p>
+                <p className="text-sm text-brand-800">
+                  Enregistrez vos dépenses (matériaux, transport, etc.) et associez-les à un projet. Vous verrez en un coup d’œil ce que vous avez dépensé et ce que vous avez encaissé (paiements versés par la plateforme), pour suivre votre marge et votre chiffre d’affaires par chantier.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Revenus vs Dépenses (artisan) */}
+        {profile?.role === 'artisan' && revenueByEscrow.length > 0 && (
+          <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+            <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Wallet size={18} />
+              Revenus vs Dépenses
+            </h2>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Encaissé</p>
+                <p className="text-lg font-black text-green-600">{totalRevenue.toLocaleString('fr-FR')} FCFA</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Dépenses</p>
+                <p className="text-lg font-black text-gray-900">{totalExpenses.toLocaleString('fr-FR')} FCFA</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Solde</p>
+                <p className={`text-lg font-black ${balance >= 0 ? 'text-brand-600' : 'text-red-600'}`}>
+                  {balance.toLocaleString('fr-FR')} FCFA
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-2xl p-4 border border-gray-100">
@@ -382,8 +450,9 @@ export function ExpensesPage() {
               
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
-                  Projet (optionnel)
+                  Projet
                 </label>
+                <p className="text-xs text-gray-500 mb-2">Recommandé : associer à un projet pour suivre la marge par chantier.</p>
                 <select
                   value={projectId}
                   onChange={(e) => setProjectId(e.target.value)}
