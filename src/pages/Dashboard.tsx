@@ -78,7 +78,7 @@ export function Dashboard() {
   const [initializingProfile, setInitializingProfile] = useState(false);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [activityFilter, setActivityFilter] = useState<'all' | 'active' | 'completed'>('all');
-  const [activitySubTab, setActivitySubTab] = useState<'demandes' | 'devis' | 'revisions_attente' | 'revisions_envoyees'>('demandes');
+  const [activitySubTab, setActivitySubTab] = useState<'demandes' | 'devis' | 'revisions_attente' | 'revisions_envoyees'>('devis');
   const [satisfactionStats, setSatisfactionStats] = useState<{ ratingAvg: number; reviewCount: number; satisfactionPercent: number } | null>(null);
   const [recentReviews, setRecentReviews] = useState<Array<{ rating: number; comment: string | null; created_at: string }>>([]);
   
@@ -267,24 +267,29 @@ export function Dashboard() {
 
           // Récupérer UNIQUEMENT les projets de sa catégorie
           // Un artisan ne voit QUE les projets liés à sa catégorie
-          const { data: openProjects } = await supabase
+          const { data: openProjects, error: openProjectsError } = await supabase
             .from('projects')
-            .select('*, categories(*), profiles!projects_client_id_fkey(*)')
+            .select('id, title, status, created_at, project_number, location, category_id, client_id, categories(*)')
             .eq('category_id', artisan.category_id) // FILTRE CRITIQUE : uniquement sa catégorie
             .in('status', ['open', 'quote_received'])
             .order('created_at', { ascending: false })
             .limit(10);
+          if (openProjectsError) {
+            console.error('[Dashboard] openProjects error:', openProjectsError);
+          }
           
           setProjects(openProjects || []);
         }
         
         // Récupérer TOUS les devis de l'artisan (historique complet)
-        const { data: quotes } = await supabase
+        const { data: quotes, error: quotesError } = await supabase
           .from('quotes')
-          .select('*, projects(*, categories(*), profiles!projects_client_id_fkey(*))')
+          .select('id, project_id, amount, status, created_at, rejection_reason, artisan_id, projects(id, title, status, created_at, project_number, location, category_id, categories(*))')
           .eq('artisan_id', profile.id)
           .order('created_at', { ascending: false });
-        
+        if (quotesError) {
+          console.error('[Dashboard] myQuotes error:', quotesError);
+        }
         setMyQuotes(quotes || []);
 
         // Récupérer les demandes de révision (en attente + déjà répondues) pour les devis de l'artisan
@@ -346,15 +351,41 @@ export function Dashboard() {
       } else {
         setSatisfactionStats(null);
         setRecentReviews([]);
-        // Récupérer les projets du client, exclure les projets annulés pour l'affichage principal
-        const { data: clientProjects } = await supabase
+        // Récupérer tous les projets du client (historique complet inclus), sans jointure sensible
+        const { data: clientProjects, error: clientProjectsError } = await supabase
           .from('projects')
-          .select('*, categories(*), quotes(*)')
+          .select('id, title, status, created_at, project_number, location, category_id, categories(*)')
           .eq('client_id', profile.id)
-          .neq('status', 'cancelled') // Exclure les projets annulés de la liste principale
           .order('created_at', { ascending: false });
-        
-        setProjects(clientProjects || []);
+        if (clientProjectsError) {
+          console.error('[Dashboard] clientProjects error:', clientProjectsError);
+          setProjects([]);
+        } else {
+          // Ajouter un compteur devis par projet pour préserver l'affichage existant
+          const projectIds = (clientProjects || []).map((p: any) => p.id);
+          let quoteCountByProject = new Map<string, number>();
+          if (projectIds.length > 0) {
+            const { data: rawQuotes, error: rawQuotesError } = await supabase
+              .from('quotes')
+              .select('project_id')
+              .in('project_id', projectIds);
+            if (rawQuotesError) {
+              console.error('[Dashboard] client quote count error:', rawQuotesError);
+            } else {
+              quoteCountByProject = rawQuotes.reduce((acc: Map<string, number>, row: { project_id: string | null }) => {
+                if (!row.project_id) return acc;
+                acc.set(row.project_id, (acc.get(row.project_id) || 0) + 1);
+                return acc;
+              }, new Map<string, number>());
+            }
+          }
+
+          const normalizedProjects = (clientProjects || []).map((p: any) => ({
+            ...p,
+            quote_count: quoteCountByProject.get(p.id) || 0,
+          }));
+          setProjects(normalizedProjects);
+        }
       }
       
       setLoading(false);
@@ -418,6 +449,15 @@ export function Dashboard() {
     if (activityFilter === 'completed') return myQuotes.filter(q => q.projects?.status === 'completed');
     return myQuotes;
   }, [myQuotes, activityFilter]);
+
+  // Sur l'accueil, on masque les annulés pour garder une vue utile,
+  // mais ils restent disponibles dans l'onglet Activité (historique complet).
+  const homeProjects = useMemo(() => projects.filter((p) => p.status !== 'cancelled'), [projects]);
+  const getProjectQuoteCount = (project: any): number => {
+    if (typeof project?.quote_count === 'number') return project.quote_count;
+    if (Array.isArray(project?.quotes)) return project.quotes.length;
+    return 0;
+  };
 
   // Nouvelles demandes (projets ouverts dans sa catégorie auxquels l'artisan n'a pas encore répondu)
   const newRequestProjects = useMemo(() => {
@@ -892,7 +932,7 @@ export function Dashboard() {
               <section>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-black text-gray-900">Mes projets</h2>
-                  {projects.length > 3 && (
+                  {homeProjects.length > 3 && (
                     <button 
                       onClick={() => setActiveTab('activity')}
                       className="text-sm text-brand-500 font-bold flex items-center gap-1.5 min-h-[32px] px-2"
@@ -903,7 +943,7 @@ export function Dashboard() {
                   )}
                 </div>
                 
-                {projects.length === 0 ? (
+                {homeProjects.length === 0 ? (
                   <div className="bg-white/85 backdrop-blur-xl rounded-2xl p-10 text-center border border-white/60 shadow-glass">
                     <div className="w-16 h-16 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <Sparkles size={28} className="text-brand-500" />
@@ -913,9 +953,9 @@ export function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {projects.slice(0, 3).map((project, index) => {
+                    {homeProjects.slice(0, 3).map((project, index) => {
                       const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.open;
-                      const hasQuotes = project.quotes?.length > 0;
+                      const hasQuotes = getProjectQuoteCount(project) > 0;
                       
                       return (
                         <button
@@ -948,7 +988,7 @@ export function Dashboard() {
                             {hasQuotes && (
                               <span className="text-purple-600 font-bold flex items-center gap-1.5">
                                 <FileText size={16} />
-                                {project.quotes.length} devis
+                                {getProjectQuoteCount(project)} devis
                               </span>
                             )}
                           </div>
@@ -1191,7 +1231,7 @@ export function Dashboard() {
                   <div className="space-y-3">
                   {filteredProjects.map((project, index) => {
                     const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.open;
-                    const quoteCount = project.quotes?.length ?? 0;
+                    const quoteCount = getProjectQuoteCount(project);
                     return (
                       <button
                         key={project.id}
