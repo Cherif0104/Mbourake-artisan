@@ -1,7 +1,7 @@
 // Bumper la version à chaque déploiement pour forcer la mise à jour des clients (skipWaiting + controllerchange → reload)
-const CACHE_NAME = 'mbourake-v2.6.0';
-const STATIC_CACHE_NAME = 'mbourake-static-v2.6.0';
-const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.6.0';
+const CACHE_NAME = 'mbourake-v2.6.1';
+const STATIC_CACHE_NAME = 'mbourake-static-v2.6.1';
+const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.6.1';
 
 // Assets à mettre en cache immédiatement
 const STATIC_ASSETS = [
@@ -40,6 +40,12 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Cache.put() n'accepte que les requêtes http/https (pas chrome-extension://, etc.)
+function canCache(request) {
+  const u = new URL(request.url);
+  return u.protocol === 'http:' || u.protocol === 'https:';
+}
+
 // Stratégie de cache : Network First avec fallback cache pour les requêtes API
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -47,6 +53,11 @@ self.addEventListener('fetch', (event) => {
 
   // Ignorer les requêtes non-GET
   if (request.method !== 'GET') {
+    return;
+  }
+
+  // Ne jamais mettre en cache les schémas non supportés (chrome-extension, etc.)
+  if (!canCache(request)) {
     return;
   }
 
@@ -63,10 +74,10 @@ self.addEventListener('fetch', (event) => {
           return cachedResponse;
         }
         return fetch(request).then((response) => {
-          if (response.status === 200) {
+          if (response.status === 200 && canCache(request)) {
             const responseToCache = response.clone();
             caches.open(DYNAMIC_CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
+              cache.put(request, responseToCache).catch(() => {});
             });
           }
           return response;
@@ -115,10 +126,10 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.status === 200) {
+        if (response.status === 200 && canCache(request)) {
           const responseToCache = response.clone();
           caches.open(DYNAMIC_CACHE_NAME).then((cache) => {
-            cache.put(request, responseToCache);
+            cache.put(request, responseToCache).catch(() => {});
           });
         }
         return response;
