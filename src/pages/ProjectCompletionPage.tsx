@@ -40,6 +40,26 @@ export function ProjectCompletionPage() {
   ): Promise<{ qData: any }> => {
     let qData: any = null;
 
+    // Source canonique (si dispo): projects.accepted_quote_id
+    if (pData?.accepted_quote_id) {
+      const { data: canonicalQuote } = await supabase
+        .from('quotes')
+        .select('id, artisan_id, amount, status, created_at')
+        .eq('id', pData.accepted_quote_id)
+        .maybeSingle();
+      if (canonicalQuote?.artisan_id) {
+        qData = canonicalQuote;
+        setQuote(qData);
+        const { data: art } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .eq('id', canonicalQuote.artisan_id)
+          .maybeSingle();
+        setArtisan(art || null);
+        return { qData };
+      }
+    }
+
     const setFromRpc = (rpcRaw: unknown): string | null => {
       const rpcArtisanId: string | null =
         typeof rpcRaw === 'string'
