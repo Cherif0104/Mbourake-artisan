@@ -20,6 +20,17 @@ const CATEGORY_CONFIG: Record<ExpenseCategory, { label: string; icon: React.Reac
   other: { label: 'Autre', icon: <FileText size={20} />, color: 'bg-gray-100 text-gray-600' },
 };
 
+/** Affiche le nom du projet en priorité (plus lisible que le numéro), puis la ref et la date. */
+function projectDisplayLabel(project: { title?: string; project_number?: string; created_at?: string } | null): string {
+  if (!project) return 'Projet';
+  const name = project.title?.trim() || (project.project_number ? `Projet ref. ${project.project_number}` : 'Projet sans titre');
+  const ref = project.project_number && project.title?.trim() ? ` (ref. ${project.project_number})` : '';
+  const date = project.created_at
+    ? ` · ${new Date(project.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`
+    : '';
+  return `${name}${ref}${date}`;
+}
+
 export function ExpensesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -79,7 +90,7 @@ export function ExpensesPage() {
     
     let query = supabase
       .from('expenses')
-      .select('*, projects(title, project_number)')
+      .select('*, projects(title, project_number, created_at)')
       .eq('user_id', user.id)
       .order('expense_date', { ascending: false });
 
@@ -106,17 +117,16 @@ export function ExpensesPage() {
     if (profile.role === 'client') {
       const { data } = await supabase
         .from('projects')
-        .select('id, title, project_number')
+        .select('id, title, project_number, created_at')
         .eq('client_id', user.id)
         .in('status', ['open', 'quote_accepted', 'in_progress', 'completed'])
         .order('created_at', { ascending: false });
       
       setProjects(data || []);
     } else if (profile.role === 'artisan') {
-      // Récupérer les projets où l'artisan a un devis accepté
       const { data: quotesData } = await supabase
         .from('quotes')
-        .select('project_id, projects(id, title, project_number)')
+        .select('project_id, projects(id, title, project_number, created_at)')
         .eq('artisan_id', user.id)
         .eq('status', 'accepted');
       
@@ -322,7 +332,7 @@ export function ExpensesPage() {
             <option value="all">Tous les projets</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
-                {project.project_number || project.title}
+                {projectDisplayLabel(project)}
               </option>
             ))}
           </select>
@@ -369,8 +379,8 @@ export function ExpensesPage() {
                   )}
                   
                   {expense.projects && (
-                    <p className="text-xs text-gray-400 mb-2">
-                      Projet: {expense.projects.project_number || expense.projects.title}
+                    <p className="text-xs text-gray-600 mb-2">
+                      Projet : {projectDisplayLabel(expense.projects)}
                     </p>
                   )}
                   
@@ -452,7 +462,7 @@ export function ExpensesPage() {
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
                   Projet
                 </label>
-                <p className="text-xs text-gray-500 mb-2">Recommandé : associer à un projet pour suivre la marge par chantier.</p>
+                <p className="text-xs text-gray-500 mb-2">Nom du projet et date pour repérer facilement le chantier. Recommandé pour la marge.</p>
                 <select
                   value={projectId}
                   onChange={(e) => setProjectId(e.target.value)}
@@ -461,7 +471,7 @@ export function ExpensesPage() {
                   <option value="">Aucun projet</option>
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
-                      {project.project_number || project.title}
+                      {projectDisplayLabel(project)}
                     </option>
                   ))}
                 </select>

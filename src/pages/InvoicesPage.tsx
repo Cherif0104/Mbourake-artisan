@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, FileText, Download, Mail, CheckCircle, Clock, 
-  X, AlertCircle, Filter, DollarSign, Calendar, Eye, Printer, Lock, Unlock
+  X, AlertCircle, DollarSign, Eye, Printer, Lock, Unlock, Info
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -18,21 +18,22 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   cancelled: { label: 'Annulée', color: 'bg-gray-100 text-gray-500 border border-gray-200', icon: <X size={16} /> },
 };
 
+/** Workflow paiement : 1) Séquestration (client paie) 2) Déblocage en cours (validation admin) 3) Versé à l'artisan (commission déduite) 4) Litige → admin */
 const PRESTATION_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  held: { label: 'Client a payé – En attente versement plateforme', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  advance_paid: { label: 'Client a payé – En attente versement plateforme', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  released: { label: 'Versé', color: 'bg-green-100 text-green-700 border border-green-200', icon: <Unlock size={16} /> },
-  frozen: { label: 'En attente résolution', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
+  held: { label: 'Séquestration – En attente déblocage par l\'admin', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
+  advance_paid: { label: 'Séquestration – En attente déblocage par l\'admin', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
+  released: { label: 'Versé à l\'artisan (commission déduite)', color: 'bg-green-100 text-green-700 border border-green-200', icon: <Unlock size={16} /> },
+  frozen: { label: 'Litige – Prise en charge par l\'admin', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
   refunded: { label: 'Remboursé', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <X size={16} /> },
   pending: { label: 'En attente paiement client', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <Clock size={16} /> },
 };
 
-/** Libellés côté client : tous les paiements effectués (escrow par projet) */
+/** Côté client : mêmes étapes (séquestration → déblocage → versé / litige) */
 const CLIENT_PAYMENT_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  held: { label: 'Payé – En attente déblocage', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  advance_paid: { label: 'Payé – En attente déblocage', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  released: { label: 'Déblocage effectué', color: 'bg-green-100 text-green-700 border border-green-200', icon: <Unlock size={16} /> },
-  frozen: { label: 'En attente résolution', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
+  held: { label: 'Séquestration – Déblocage en cours (validation admin)', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
+  advance_paid: { label: 'Séquestration – Déblocage en cours (validation admin)', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
+  released: { label: 'Déblocage effectué – Versé à l\'artisan', color: 'bg-green-100 text-green-700 border border-green-200', icon: <Unlock size={16} /> },
+  frozen: { label: 'Litige – Prise en charge par l\'admin', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
   refunded: { label: 'Remboursé', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <X size={16} /> },
   pending: { label: 'En attente de paiement', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <Clock size={16} /> },
 };
