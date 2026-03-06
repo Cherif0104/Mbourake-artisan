@@ -14,7 +14,10 @@ export function NotificationRealtimeToaster() {
     const handle = (e: Event) => {
       const notification = (e as CustomEvent<Notification>).detail;
       if (!notification?.title) return;
-      info(notification.title, 5000);
+      const text = notification.message
+        ? `${notification.title}\n${notification.message}`
+        : notification.title;
+      info(text, 6000);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(200);
       }

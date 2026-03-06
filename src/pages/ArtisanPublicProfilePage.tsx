@@ -176,24 +176,36 @@ export function ArtisanPublicProfilePage() {
         return;
       }
 
-      // Récupérer le profil ; si anon et échec, réessayer avec champs publics uniquement
+      // Récupérer le profil : en anonyme, demander d'abord les champs publics uniquement (RLS)
       let profileData: any = null;
       let profileError: any = null;
-      const fullRes = await supabase
-        .from('profiles')
-        .select('id, full_name, email, phone, avatar_url, location, member_id, created_at, role')
-        .eq('id', id)
-        .maybeSingle();
-      profileData = fullRes.data;
-      profileError = fullRes.error;
-      if ((profileError || !profileData) && !user) {
-        const minRes = await supabase
+      if (user) {
+        const fullRes = await supabase
           .from('profiles')
-          .select('id, full_name, avatar_url, location')
+          .select('id, full_name, email, phone, avatar_url, location, member_id, created_at, role')
           .eq('id', id)
           .maybeSingle();
-        profileData = minRes.data;
-        profileError = minRes.error;
+        profileData = fullRes.data;
+        profileError = fullRes.error;
+      }
+      if (!user || profileError || !profileData) {
+        const minRes = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, location, member_id, created_at')
+          .eq('id', id)
+          .maybeSingle();
+        if (minRes.data) {
+          profileData = {
+            ...minRes.data,
+            email: (minRes.data as any).email ?? '',
+            phone: (minRes.data as any).phone ?? null,
+            role: (minRes.data as any).role ?? 'artisan',
+          };
+          profileError = null;
+        } else {
+          profileData = profileData ?? minRes.data;
+          profileError = profileError ?? minRes.error;
+        }
       }
 
       if (profileError) {
@@ -730,12 +742,14 @@ export function ArtisanPublicProfilePage() {
                 <span className="font-medium text-sm">Numéro masqué pour la confidentialité</span>
               </div>
             )}
-            <div className="flex items-center gap-3 text-gray-600">
-              <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-                <Mail size={18} className="text-gray-500" />
+            {artisan.email && (
+              <div className="flex items-center gap-3 text-gray-600">
+                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                  <Mail size={18} className="text-gray-500" />
+                </div>
+                <span className="font-medium">{artisan.email}</span>
               </div>
-              <span className="font-medium">{artisan.email}</span>
-            </div>
+            )}
             {artisan.location && (
               <div className="flex items-center gap-3 text-gray-600">
                 <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">

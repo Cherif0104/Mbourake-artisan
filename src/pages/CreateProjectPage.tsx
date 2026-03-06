@@ -330,7 +330,7 @@ export function CreateProjectPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header moderne — aligné dashboard */}
-      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-lg border-b border-gray-100/50 shadow-sm">
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-gray-100/50 shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <button 

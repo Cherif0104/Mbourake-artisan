@@ -88,7 +88,7 @@ export function RevisionsPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       <audio ref={audioRef} playsInline className="sr-only" aria-hidden />
       {/* Header */}
-      <header className="bg-white sticky top-0 z-30 shadow-sm border-b border-gray-100">
+      <header className="bg-white sticky top-0 z-40 shadow-sm border-b border-gray-100">
         <div className="max-w-lg mx-auto px-5 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate('/dashboard')}

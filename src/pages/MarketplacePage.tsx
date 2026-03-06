@@ -168,7 +168,7 @@ export function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
+      <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
         <HomeButton />
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-gray-900 truncate">Marketplace</h1>

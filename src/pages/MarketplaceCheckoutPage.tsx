@@ -94,7 +94,7 @@ export function MarketplaceCheckoutPage() {
   if (notFound || !product) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+        <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
           <button type="button" onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-xl hover:bg-gray-100">
             <ArrowLeft size={24} className="text-gray-700" />
           </button>
@@ -117,7 +117,7 @@ export function MarketplaceCheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-      <header className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-white/95 backdrop-blur border-b border-gray-100">
+      <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white/95 backdrop-blur border-b border-gray-100">
         <button type="button" onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-xl hover:bg-gray-100">
           <ArrowLeft size={24} className="text-gray-700" />
         </button>

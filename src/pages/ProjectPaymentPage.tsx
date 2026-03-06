@@ -225,7 +225,7 @@ export function ProjectPaymentPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
+      <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
         <button
           type="button"
           onClick={() => navigate(`/projects/${id}`)}

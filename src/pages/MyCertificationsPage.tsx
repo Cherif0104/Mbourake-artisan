@@ -103,7 +103,7 @@ export function MyCertificationsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-4">
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-4">
         <BackButton onClick={() => navigate('/profile')} />
         <div className="flex-1">
           <h1 className="font-bold text-gray-900">Certifications</h1>

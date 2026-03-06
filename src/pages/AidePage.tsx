@@ -11,7 +11,7 @@ export function AidePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b sticky top-0 z-50">
+      <header className="bg-white border-b sticky top-0 z-40">
         <div className="max-w-2xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, MapPin, Calendar, Play, MessageCircle, CheckCircle, X, 
   Star, ThumbsUp, Hash, Clock, AlertTriangle, FileText,
@@ -90,6 +90,7 @@ const getTimelineProgress = (status: string, hasQuotes: boolean, escrowStatus: s
 export function ProjectDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const auth = useAuth();
   const { profile } = useProfile();
@@ -471,7 +472,9 @@ export function ProjectDetailsPage() {
     } else if (st === 'in_progress') {
       target = `/projects/${id}/work`;
     } else if (paid) {
-      target = `/projects/${id}/thank-you`;
+      // Ne pas renvoyer vers thank-you si l'utilisateur vient d'y cliquer "Voir les détails"
+      const fromThankYou = (location.state as { fromThankYou?: boolean } | null)?.fromThankYou;
+      if (!fromThankYou) target = `/projects/${id}/thank-you`;
     } else if (isAcceptedLikeStatus && isClient) {
       target = `/projects/${id}/payment`;
     }
@@ -484,7 +487,7 @@ export function ProjectDetailsPage() {
       clearTimeout(t);
       redirectToStepPageScheduledRef.current = false;
     };
-  }, [loading, id, project, escrow, quotes, quoteRevisions, auth.user, navigate]);
+  }, [loading, id, project, escrow, quotes, quoteRevisions, auth.user, navigate, location.state]);
 
   // Optimiser le useEffect pour éviter les recharges intempestifs
   useEffect(() => {
@@ -1283,7 +1286,7 @@ export function ProjectDetailsPage() {
     <div className="min-h-screen bg-gray-50">
       <audio ref={singleAudioRef} playsInline className="sr-only" aria-hidden />
       {/* Header */}
-      <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
+      <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
           <ArrowLeft size={20} className="text-gray-600" />
         </button>

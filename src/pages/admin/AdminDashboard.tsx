@@ -393,7 +393,7 @@ export function AdminDashboard() {
         </div>
       </aside>
       <main className="flex-1 flex flex-col min-h-0 min-w-0">
-        <header className="sticky top-0 z-10 bg-white border-b px-4 sm:px-8 py-4 flex items-center gap-3 justify-between shrink-0">
+        <header className="sticky top-0 z-40 bg-white border-b px-4 sm:px-8 py-4 flex items-center gap-3 justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"

@@ -321,7 +321,7 @@ export function ChambreDashboardPage() {
       </aside>
 
       <main className="flex-1 flex flex-col min-h-0 min-w-0">
-        <header className="sticky top-0 z-10 bg-white border-b px-4 md:px-6 py-3 flex items-center gap-3">
+        <header className="sticky top-0 z-40 bg-white border-b px-4 md:px-6 py-3 flex items-center gap-3">
           <button type="button" onClick={() => setSidebarOpen(true)} className="md:hidden p-2 -m-2 text-gray-500 hover:bg-gray-100 rounded-lg" aria-label="Menu"><Menu size={22} /></button>
           <h2 className="text-lg font-black text-gray-900 truncate">{SECTION_LABELS[section]}</h2>
         </header>

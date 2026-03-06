@@ -237,7 +237,7 @@ export function ProfilePage() {
   if (!isArtisan) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-        <header className="bg-white/80 backdrop-blur-lg sticky top-0 z-30 shadow-sm border-b border-gray-100/50">
+        <header className="bg-white/80 backdrop-blur-lg sticky top-0 z-40 shadow-sm border-b border-gray-100/50">
           <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
             <BackButton />
             <h1 className="text-lg font-black text-gray-900">Mon profil</h1>

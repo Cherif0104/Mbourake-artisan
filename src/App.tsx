@@ -5,6 +5,7 @@ import { OfflineBanner } from './components/OfflineBanner';
 import { ScrollToTop } from './components/ScrollToTop';
 import { PageTransition } from './components/PageTransition';
 import { NotificationRealtimeToaster } from './components/NotificationRealtimeToaster';
+import { NotificationsProvider } from './contexts/NotificationsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useToastContext } from './contexts/ToastContext';
 import { PrivateRoute } from './components/PrivateRoute';
@@ -143,11 +144,12 @@ function AppContent() {
   
   return (
     <ErrorBoundary>
-      <ScrollToTop />
-      <PageTransition />
-      <OfflineBanner />
-      <LastRoutePersistence />
-      <Routes>
+      <NotificationsProvider>
+        <ScrollToTop />
+        <PageTransition />
+        <OfflineBanner />
+        <LastRoutePersistence />
+        <Routes>
       {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/about" element={<AboutPage />} />
@@ -229,9 +231,10 @@ function AppContent() {
       
       {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}
       <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-      <NotificationRealtimeToaster />
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
+        </Routes>
+        <NotificationRealtimeToaster />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </NotificationsProvider>
     </ErrorBoundary>
   );
 }

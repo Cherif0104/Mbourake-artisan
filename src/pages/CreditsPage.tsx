@@ -222,7 +222,7 @@ export function CreditsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header - Modernisé comme ProjectPaymentPage */}
-      <header className="sticky top-0 z-20 px-5 py-4 bg-white/80 backdrop-blur-lg border-b border-gray-100/50 flex items-center gap-4 shadow-sm">
+      <header className="sticky top-0 z-40 px-5 py-4 bg-white/80 backdrop-blur-lg border-b border-gray-100/50 flex items-center gap-4 shadow-sm">
         <HomeButton />
         <div className="flex-1 min-w-0">
           <h1 className="font-black text-lg text-gray-900 truncate">Recharger mon portefeuille</h1>

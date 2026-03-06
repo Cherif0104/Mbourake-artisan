@@ -178,7 +178,7 @@ export function ProjectWorkPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
+      <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
         <HomeButton />
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-gray-900 truncate">
@@ -382,14 +382,6 @@ export function ProjectWorkPage() {
             </>
           )}
 
-          <button
-            type="button"
-            onClick={() => navigate(`/projects/${id}#devis`)}
-            className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
-          >
-            <FileText size={18} />
-            Voir le projet et les devis
-          </button>
           <button
             type="button"
             onClick={() => navigate(`/chat/${id}`)}

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   CheckCircle, AlertTriangle, Star, User, Shield, 
-  MessageCircle, Award, Send, FileText, Wrench
+  MessageCircle, Award, Send, Wrench
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useEscrow } from '../hooks/useEscrow';
@@ -60,7 +60,14 @@ export function ProjectCompletionPage() {
         const eData = escrowRes.data;
         setEscrow(eData || null);
 
-        const rpcArtisanId = rpcRes.data as string | null;
+        // RPC peut retourner un uuid brut ou un objet selon le client PostgREST
+        const rpcRaw = rpcRes.data;
+        const rpcArtisanId: string | null =
+          typeof rpcRaw === 'string'
+            ? rpcRaw
+            : rpcRaw && typeof rpcRaw === 'object' && 'artisan_id' in rpcRaw
+              ? (rpcRaw as { artisan_id: string }).artisan_id
+              : null;
         const qRow = quoteRes.data;
         const qErr = quoteRes.error;
 
@@ -103,6 +110,21 @@ export function ProjectCompletionPage() {
                 setArtisan(art || null);
               }
             }
+          }
+        }
+
+        // Réparation incohérence : projet déjà en phase post-acceptation mais aucun devis en "accepted" en base
+        // (ex. ancien flux qui n'a pas mis à jour quotes.status). Si un seul devis pour ce projet, on le considère comme accepté.
+        if (!qData && eData && ['payment_received', 'in_progress', 'completion_requested', 'completed'].includes(pData.status || '')) {
+          const { data: allQuotes } = await supabase
+            .from('quotes')
+            .select('id, artisan_id, amount, status, created_at')
+            .eq('project_id', id);
+          if (allQuotes?.length === 1 && allQuotes[0].artisan_id) {
+            qData = allQuotes[0];
+            setQuote(qData);
+            const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', allQuotes[0].artisan_id).maybeSingle();
+            setArtisan(art || null);
           }
         }
 
@@ -240,7 +262,7 @@ export function ProjectCompletionPage() {
   if (completed) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
+        <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
           <HomeButton />
           <div className="flex-1 min-w-0">
             <h1 className="font-bold text-gray-900 truncate">Projet terminé</h1>
@@ -265,12 +287,6 @@ export function ProjectCompletionPage() {
             >
               Retour au tableau de bord
             </button>
-            <button
-              onClick={() => navigate(`/projects/${id}`)}
-              className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors"
-            >
-              Voir le projet
-            </button>
           </div>
         </main>
       </div>
@@ -282,7 +298,7 @@ export function ProjectCompletionPage() {
     const isProjectCompleted = project.status === 'completed';
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
+        <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
           <HomeButton />
           <div className="flex-1 min-w-0">
             <h1 className="font-bold text-gray-900 truncate">
@@ -327,7 +343,7 @@ export function ProjectCompletionPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
+      <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
         <HomeButton />
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-gray-900 truncate">Clôturer le projet</h1>
@@ -479,14 +495,6 @@ export function ProjectCompletionPage() {
           )}
         </button>
         
-        <button
-          type="button"
-          onClick={() => navigate(`/projects/${id}#devis`)}
-          className="w-full py-2.5 rounded-xl text-gray-600 font-medium text-sm flex items-center justify-center gap-2 hover:bg-gray-50 hover:text-gray-800 transition-colors"
-        >
-          <FileText size={16} strokeWidth={2} />
-          Voir le projet et les devis
-        </button>
         <button
           type="button"
           onClick={() => navigate(`/chat/${id}`)}

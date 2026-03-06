@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Search, Heart, Star, X, MapPin, ArrowLeft, SlidersHorizontal,
-  Award, Verified, ChevronRight
+  Search, Star, MapPin, ArrowLeft, SlidersHorizontal,
+  Award, CheckCircle, ChevronRight, Users
 } from 'lucide-react';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
@@ -63,7 +63,6 @@ export function ArtisansPage() {
 
   const isLoggedIn = !!user && !!profile;
 
-  // Charger les artisans depuis la table artisans (+ profils + counts en batch)
   useEffect(() => {
     const fetchArtisans = async () => {
       setLoading(true);
@@ -177,7 +176,6 @@ export function ArtisansPage() {
     fetchArtisans();
   }, []);
 
-  // Suggestions : catégories (et artisans) qui matchent la saisie
   const suggestionCategories = useMemo(() => {
     const q = normalizeForSearch(searchQuery.trim());
     if (!q) return categories.slice(0, 12);
@@ -199,7 +197,6 @@ export function ArtisansPage() {
 
   const hasSuggestions = suggestionCategories.length > 0 || suggestionArtisans.length > 0;
 
-  // Fermer les suggestions au clic extérieur
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
@@ -257,7 +254,6 @@ export function ArtisansPage() {
     return Array.from(set).sort();
   }, [artisans]);
 
-  // Catégories présentes parmi les artisans + toutes pour le filtre (éviter liste vide)
   const uniqueCategoryNames = useMemo(() => {
     const fromArtisans = new Set(artisans.map((a) => a.category));
     categories.forEach((c) => fromArtisans.add(c.name));
@@ -303,402 +299,316 @@ export function ArtisansPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA]">
-      <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-              aria-label="Retour au tableau de bord"
-            >
-              <ArrowLeft size={20} className="text-gray-600" />
-            </button>
-            <div>
-              <h1 className="text-xl font-black text-gray-900">Explorer les artisans</h1>
-              <p className="text-xs text-gray-400 font-bold">
-                {sortedArtisans.length} professionnel{sortedArtisans.length > 1 ? 's' : ''} trouvé
-                {sortedArtisans.length > 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-          {!isLoggedIn && (
+    <div className="min-h-screen bg-[#FAFAFA]">
+      {/* Header minimal */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+          <button
+            onClick={() => navigate(isLoggedIn ? '/dashboard' : '/')}
+            className="p-2.5 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            aria-label={isLoggedIn ? 'Retour au tableau de bord' : "Retour à l'accueil"}
+          >
+            <ArrowLeft size={22} strokeWidth={2} />
+          </button>
+          <span className="text-lg font-bold text-gray-900 truncate">Artisans</span>
+          {!isLoggedIn ? (
             <button
               onClick={() => navigate('/')}
-              className="bg-brand-500 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-brand-600 transition-all"
+              className="px-4 py-2.5 rounded-xl bg-brand-500 text-white text-sm font-bold hover:bg-brand-600 transition-colors"
             >
               Connexion
             </button>
+          ) : (
+            <div className="w-10" />
           )}
         </div>
       </header>
 
-      <div className="bg-white border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Barre de recherche avec suggestions */}
-            <div ref={searchContainerRef} className="flex-1 relative">
-              <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100 focus-within:border-brand-300 focus-within:ring-2 ring-brand-100 transition-all">
-                <Search size={20} className="text-gray-400 shrink-0" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setShowSuggestions(true);
-                  }}
-                  onFocus={() => setShowSuggestions(true)}
-                  placeholder="Rechercher une catégorie (ex. Couture), un artisan..."
-                  className="flex-1 bg-transparent outline-none text-gray-700 font-medium min-w-0"
-                  autoComplete="off"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setShowSuggestions(false);
-                    }}
-                    className="text-gray-400 hover:text-gray-600 shrink-0"
-                  >
-                    <X size={18} />
-                  </button>
-                )}
-              </div>
+      {/* Hero + recherche */}
+      <section className="relative border-b border-gray-100 bg-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 text-brand-600 text-xs font-bold uppercase tracking-wider mb-4">
+              <Users size={14} />
+              Profils publics
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">
+              Découvrez nos artisans
+            </h1>
+            <p className="text-gray-500 text-sm sm:text-base max-w-md">
+              {sortedArtisans.length} professionnel{sortedArtisans.length > 1 ? 's' : ''} — consultez avis, réalisations et boutique.
+            </p>
+          </div>
 
-              {showSuggestions && hasSuggestions && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
-                  {suggestionCategories.length > 0 && (
-                    <div className="p-2">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">
-                        Catégories
-                      </p>
-                      {suggestionCategories.map((cat) => (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => handleSelectCategorySuggestion(cat.slug || String(cat.id))}
-                          className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg hover:bg-brand-50 text-left transition-colors"
-                        >
-                          <span className="font-bold text-gray-900 truncate">{cat.name}</span>
-                          <ChevronRight size={16} className="text-gray-400 shrink-0" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {suggestionArtisans.length > 0 && (
-                    <div className="p-2 border-t border-gray-100">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">
-                        Artisans
-                      </p>
-                      {suggestionArtisans.map((artisan) => (
-                        <button
-                          key={artisan.id}
-                          type="button"
-                          onClick={() => handleSelectArtisanSuggestion(artisan.id)}
-                          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-brand-50 text-left transition-colors"
-                        >
-                          <img
-                            src={artisan.img}
-                            alt=""
-                            className="w-10 h-10 rounded-full object-cover shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold text-gray-900 truncate">{artisan.name}</p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {artisan.specialty} · {artisan.category}
-                            </p>
-                          </div>
-                          <ChevronRight size={16} className="text-gray-400 shrink-0" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+          <div ref={searchContainerRef} className="relative max-w-xl mx-auto">
+            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3.5 border border-gray-100 focus-within:border-brand-200 focus-within:ring-2 focus-within:ring-brand-100 transition-all">
+              <Search size={20} className="text-gray-400 shrink-0" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder="Rechercher un métier, un nom, une catégorie…"
+                className="flex-1 bg-transparent outline-none text-gray-800 font-medium min-w-0 placeholder:text-gray-400"
+                autoComplete="off"
+              />
             </div>
 
+            {showSuggestions && hasSuggestions && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
+                {suggestionCategories.length > 0 && (
+                  <div className="p-2">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 py-2">Catégories</p>
+                    {suggestionCategories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => handleSelectCategorySuggestion(cat.slug || String(cat.id))}
+                        className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl hover:bg-gray-50 text-left transition-colors"
+                      >
+                        <span className="font-medium text-gray-900 truncate">{cat.name}</span>
+                        <ChevronRight size={16} className="text-gray-400 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {suggestionArtisans.length > 0 && (
+                  <div className="p-2 border-t border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 py-2">Artisans</p>
+                    {suggestionArtisans.map((artisan) => (
+                      <button
+                        key={artisan.id}
+                        type="button"
+                        onClick={() => handleSelectArtisanSuggestion(artisan.id)}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-left transition-colors"
+                      >
+                        <img
+                          src={artisan.img}
+                          alt=""
+                          className="w-10 h-10 rounded-xl object-cover shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-gray-900 truncate">{artisan.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{artisan.specialty} · {artisan.category}</p>
+                        </div>
+                        <ChevronRight size={16} className="text-gray-400 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Filtres compacts */}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shrink-0 ${
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
                 showFilters || hasActiveFilters
-                  ? 'bg-brand-500 text-white shadow-lg'
+                  ? 'bg-brand-500 text-white shadow-lg shadow-brand-200/40'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               <SlidersHorizontal size={18} />
               Filtres
               {hasActiveFilters && (
-                <span className="w-5 h-5 bg-white text-brand-500 rounded-full text-[10px] flex items-center justify-center">
-                  !
-                </span>
+                <span className="w-5 h-5 bg-white/20 rounded-full text-xs flex items-center justify-center">!</span>
               )}
             </button>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                Tout effacer
+              </button>
+            )}
           </div>
 
           {showFilters && (
-            <div className="mt-6 pt-6 border-t border-gray-100 animate-in slide-in-from-top-4 duration-300">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
-                    Catégorie
-                  </label>
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm text-gray-700 focus:outline-none focus:border-brand-300"
-                  >
-                    <option value="">Toutes</option>
-                    {uniqueCategoryNames.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
-                    Région
-                  </label>
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm text-gray-700 focus:outline-none focus:border-brand-300"
-                  >
-                    <option value="">Toutes</option>
-                    {availableLocations.map((loc) => (
-                      <option key={loc} value={loc}>
-                        {loc}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
-                    Note minimum
-                  </label>
-                  <select
-                    value={selectedRating ?? ''}
-                    onChange={(e) =>
-                      setSelectedRating(e.target.value ? Number(e.target.value) : null)
-                    }
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm text-gray-700 focus:outline-none focus:border-brand-300"
-                  >
-                    <option value="">Toutes</option>
-                    <option value="4.5">4.5+ étoiles</option>
-                    <option value="4">4+ étoiles</option>
-                    <option value="3.5">3.5+ étoiles</option>
-                    <option value="3">3+ étoiles</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
-                    Niveau
-                  </label>
-                  <select
-                    value={selectedTier}
-                    onChange={(e) => setSelectedTier(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm text-gray-700 focus:outline-none focus:border-brand-300"
-                  >
-                    <option value="">Tous</option>
-                    <option value="Platine">Platine</option>
-                    <option value="Or">Or</option>
-                    <option value="Argent">Argent</option>
-                    <option value="Bronze">Bronze</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
-                    Disponibilité
-                  </label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm text-gray-700 focus:outline-none focus:border-brand-300"
-                  >
-                    <option value="">Tous</option>
-                    <option value="Disponible">Disponible</option>
-                    <option value="Occupé">Occupé</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
-                    Affiliation
-                  </label>
-                  <select
-                    value={selectedAffiliation}
-                    onChange={(e) => setSelectedAffiliation(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm text-gray-700 focus:outline-none focus:border-brand-300"
-                  >
-                    <option value="">Toutes</option>
-                    <option value="chambre">Chambre de métier</option>
-                    <option value="sae">SAE</option>
-                    <option value="incubateur">Incubateur</option>
-                    <option value="autre">Autre</option>
-                  </select>
-                </div>
-              </div>
-              {hasActiveFilters && (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="mt-4 text-brand-500 font-black text-xs uppercase tracking-widest hover:underline underline-offset-4"
+            <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Catégorie</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
                 >
-                  Effacer tous les filtres
-                </button>
-              )}
+                  <option value="">Toutes</option>
+                  {uniqueCategoryNames.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Région</label>
+                <select
+                  value={selectedLocation}
+                  onChange={(e) => setSelectedLocation(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                >
+                  <option value="">Toutes</option>
+                  {availableLocations.map((loc) => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Note min.</label>
+                <select
+                  value={selectedRating ?? ''}
+                  onChange={(e) => setSelectedRating(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                >
+                  <option value="">Toutes</option>
+                  <option value="4.5">4.5+</option>
+                  <option value="4">4+</option>
+                  <option value="3.5">3.5+</option>
+                  <option value="3">3+</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Niveau</label>
+                <select
+                  value={selectedTier}
+                  onChange={(e) => setSelectedTier(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                >
+                  <option value="">Tous</option>
+                  <option value="Platine">Platine</option>
+                  <option value="Or">Or</option>
+                  <option value="Argent">Argent</option>
+                  <option value="Bronze">Bronze</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Dispo.</label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                >
+                  <option value="">Tous</option>
+                  <option value="Disponible">Disponible</option>
+                  <option value="Occupé">Occupé</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Affiliation</label>
+                <select
+                  value={selectedAffiliation}
+                  onChange={(e) => setSelectedAffiliation(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                >
+                  <option value="">Toutes</option>
+                  <option value="chambre">Chambre de métier</option>
+                  <option value="sae">SAE</option>
+                  <option value="incubateur">Incubateur</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
             </div>
           )}
         </div>
-      </div>
+      </section>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="flex flex-wrap gap-2">
-          {['Platine', 'Or', 'Disponible', '4.5+ étoiles'].map((pill) => (
-            <button
-              key={pill}
-              type="button"
-              onClick={() => {
-                if (pill === 'Platine' || pill === 'Or')
-                  setSelectedTier(selectedTier === pill ? '' : pill);
-                else if (pill === 'Disponible')
-                  setSelectedStatus(selectedStatus === pill ? '' : pill);
-                else if (pill === '4.5+ étoiles') setSelectedRating(selectedRating === 4.5 ? null : 4.5);
-              }}
-              className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
-                (pill === selectedTier) ||
-                (pill === selectedStatus) ||
-                (pill === '4.5+ étoiles' && selectedRating === 4.5)
-                  ? 'bg-brand-500 text-white shadow-lg'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:border-brand-300'
-              }`}
-            >
-              {pill}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <main className="max-w-7xl mx-auto px-6 pb-20">
+      {/* Grille artisans */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
         {sortedArtisans.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Search size={32} className="text-gray-300" />
+          <div className="text-center py-16">
+            <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-6">
+              <Search size={32} className="text-gray-400" />
             </div>
-            <h3 className="text-xl font-black text-gray-900 mb-2">Aucun artisan trouvé</h3>
-            <p className="text-gray-500 mb-6">
-              Essayez une catégorie dans la recherche (ex. Couture) ou modifiez les filtres.
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Aucun artisan trouvé</h2>
+            <p className="text-gray-500 mb-8 max-w-sm mx-auto">
+              Modifiez la recherche ou les filtres pour afficher plus de résultats.
             </p>
             <button
               type="button"
               onClick={clearFilters}
-              className="px-6 py-3 bg-brand-500 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-brand-600 transition-all"
+              className="px-6 py-3 rounded-xl bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 transition-colors"
             >
-              Réinitialiser les filtres
+              Réinitialiser
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {sortedArtisans.map((artisan, i) => (
-              <div
+              <article
                 key={artisan.id}
-                className="bg-white rounded-[2rem] overflow-hidden shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-500 group hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-4"
-                style={{ animationDelay: `${i * 50}ms` }}
+                className="group bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-200 transition-all duration-300"
               >
-                <div className="relative h-52 overflow-hidden">
-                  <img
-                    src={artisan.img}
-                    alt={artisan.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-                  <div
-                    className={`absolute top-4 left-4 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg ${
-                      artisan.status === 'Disponible'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-yellow-500 text-white'
-                    }`}
-                  >
-                    <div
-                      className={`w-1.5 h-1.5 rounded-full bg-white ${
-                        artisan.is_available ? 'animate-pulse' : ''
-                      }`}
+                <button
+                  type="button"
+                  onClick={() => navigate(`/artisans/${artisan.id}`)}
+                  className="block w-full text-left"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                    <img
+                      src={artisan.img}
+                      alt={artisan.name}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    {artisan.status}
-                  </div>
-
-                  <div
-                    className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg ${TIER_COLORS[artisan.tier]}`}
-                  >
-                    <Award size={12} className="inline mr-1" />
-                    {artisan.tier}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="absolute bottom-4 right-4 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-brand-500 transition-all shadow-lg"
-                    aria-label="Ajouter aux favoris"
-                  >
-                    <Heart size={18} />
-                  </button>
-
-                  <div className="absolute bottom-4 left-4 flex items-center gap-1.5 text-white/90 text-xs font-bold">
-                    <MapPin size={14} />
-                    {artisan.location}
-                  </div>
-                </div>
-
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] font-black text-brand-600 uppercase tracking-[0.2em]">
-                      {artisan.category}
-                    </span>
-                    {artisan.verified && (
-                      <span className="flex items-center gap-1 text-green-600 text-[10px] font-bold">
-                        <Verified size={14} fill="currentColor" className="fill-green-100" />
-                        Vérifié
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                          artisan.status === 'Disponible' ? 'bg-emerald-500/90 text-white' : 'bg-amber-500/90 text-white'
+                        }`}
+                      >
+                        {artisan.status === 'Disponible' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                        {artisan.status}
                       </span>
-                    )}
-                  </div>
-
-                  <h3 className="text-lg font-black text-gray-900 mb-1">{artisan.name}</h3>
-                  <p className="text-sm text-gray-500 font-medium mb-4">{artisan.specialty}</p>
-
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="flex items-center gap-1">
-                      {[0, 1, 2, 3, 4].map((idx) => (
-                        <Star
-                          key={idx}
-                          size={14}
-                          className={
-                            idx < Math.floor(artisan.rating)
-                              ? 'text-yellow-400 fill-yellow-400'
-                              : 'text-gray-200'
-                          }
-                        />
-                      ))}
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold ${TIER_COLORS[artisan.tier]}`}>
+                        <Award size={12} />
+                        {artisan.tier}
+                      </span>
                     </div>
-                    <span className="text-gray-900 font-black text-sm">{artisan.rating}</span>
-                    <span className="text-gray-400 text-xs font-bold">
-                      ({artisan.reviews} avis)
+                    <div className="absolute bottom-3 left-3 flex items-center gap-1.5 text-white/90 text-xs font-medium drop-shadow">
+                      <MapPin size={14} />
+                      {artisan.location}
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-bold text-brand-600 uppercase tracking-wider">
+                        {artisan.category}
+                      </span>
+                      {artisan.verified && (
+                        <span className="inline-flex items-center gap-0.5 text-emerald-600 text-[10px] font-bold">
+                          <CheckCircle size={12} />
+                          Vérifié
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-0.5 group-hover:text-brand-600 transition-colors">
+                      {artisan.name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">{artisan.specialty}</p>
+                    <div className="flex items-center gap-2 text-sm mb-4">
+                      <div className="flex items-center gap-0.5 text-amber-500">
+                        <Star size={16} fill="currentColor" />
+                        <span className="font-bold text-gray-900">{artisan.rating.toFixed(1)}</span>
+                      </div>
+                      <span className="text-gray-400">·</span>
+                      <span className="text-gray-500">{artisan.reviews} avis</span>
+                    </div>
+                    {artisan.bio && (
+                      <p className="text-xs text-gray-500 line-clamp-2 mb-4">{artisan.bio}</p>
+                    )}
+                    <span className="inline-flex items-center gap-2 text-brand-600 font-bold text-sm">
+                      Voir le profil public
+                      <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
                     </span>
                   </div>
-
-                  <p className="text-xs text-gray-500 leading-relaxed mb-6 line-clamp-2">
-                    {artisan.bio}
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/artisans/${artisan.id}`)}
-                    className="w-full py-3.5 bg-gray-900 text-white font-black rounded-xl hover:bg-brand-500 active:scale-[0.98] transition-all uppercase tracking-widest text-[10px] shadow-lg"
-                  >
-                    Voir le profil complet
-                  </button>
-                </div>
-              </div>
+                </button>
+              </article>
             ))}
           </div>
         )}

@@ -23,7 +23,7 @@ export function FavoritesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
         <div className="max-w-lg mx-auto px-4 py-4 flex items-center gap-4">
           <button 
             onClick={() => navigate(-1)}

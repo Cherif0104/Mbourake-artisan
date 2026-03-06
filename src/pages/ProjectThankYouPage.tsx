@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { CheckCircle, Wrench, ArrowRight, AlertTriangle, Shield, User, Clock } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -90,7 +90,7 @@ export function ProjectThankYouPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-20 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
+      <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
         <HomeButton />
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-gray-900 truncate">Confirmation</h1>
@@ -197,12 +197,24 @@ export function ProjectThankYouPage() {
             </button>
           )}
 
-          <button
-            onClick={() => navigate(`/projects/${id}`)}
-            className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
-          >
-            Voir les détails du projet
-          </button>
+          {id ? (
+            <Link
+              to={`/projects/${id}`}
+              state={{ fromThankYou: true }}
+              replace
+              className="block w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors text-center"
+            >
+              Voir les détails du projet
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard', { replace: true })}
+              className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+            >
+              Voir les détails du projet
+            </button>
+          )}
         </div>
       </main>
     </div>

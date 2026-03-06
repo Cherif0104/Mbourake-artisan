@@ -355,7 +355,7 @@ export function ChatPage() {
       />
 
       {/* Header */}
-      <header className="px-4 py-3 bg-white border-b shadow-sm flex items-center justify-between sticky top-0 z-10">
+      <header className="px-4 py-3 bg-white border-b shadow-sm flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => navigate(-1)} 

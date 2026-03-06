@@ -117,7 +117,7 @@ export function VerificationPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
         <div className="max-w-lg mx-auto px-4 py-4 flex items-center gap-4">
           <button 
             onClick={() => currentStep === 'intro' || currentStep === 'review' ? navigate('/dashboard') : setCurrentStep(steps[currentStepIndex - 1]?.id as Step)}
