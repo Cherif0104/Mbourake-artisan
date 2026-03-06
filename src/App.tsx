@@ -4,9 +4,7 @@ import { ToastContainer } from './components/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ScrollToTop } from './components/ScrollToTop';
 import { PageTransition } from './components/PageTransition';
-import { InstallPrompt } from './components/InstallPrompt';
 import { NotificationRealtimeToaster } from './components/NotificationRealtimeToaster';
-import { PWAInstallProvider } from './contexts/PWAInstallContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useToastContext } from './contexts/ToastContext';
 import { PrivateRoute } from './components/PrivateRoute';
@@ -87,7 +85,7 @@ function DownloadUnavailablePage() {
         </div>
         <h1 className="text-xl font-black text-gray-900 mb-2">Téléchargement indisponible</h1>
         <p className="text-gray-600 text-sm mb-6">
-          Le fichier n'est pas disponible à cette adresse. Revenez à l'accueil et utilisez « Installer l'application » dans le footer pour installer Mbourake sur votre téléphone.
+          Le fichier n&apos;est pas disponible à cette adresse. Revenez à l&apos;accueil pour continuer.
         </p>
         <button
           onClick={() => navigate('/')}
@@ -232,7 +230,6 @@ function AppContent() {
       {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}
       <Route path="*" element={<NotFoundPage />} />
       </Routes>
-      <InstallPrompt />
       <NotificationRealtimeToaster />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </ErrorBoundary>
@@ -240,9 +237,5 @@ function AppContent() {
 }
 
 export default function App() {
-  return (
-    <PWAInstallProvider>
-      <AppContent />
-    </PWAInstallProvider>
-  );
+  return <AppContent />;
 }

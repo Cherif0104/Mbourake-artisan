@@ -4,14 +4,13 @@ import {
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
   Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
-  ChevronRight, X, MapPin, User, ShoppingBag, Menu, Shield, Download,
+  ChevronRight, X, MapPin, User, ShoppingBag, Menu, Shield,
   ShoppingCart, MessageCircle
 } from 'lucide-react';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
-import { usePWAInstall } from '../contexts/PWAInstallContext';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { supabase } from '../lib/supabase';
 
@@ -51,7 +50,6 @@ export function LandingPage() {
   const auth = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { success: showSuccess } = useToastContext();
-  const pwaInstall = usePWAInstall();
   const { categories: dbCategories, loading } = useDiscovery();
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
@@ -277,6 +275,9 @@ export function LandingPage() {
         </button>
 
         <nav className="hidden md:flex items-center gap-6 lg:gap-8">
+          <button onClick={() => navigate('/artisans')} className="text-gray-700 hover:text-brand-600 font-semibold text-sm transition-colors">
+            Artisans
+          </button>
           <button onClick={() => navigate('/marketplace')} className="text-gray-700 hover:text-brand-600 font-semibold text-sm transition-colors">
             Artisan Marketplace
           </button>
@@ -292,13 +293,16 @@ export function LandingPage() {
           </button>
           {mobileMenuOpen && (
             <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl border border-gray-100 shadow-lg py-2 z-50">
+              <button onClick={() => { navigate('/artisans'); setMobileMenuOpen(false); }} className="w-full px-4 py-3 text-left text-gray-700 font-semibold text-sm hover:bg-brand-50">
+                Artisans
+              </button>
               <button onClick={() => { navigate('/marketplace'); setMobileMenuOpen(false); }} className="w-full px-4 py-3 text-left text-gray-700 font-semibold text-sm hover:bg-brand-50">
                 Artisan Marketplace
               </button>
               <button onClick={() => { navigate('/onboard?mode=login&role=client&redirect=' + encodeURIComponent('/create-project')); setMobileMenuOpen(false); }} className="w-full px-4 py-3 text-left text-gray-700 font-semibold text-sm hover:bg-brand-50">
                 Demander un Service
               </button>
-              </div>
+            </div>
           )}
         </div>
 
@@ -752,17 +756,6 @@ export function LandingPage() {
           >
             Artisans
           </button>
-          {pwaInstall?.canInstall && (
-            <button
-              type="button"
-              onClick={() => pwaInstall.promptInstall()}
-              className="flex items-center gap-2 text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
-              aria-label="Installer l'application sur votre téléphone"
-            >
-              <Download size={18} />
-              Installer l&apos;application
-            </button>
-          )}
           <button 
             onClick={() => navigate('/onboard?mode=signup')}
             className="text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
