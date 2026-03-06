@@ -31,10 +31,16 @@ Donc : **plusieurs entrées possibles** (détail, work), mais **une seule page**
 
 Sur **ProjectCompletionPage**, le devis accepté (et donc l’artisan à noter) est résolu **toujours de la même façon**, dans cet ordre :
 
-1. **RPC** `get_accepted_quote_artisan_for_project(project_id)` (contourne RLS).
-2. **Table `quotes`** : `project_id` + `status = 'accepted'`.
+1. **RPC** `get_accepted_quote_artisan_for_project(project_id)` (contourne RLS). La RPC elle-même applique :
+   - devis avec `status = 'accepted'` ;
+   - sinon devis accepté via une **révision** (`quote_revisions.status = 'accepted'`) ;
+   - **dernier recours (côté serveur)** : si l’appelant est le client et qu’il n’y a **qu’un seul devis** pour le projet, cet artisan est retourné (évite le blocage quand `quotes.status` n’a pas été mis à jour).
+2. **Table `quotes`** : `project_id` + `status = 'accepted'` (lecture directe si autorisée).
 3. **Table `quote_revisions`** : révision `accepted` pour ce `project_id` → puis `quotes` via `quote_id`.
-4. **Fallback incohérence** : si le projet est déjà en `payment_received` / `in_progress` / `completion_requested` / `completed` et qu’il n’y a **qu’un seul devis** pour le projet, ce devis est considéré comme accepté (réparation d’anciens flux où `quotes.status` n’était pas mis à `accepted`).
+4. **Fallback incohérence (front)** : si le projet est en phase post-paiement et qu’il n’y a qu’un seul devis pour le projet, ce devis est considéré comme accepté.
+5. **Retry RPC** : si après tout ça le devis n’est toujours pas trouvé mais qu’un escrow existe pour le projet, la page refait un appel RPC après ~450 ms (pour couvrir un délai de trigger / réplication) puis réapplique la résolution.
+
+L’utilisateur voit un message « Devis accepté introuvable » avec un bouton **Réessayer** qui relance le chargement (utile en cas de latence ou de race).
 
 Donc **un seul algorithme**, quel que soit le lien (détail ou work) utilisé pour arriver sur `/completion`. Ce n’est pas “une page qui reprend le devis et une autre qui ne le reprend pas” : la même page charge toujours les données de la même façon.
 
@@ -48,7 +54,10 @@ Donc **un seul algorithme**, quel que soit le lien (détail ou work) utilisé po
 **Corrections faites** :
 - Mise à jour en base du devis concerné en `status = 'accepted'` pour le projet concerné.
 - Suppression de l’appel à `invoices` (plus de 404).
-- Ajout du fallback “un seul devis en phase post-paiement” pour réparer automatiquement ce type d’incohérence à l’avenir.
+- Fallback “un seul devis” **dans la RPC** (migration `20260312100000_get_accepted_quote_artisan_fallback_single.sql`) : côté serveur, si le client appelle et qu’il n’y a qu’un seul devis, l’artisan est retourné sans dépendre de `quotes.status`.
+- Fallback “un seul devis” côté front en phase post-paiement.
+- **Retry automatique** : si la première résolution échoue alors qu’un escrow existe, nouvel appel RPC après 450 ms.
+- Bouton **Réessayer** affiché avec le message « Devis accepté introuvable » pour relancer le chargement à la main.
 
 ---
 

@@ -33,127 +33,148 @@ export function ProjectCompletionPage() {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
 
-  useEffect(() => {
-    if (!id || !auth.user) return;
-    
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch project
-        const { data: pData, error: pError } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('id', id)
-          .single();
+  const resolveQuoteAndArtisan = async (
+    pData: any,
+    eData: any,
+    id: string
+  ): Promise<{ qData: any }> => {
+    let qData: any = null;
 
-        if (pError) throw pError;
-        setProject(pData);
-
-        // RPC en priorité : contourne RLS et garantit de retrouver l'artisan du devis accepté (client a bien accepté un devis pour arriver jusqu'ici)
-        let qData: any = null;
-        const [escrowRes, rpcRes, quoteRes] = await Promise.all([
-          supabase.from('escrows').select('*').eq('project_id', id).maybeSingle(),
-          supabase.rpc('get_accepted_quote_artisan_for_project', { p_project_id: id }),
-          supabase.from('quotes').select('id, artisan_id, amount, status, created_at').eq('project_id', id).eq('status', 'accepted').maybeSingle(),
-        ]);
-
-        const eData = escrowRes.data;
-        setEscrow(eData || null);
-
-        // RPC peut retourner un uuid brut ou un objet selon le client PostgREST
-        const rpcRaw = rpcRes.data;
-        const rpcArtisanId: string | null =
-          typeof rpcRaw === 'string'
-            ? rpcRaw
-            : rpcRaw && typeof rpcRaw === 'object' && 'artisan_id' in rpcRaw
-              ? (rpcRaw as { artisan_id: string }).artisan_id
-              : null;
-        const qRow = quoteRes.data;
-        const qErr = quoteRes.error;
-
-        if (rpcArtisanId) {
-          qData = { id: '', artisan_id: rpcArtisanId, amount: null, status: 'accepted', created_at: null };
-          setQuote(qData);
-          const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', rpcArtisanId).maybeSingle();
-          setArtisan(art || null);
-        }
-
-        if (!qData && !qErr && qRow) {
-          qData = qRow;
-          setQuote(qRow);
-          if (qRow.artisan_id) {
-            const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', qRow.artisan_id).maybeSingle();
-            setArtisan(art || null);
-          }
-        }
-
-        if (!qData) {
-          const { data: revRow } = await supabase
-            .from('quote_revisions')
-            .select('quote_id')
-            .eq('project_id', id)
-            .eq('status', 'accepted')
-            .order('responded_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (revRow?.quote_id) {
-            const { data: qById } = await supabase
-              .from('quotes')
-              .select('id, artisan_id, amount, status, created_at')
-              .eq('id', revRow.quote_id)
-              .maybeSingle();
-            if (qById) {
-              qData = qById;
-              setQuote(qById);
-              if (qById.artisan_id) {
-                const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', qById.artisan_id).maybeSingle();
-                setArtisan(art || null);
-              }
-            }
-          }
-        }
-
-        // Réparation incohérence : projet déjà en phase post-acceptation mais aucun devis en "accepted" en base
-        // (ex. ancien flux qui n'a pas mis à jour quotes.status). Si un seul devis pour ce projet, on le considère comme accepté.
-        if (!qData && eData && ['payment_received', 'in_progress', 'completion_requested', 'completed'].includes(pData.status || '')) {
-          const { data: allQuotes } = await supabase
-            .from('quotes')
-            .select('id, artisan_id, amount, status, created_at')
-            .eq('project_id', id);
-          if (allQuotes?.length === 1 && allQuotes[0].artisan_id) {
-            qData = allQuotes[0];
-            setQuote(qData);
-            const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', allQuotes[0].artisan_id).maybeSingle();
-            setArtisan(art || null);
-          }
-        }
-
-        // Accès : client OU artisan assigné (alignement côté artisan)
-        const clientFlag = pData.client_id === auth.user.id;
-        const artisanFlag = qData?.artisan_id === auth.user.id;
-        setIsClient(clientFlag);
-        setIsArtisanAssigned(artisanFlag);
-        if (!clientFlag && !artisanFlag) {
-          showError('Vous n\'êtes pas autorisé à accéder à cette page.');
-          navigate(`/projects/${id}`);
-          return;
-        }
-
-        // Check if already completed (pour affichage client ou artisan)
-        if (pData.status === 'completed') {
-          setCompleted(true);
-        }
-
-      } catch (err: any) {
-        console.error('Error fetching completion data:', err);
-        showError(`Erreur: ${err.message || 'Erreur inconnue'}`);
-      } finally {
-        setLoading(false);
-      }
+    const setFromRpc = (rpcRaw: unknown): string | null => {
+      const rpcArtisanId: string | null =
+        typeof rpcRaw === 'string'
+          ? rpcRaw
+          : rpcRaw && typeof rpcRaw === 'object' && rpcRaw !== null && 'artisan_id' in rpcRaw
+            ? (rpcRaw as { artisan_id: string }).artisan_id
+            : null;
+      return rpcArtisanId;
     };
 
-    fetchData();
+    const [rpcRes, quoteRes] = await Promise.all([
+      supabase.rpc('get_accepted_quote_artisan_for_project', { p_project_id: id }),
+      supabase.from('quotes').select('id, artisan_id, amount, status, created_at').eq('project_id', id).eq('status', 'accepted').maybeSingle(),
+    ]);
+    const rpcArtisanId = setFromRpc(rpcRes.data);
+    const qRow = quoteRes.data;
+    const qErr = quoteRes.error;
+
+    if (rpcArtisanId) {
+      qData = { id: '', artisan_id: rpcArtisanId, amount: null, status: 'accepted', created_at: null };
+      const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', rpcArtisanId).maybeSingle();
+      setQuote(qData);
+      setArtisan(art || null);
+      return { qData };
+    }
+
+    if (!qErr && qRow) {
+      qData = qRow;
+      setQuote(qRow);
+      if (qRow.artisan_id) {
+        const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', qRow.artisan_id).maybeSingle();
+        setArtisan(art || null);
+      }
+      return { qData };
+    }
+
+    const { data: revRow } = await supabase
+      .from('quote_revisions')
+      .select('quote_id')
+      .eq('project_id', id)
+      .eq('status', 'accepted')
+      .order('responded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (revRow?.quote_id) {
+      const { data: qById } = await supabase
+        .from('quotes')
+        .select('id, artisan_id, amount, status, created_at')
+        .eq('id', revRow.quote_id)
+        .maybeSingle();
+      if (qById) {
+        qData = qById;
+        setQuote(qById);
+        if (qById.artisan_id) {
+          const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', qById.artisan_id).maybeSingle();
+          setArtisan(art || null);
+        }
+        return { qData };
+      }
+    }
+
+    if (eData && ['payment_received', 'in_progress', 'completion_requested', 'completed'].includes(pData?.status || '')) {
+      const { data: allQuotes } = await supabase
+        .from('quotes')
+        .select('id, artisan_id, amount, status, created_at')
+        .eq('project_id', id);
+      if (allQuotes?.length === 1 && allQuotes[0].artisan_id) {
+        qData = allQuotes[0];
+        setQuote(qData);
+        const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', allQuotes[0].artisan_id).maybeSingle();
+        setArtisan(art || null);
+        return { qData };
+      }
+    }
+
+    return { qData };
+  };
+
+  const loadCompletionData = React.useCallback(async () => {
+    if (!id || !auth.user) return;
+    setLoading(true);
+    try {
+      const { data: pData, error: pError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (pError) throw pError;
+      setProject(pData);
+
+      const { data: eData } = await supabase.from('escrows').select('*').eq('project_id', id).maybeSingle();
+      setEscrow(eData || null);
+
+      let result = await resolveQuoteAndArtisan(pData, eData || null, id);
+
+      if (!result.qData && eData && ['payment_received', 'in_progress', 'completion_requested', 'completed'].includes(pData?.status || '')) {
+        await new Promise((r) => setTimeout(r, 450));
+        const rpcRetry = await supabase.rpc('get_accepted_quote_artisan_for_project', { p_project_id: id });
+        const retryId =
+          typeof rpcRetry.data === 'string'
+            ? rpcRetry.data
+            : rpcRetry.data && typeof rpcRetry.data === 'object' && 'artisan_id' in (rpcRetry.data as object)
+              ? (rpcRetry.data as { artisan_id: string }).artisan_id
+              : null;
+        if (retryId) {
+          const qData = { id: '', artisan_id: retryId, amount: null, status: 'accepted', created_at: null };
+          setQuote(qData);
+          const { data: art } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('id', retryId).maybeSingle();
+          setArtisan(art || null);
+          result = { qData };
+        }
+      }
+
+      const qData = result.qData;
+      const clientFlag = pData.client_id === auth.user.id;
+      const artisanFlag = qData?.artisan_id === auth.user.id;
+      setIsClient(clientFlag);
+      setIsArtisanAssigned(artisanFlag);
+      if (!clientFlag && !artisanFlag) {
+        showError('Vous n\'êtes pas autorisé à accéder à cette page.');
+        navigate(`/projects/${id}`);
+        return;
+      }
+      if (pData.status === 'completed') setCompleted(true);
+    } catch (err: any) {
+      console.error('Error fetching completion data:', err);
+      showError(`Erreur: ${err.message || 'Erreur inconnue'}`);
+    } finally {
+      setLoading(false);
+    }
   }, [id, auth.user, navigate, showError]);
+
+  useEffect(() => {
+    loadCompletionData();
+  }, [loadCompletionData]);
 
   const handleCompleteAndRate = async () => {
     if (!id || !auth.user?.id) {
@@ -468,9 +489,18 @@ export function ProjectCompletionPage() {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-20 space-y-3">
         <div className="min-h-0 shrink-0" key="quote-warning">
           {!quote?.artisan_id ? (
-            <p className="text-center text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl py-2 px-3">
-              Devis accepté introuvable. Rechargez la page ou retournez au projet.
-            </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-center text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl py-2 px-3">
+                Devis accepté introuvable. Réessayez ou retournez au projet.
+              </p>
+              <button
+                type="button"
+                onClick={() => loadCompletionData()}
+                className="text-sm font-medium text-amber-700 hover:text-amber-800 underline"
+              >
+                Réessayer
+              </button>
+            </div>
           ) : null}
         </div>
         <button
