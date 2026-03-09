@@ -39,7 +39,26 @@ Après déploiement, tester « Supprimer mon compte » depuis Paramètres sur ht
 ## Dépannage
 
 - **« Invalid access token format. Must be like sbp_0102...1920 »**  
-  Le token de connexion Supabase doit être celui obtenu après `npx supabase login` (en ouvrant le lien dans le navigateur). Il commence par `sbp_`. N’utilisez pas la clé « anon » ou « service_role » du Dashboard comme token de login.
+  Un token invalide est enregistré (variable d’environnement ou fichier du CLI). À faire :
+
+  1. **Supprimer la variable d’environnement** (si elle pointe vers une mauvaise valeur) :
+     ```powershell
+     $env:SUPABASE_ACCESS_TOKEN = $null
+     ```
+     (Pour la retirer définitivement : Paramètres Windows → Variables d’environnement → supprimer `SUPABASE_ACCESS_TOKEN`.)
+
+  2. **Supprimer le token enregistré par le CLI** (fichier ou trousseau) :
+     ```powershell
+     Remove-Item -Force -ErrorAction SilentlyContinue "$env:USERPROFILE\.supabase\access-token"
+     ```
+
+  3. **Obtenir un token valide** : aller sur https://app.supabase.com/account/tokens → **Generate new token** (bouton principal, pas le menu déroulant). Le token doit commencer par `sbp_` (pas `sbp_v0_`).
+
+  4. **Se reconnecter** :
+     ```powershell
+     npx supabase login
+     ```
+     Ouvrir le lien dans le navigateur, se connecter, puis coller le **nouveau** token quand le terminal le demande. Ne pas utiliser la clé « anon » ou « service_role » du projet.
 
 - **« failed to parse environment file: .env (unexpected character '»' in variable name) »**  
   Souvent causé par un **BOM UTF-8** en début de fichier (invisible) ou par des guillemets typographiques `»`/`«` dans un nom de variable.  

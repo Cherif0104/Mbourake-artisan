@@ -15,7 +15,9 @@ const ALLOWED_ORIGINS = [
   'https://mbourake.com',
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://localhost:3002',
   'http://127.0.0.1:5173',
+  'http://127.0.0.1:3002',
 ];
 
 function getCorsHeaders(req: Request): Record<string, string> {
@@ -87,59 +89,64 @@ serve(async (req) => {
     const { data: quotesToDelete } = await admin.from('quotes').select('id').or(quoteFilter);
     const quoteIds = (quotesToDelete ?? []).map((q) => q.id);
 
-    const { data: escrowsToDelete } = await admin.from('escrows').select('id').in('project_id', projectIds);
-    const escrowIds = (escrowsToDelete ?? []).map((e) => e.id);
+    let escrowIds: string[] = [];
+    let invoiceIds: string[] = [];
+    try {
+      const { data: escrowsToDelete } = await admin.from('escrows').select('id').in('project_id', projectIds);
+      escrowIds = (escrowsToDelete ?? []).map((e) => e.id);
+    } catch (_) { /* table escrows peut ne pas exister */ }
+    try {
+      const { data: invoicesToDelete } = await admin.from('invoices').select('id').or(`client_id.eq.${uid},artisan_id.eq.${uid}`);
+      invoiceIds = (invoicesToDelete ?? []).map((i) => i.id);
+    } catch (_) { /* table invoices peut ne pas exister */ }
 
-    const { data: invoicesToDelete } = await admin.from('invoices').select('id').or(`client_id.eq.${uid},artisan_id.eq.${uid}`);
-    const invoiceIds = (invoicesToDelete ?? []).map((i) => i.id);
+    const safeDelete = async (fn: () => Promise<unknown>) => { try { await fn(); } catch (e) { console.warn('delete-my-account skip:', e); } };
 
-    // 2) Suppressions dans l'ordre (clés étrangères)
-    try { await admin.from('notifications').delete().eq('user_id', uid); } catch (_) { /* table peut ne pas exister */ }
-    await admin.from('expenses').delete().eq('user_id', uid);
-    await admin.from('quote_revisions').delete().eq('requested_by', uid);
-    if (quoteIds.length) await admin.from('quote_revisions').delete().in('quote_id', quoteIds);
-    await admin.from('reviews').delete().or(`client_id.eq.${uid},artisan_id.eq.${uid}`);
-    await admin.from('messages').delete().eq('sender_id', uid);
+    // 2) Suppressions dans l'ordre (clés étrangères) — chaque bloc peut être ignoré si la table n'existe pas
+    await safeDelete(() => admin.from('notifications').delete().eq('user_id', uid));
+    await safeDelete(() => admin.from('expenses').delete().eq('user_id', uid));
+    await safeDelete(() => admin.from('quote_revisions').delete().eq('requested_by', uid));
+    if (quoteIds.length) await safeDelete(() => admin.from('quote_revisions').delete().in('quote_id', quoteIds));
+    await safeDelete(() => admin.from('reviews').delete().or(`client_id.eq.${uid},artisan_id.eq.${uid}`));
+    await safeDelete(() => admin.from('messages').delete().eq('sender_id', uid));
     if (projectIds.length) {
       for (const pid of projectIds) {
-        await admin.from('messages').delete().eq('project_id', pid);
+        await safeDelete(() => admin.from('messages').delete().eq('project_id', pid));
       }
     }
-    if (projectIds.length) await admin.from('project_audit_logs').delete().in('project_id', projectIds);
-    await admin.from('project_audit_logs').delete().eq('user_id', uid);
-    if (quoteIds.length) await admin.from('quote_audit_logs').delete().in('quote_id', quoteIds);
-    await admin.from('quote_audit_logs').delete().eq('user_id', uid);
-    if (escrowIds.length) await admin.from('escrow_audit_logs').delete().in('escrow_id', escrowIds);
-    await admin.from('escrow_audit_logs').delete().eq('user_id', uid);
-    if (invoiceIds.length) await admin.from('invoice_audit_logs').delete().in('invoice_id', invoiceIds);
-    await admin.from('invoice_audit_logs').delete().eq('user_id', uid);
-    if (invoiceIds.length) await admin.from('invoices').delete().in('id', invoiceIds);
+    if (projectIds.length) await safeDelete(() => admin.from('project_audit_logs').delete().in('project_id', projectIds));
+    await safeDelete(() => admin.from('project_audit_logs').delete().eq('user_id', uid));
+    if (quoteIds.length) await safeDelete(() => admin.from('quote_audit_logs').delete().in('quote_id', quoteIds));
+    await safeDelete(() => admin.from('quote_audit_logs').delete().eq('user_id', uid));
+    if (escrowIds.length) await safeDelete(() => admin.from('escrow_audit_logs').delete().in('escrow_id', escrowIds));
+    await safeDelete(() => admin.from('escrow_audit_logs').delete().eq('user_id', uid));
+    if (invoiceIds.length) await safeDelete(() => admin.from('invoice_audit_logs').delete().in('invoice_id', invoiceIds));
+    await safeDelete(() => admin.from('invoice_audit_logs').delete().eq('user_id', uid));
+    if (invoiceIds.length) await safeDelete(() => admin.from('invoices').delete().in('id', invoiceIds));
     if (projectIds.length) {
       for (const pid of projectIds) {
-        await admin.from('escrows').delete().eq('project_id', pid);
+        await safeDelete(() => admin.from('escrows').delete().eq('project_id', pid));
       }
     }
     if (quoteIds.length) {
       for (const qid of quoteIds) {
-        await admin.from('quotes').delete().eq('id', qid);
+        await safeDelete(() => admin.from('quotes').delete().eq('id', qid));
       }
     }
     if (projectIds.length) {
       for (const pid of projectIds) {
-        await admin.from('projects').delete().eq('id', pid);
+        await safeDelete(() => admin.from('projects').delete().eq('id', pid));
       }
     }
-    await admin.from('artisan_credit_wallets').delete().eq('artisan_id', uid);
-    await admin.from('artisan_affiliations').delete().eq('artisan_id', uid);
-    await admin.from('verification_documents').delete().eq('artisan_id', uid);
-    await admin.from('verification_documents').delete().eq('reviewed_by', uid);
-    try {
-      await admin.from('favorites').delete().eq('client_id', uid);
-      await admin.from('favorites').delete().eq('artisan_id', uid);
-    } catch (_) { /* table peut ne pas exister */ }
-    await admin.from('artisans').delete().eq('id', uid);
-    await admin.from('artisans').delete().eq('user_id', uid);
-    await admin.from('profiles').delete().eq('id', uid);
+    await safeDelete(() => admin.from('artisan_credit_wallets').delete().eq('artisan_id', uid));
+    await safeDelete(() => admin.from('artisan_affiliations').delete().eq('artisan_id', uid));
+    await safeDelete(() => admin.from('verification_documents').delete().eq('artisan_id', uid));
+    await safeDelete(() => admin.from('verification_documents').delete().eq('reviewed_by', uid));
+    await safeDelete(() => admin.from('favorites').delete().eq('client_id', uid));
+    await safeDelete(() => admin.from('favorites').delete().eq('artisan_id', uid));
+    await safeDelete(() => admin.from('artisans').delete().eq('id', uid));
+    await safeDelete(() => admin.from('artisans').delete().eq('user_id', uid));
+    await safeDelete(() => admin.from('profiles').delete().eq('id', uid));
 
     // 2.5) Supprimer les fichiers Storage (portfolio, documents, vérification, etc.)
     const buckets = ['photos', 'videos', 'audio', 'documents'] as const;

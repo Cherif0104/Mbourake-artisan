@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Lock, Trash2, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
+import { Pencil, Lock, Trash2, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
@@ -8,15 +8,7 @@ import { LoadingOverlay } from '../components/LoadingOverlay';
 import { BackButton } from '../components/BackButton';
 import { supabase } from '../lib/supabase';
 
-interface DeletionRequest {
-  id: string;
-  user_id: string;
-  status: string;
-  reason: string | null;
-  requested_at: string;
-  confirmed_at: string | null;
-  expires_at: string;
-}
+const CONFIRM_DELETE_KEYWORD = 'SUPPRIMER';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -29,79 +21,38 @@ export function SettingsPage() {
   const [form, setForm] = useState({ newPassword: '', confirm: '' });
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
-  const [deletionRequest, setDeletionRequest] = useState<DeletionRequest | null>(null);
-  const [deletionStep, setDeletionStep] = useState<'request' | 'confirm' | null>(null);
-  const [deleteReason, setDeleteReason] = useState('');
+  const [confirmDeleteText, setConfirmDeleteText] = useState('');
 
-  useEffect(() => {
-    if (!profile?.id) return;
-    supabase
-      .from('deletion_requests')
-      .select('id, user_id, status, reason, requested_at, confirmed_at, expires_at')
-      .eq('user_id', profile.id)
-      .in('status', ['requested', 'confirmed'])
-      .maybeSingle()
-      .then(({ data }) => setDeletionRequest(data as DeletionRequest | null));
-  }, [profile?.id]);
-
-  const handleRequestDeletion = useCallback(async () => {
-    if (!profile?.id) return;
-    setDeletingAccount(true);
-    try {
-      const { error } = await supabase.from('deletion_requests').insert({
-        user_id: profile.id,
-        status: 'requested',
-        reason: deleteReason.trim() || null,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      });
-      if (error) throw error;
-      showSuccess('Demande enregistrée. Revenez ici pour confirmer (étape 2) avant expiration.');
-      setShowDeleteAccountModal(false);
-      setDeleteReason('');
-      const { data } = await supabase.from('deletion_requests').select('id, user_id, status, reason, requested_at, confirmed_at, expires_at').eq('user_id', profile.id).in('status', ['requested', 'confirmed']).maybeSingle();
-      setDeletionRequest(data as DeletionRequest | null);
-    } catch (err: any) {
-      showError(err?.message ?? 'Impossible d\'enregistrer la demande.');
-    } finally {
-      setDeletingAccount(false);
-    }
-  }, [profile?.id, deleteReason, showSuccess, showError]);
-
-  const handleConfirmDeletion = useCallback(async () => {
-    if (!deletionRequest || deletionRequest.status !== 'requested') return;
-    if (new Date(deletionRequest.expires_at) < new Date()) {
-      showError('La demande a expiré. Créez une nouvelle demande si besoin.');
+  const handleDeleteMyAccount = useCallback(async () => {
+    if (confirmDeleteText.trim() !== CONFIRM_DELETE_KEYWORD) return;
+    const session = auth.session;
+    const token = session?.access_token;
+    if (!token) {
+      showError('Session expirée. Reconnectez-vous puis réessayez.');
       return;
     }
     setDeletingAccount(true);
     try {
-      const { error } = await supabase.from('deletion_requests').update({ status: 'confirmed', confirmed_at: new Date().toISOString() }).eq('id', deletionRequest.id);
-      if (error) throw error;
-      showSuccess('Demande confirmée. L\'équipe traitera votre compte sous peu.');
-      setShowDeleteAccountModal(false);
-      setDeletionRequest((prev) => prev ? { ...prev, status: 'confirmed', confirmed_at: new Date().toISOString() } : null);
-    } catch (err: any) {
-      showError(err?.message ?? 'Impossible de confirmer.');
+      const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const fnUrl = isLocalhost
+        ? '/api/supabase-functions/v1/delete-my-account'
+        : (baseUrl ? `${baseUrl.replace(/\/$/, '')}/functions/v1/delete-my-account` : `${window.location.origin}/functions/v1/delete-my-account`);
+      const res = await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? `Erreur ${res.status}`);
+      await auth.signOut();
+      navigate('/?account_deleted=1', { replace: true });
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : 'Impossible de supprimer le compte. Réessayez ou contactez le support.');
     } finally {
       setDeletingAccount(false);
     }
-  }, [deletionRequest, showSuccess, showError]);
-
-  const handleCancelDeletionRequest = useCallback(async () => {
-    if (!deletionRequest || deletionRequest.status !== 'requested') return;
-    setDeletingAccount(true);
-    try {
-      const { error } = await supabase.from('deletion_requests').update({ status: 'cancelled' }).eq('id', deletionRequest.id);
-      if (error) throw error;
-      showSuccess('Demande annulée.');
-      setShowDeleteAccountModal(false);
-      setDeletionRequest(null);
-    } catch (err: any) {
-      showError(err?.message ?? 'Impossible d\'annuler.');
-    } finally {
-      setDeletingAccount(false);
-    }
-  }, [deletionRequest, showSuccess, showError]);
+  }, [confirmDeleteText, auth.session, auth.signOut, navigate, showError]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,94 +157,53 @@ export function SettingsPage() {
           </form>
         </div>
 
-        {/* Suppression de compte (workflow 2 étapes) */}
-        {!deletionRequest && (
-          <button
-            type="button"
-            onClick={() => { setDeletionStep('request'); setShowDeleteAccountModal(true); }}
-            className="w-full bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center justify-between hover:bg-red-50 transition-colors text-left border-red-100"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
-                <Trash2 size={20} className="text-red-600" />
-              </div>
-              <div>
-                <p className="font-bold text-red-700">Supprimer mon compte</p>
-                <p className="text-xs text-gray-500">Étape 1 : Demander la suppression (puis confirmer ici).</p>
-              </div>
+        {/* Suppression de compte (self-service immédiat) */}
+        <button
+          type="button"
+          onClick={() => { setConfirmDeleteText(''); setShowDeleteAccountModal(true); }}
+          className="w-full bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center justify-between hover:bg-red-50 transition-colors text-left border-red-100"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+              <Trash2 size={20} className="text-red-600" />
             </div>
-            <ChevronRight size={20} className="text-gray-400" />
-          </button>
-        )}
-        {deletionRequest?.status === 'requested' && (
-          <button
-            type="button"
-            onClick={() => { setDeletionStep('confirm'); setShowDeleteAccountModal(true); }}
-            className="w-full bg-white rounded-2xl p-4 border border-amber-200 shadow-sm flex items-center justify-between hover:bg-amber-50 transition-colors text-left"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                <AlertTriangle size={20} className="text-amber-600" />
-              </div>
-              <div>
-                <p className="font-bold text-amber-800">Étape 2 : Confirmer la suppression</p>
-                <p className="text-xs text-gray-500">Demande du {new Date(deletionRequest.requested_at).toLocaleDateString('fr-FR')}. Valide jusqu&apos;au {new Date(deletionRequest.expires_at).toLocaleDateString('fr-FR')}.</p>
-              </div>
-            </div>
-            <ChevronRight size={20} className="text-gray-400" />
-          </button>
-        )}
-        {deletionRequest?.status === 'confirmed' && (
-          <div className="w-full bg-white rounded-2xl p-4 border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
-                <Loader2 size={20} className="text-gray-500 animate-spin" />
-              </div>
-              <div>
-                <p className="font-bold text-gray-900">Demande en attente</p>
-                <p className="text-xs text-gray-500">Votre compte sera supprimé par l&apos;équipe. Vous serez déconnecté une fois le traitement effectué.</p>
-              </div>
+            <div>
+              <p className="font-bold text-red-700">Supprimer mon compte</p>
+              <p className="text-xs text-gray-500">Définitif et irréversible. Toutes vos données seront effacées.</p>
             </div>
           </div>
-        )}
+          <ChevronRight size={20} className="text-gray-400" />
+        </button>
       </main>
 
-      {showDeleteAccountModal && deletionStep === 'request' && (
+      {showDeleteAccountModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)} role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle size={24} className="text-red-600" />
-              </div>
-              <h3 id="delete-account-title" className="text-lg font-bold text-gray-900">Étape 1 : Demander la suppression</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">Une fois la demande enregistrée, vous devrez revenir ici pour confirmer (étape 2) avant que l&apos;équipe ne traite votre compte.</p>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Motif (optionnel)</label>
-            <textarea value={deleteReason} onChange={(e) => setDeleteReason(e.target.value)} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm mb-4 resize-none" placeholder="Ex. je n&#39;utilise plus le service" />
-            <div className="flex gap-3">
-              <button type="button" disabled={deletingAccount} onClick={() => setShowDeleteAccountModal(false)} className="flex-1 py-3 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Annuler</button>
-              <button type="button" disabled={deletingAccount} onClick={handleRequestDeletion} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {deletingAccount ? <Loader2 size={20} className="animate-spin" /> : null} Enregistrer la demande
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDeleteAccountModal && deletionStep === 'confirm' && deletionRequest?.status === 'requested' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)} role="dialog" aria-modal="true" aria-labelledby="delete-account-confirm-title">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
                 <Trash2 size={24} className="text-red-600" />
               </div>
-              <h3 id="delete-account-confirm-title" className="text-lg font-bold text-gray-900">Étape 2 : Confirmer la suppression</h3>
+              <h3 id="delete-account-title" className="text-lg font-bold text-gray-900">Supprimer définitivement mon compte</h3>
             </div>
-            <p className="text-sm text-gray-600 mb-6">Après confirmation, votre demande sera traitée par l&apos;équipe. La suppression est définitive et irréversible.</p>
+            <p className="text-sm text-gray-600 mb-3">Cette action supprime votre compte et toutes les données associées. Elle est irréversible.</p>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Pour confirmer, tapez <strong>SUPPRIMER</strong></label>
+            <input
+              type="text"
+              value={confirmDeleteText}
+              onChange={(e) => setConfirmDeleteText(e.target.value)}
+              placeholder="SUPPRIMER"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm mb-4 uppercase placeholder:normal-case"
+              autoComplete="off"
+            />
             <div className="flex gap-3">
-              <button type="button" disabled={deletingAccount} onClick={handleCancelDeletionRequest} className="flex-1 py-3 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Annuler la demande</button>
-              <button type="button" disabled={deletingAccount} onClick={handleConfirmDeletion} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {deletingAccount ? <Loader2 size={20} className="animate-spin" /> : null} Confirmer la suppression
+              <button type="button" disabled={deletingAccount} onClick={() => setShowDeleteAccountModal(false)} className="flex-1 py-3 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Annuler</button>
+              <button
+                type="button"
+                disabled={deletingAccount || confirmDeleteText.trim() !== CONFIRM_DELETE_KEYWORD}
+                onClick={handleDeleteMyAccount}
+                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 disabled:bg-gray-300 flex items-center justify-center gap-2"
+              >
+                {deletingAccount ? <Loader2 size={20} className="animate-spin" /> : null} Supprimer définitivement
               </button>
             </div>
           </div>
