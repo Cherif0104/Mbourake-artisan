@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   ArrowLeft, Plus, Receipt, TrendingUp, DollarSign, Package, Wrench, Truck, Settings, FileText,
   Upload, X, Image as ImageIcon, Info, Wallet
@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 
 type ExpenseCategory = 'materials' | 'labor' | 'transport' | 'equipment' | 'other';
+type PeriodFilter = 'all' | 'month' | 'year';
 
 const CATEGORY_CONFIG: Record<ExpenseCategory, { label: string; icon: React.ReactNode; color: string }> = {
   materials: { label: 'Matériaux', icon: <Package size={20} />, color: 'bg-blue-100 text-blue-600' },
@@ -33,6 +34,8 @@ function projectDisplayLabel(project: { title?: string; project_number?: string;
 
 export function ExpensesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { profile } = useProfile();
   const { error: showError } = useToastContext();
@@ -42,10 +45,10 @@ export function ExpensesPage() {
   const [revenueByEscrow, setRevenueByEscrow] = useState<Array<{ escrow: any; project: any }>>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | ''>('');
   const [filterCategory, setFilterCategory] = useState<ExpenseCategory | 'all'>('all');
   const [filterProject, setFilterProject] = useState<string>('all');
+  const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>('all');
+  const [deepLinkApplied, setDeepLinkApplied] = useState(false);
   
   // Form states
   const [amount, setAmount] = useState('');
@@ -56,6 +59,9 @@ export function ExpensesPage() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const navState = (location.state as { source?: 'dashboard' | 'invoices'; focus?: 'overview' | 'add-expense'; project_id?: string } | null) || null;
+  const linkedProjectId = searchParams.get('projectId') || navState?.project_id || '';
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -90,7 +96,7 @@ export function ExpensesPage() {
     
     let query = supabase
       .from('expenses')
-      .select('*, projects(title, project_number, created_at)')
+      .select('*, projects(id, title, project_number, created_at)')
       .eq('user_id', user.id)
       .order('expense_date', { ascending: false });
 
@@ -99,6 +105,14 @@ export function ExpensesPage() {
     }
     if (filterProject !== 'all') {
       query = query.eq('project_id', filterProject);
+    }
+    if (filterPeriod === 'month') {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      query = query.gte('expense_date', monthStart.toISOString().split('T')[0]);
+    } else if (filterPeriod === 'year') {
+      const yearStart = new Date(new Date().getFullYear(), 0, 1);
+      query = query.gte('expense_date', yearStart.toISOString().split('T')[0]);
     }
 
     const { data, error } = await query;
@@ -137,7 +151,23 @@ export function ExpensesPage() {
 
   useEffect(() => {
     fetchExpenses();
-  }, [filterCategory, filterProject]);
+  }, [filterCategory, filterProject, filterPeriod]);
+
+  useEffect(() => {
+    if (deepLinkApplied || !linkedProjectId) return;
+    if (projects.length === 0) return;
+    const exists = projects.some((p) => p.id === linkedProjectId);
+    if (!exists) {
+      setDeepLinkApplied(true);
+      return;
+    }
+    setProjectId(linkedProjectId);
+    setFilterProject(linkedProjectId);
+    if (navState?.focus === 'add-expense') {
+      setShowAddForm(true);
+    }
+    setDeepLinkApplied(true);
+  }, [deepLinkApplied, linkedProjectId, navState?.focus, projects]);
 
   const handleFileUpload = async (file: File): Promise<string | null> => {
     if (!user) return null;
@@ -216,15 +246,55 @@ export function ExpensesPage() {
   };
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const yearStart = new Date(new Date().getFullYear(), 0, 1);
+  const totalExpensesThisMonth = expenses
+    .filter((exp) => exp.expense_date && new Date(exp.expense_date) >= monthStart)
+    .reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
+  const totalExpensesThisYear = expenses
+    .filter((exp) => exp.expense_date && new Date(exp.expense_date) >= yearStart)
+    .reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
   const totalRevenue = revenueByEscrow.reduce(
     (sum, { escrow }) => sum + Number(escrow?.artisan_payout ?? escrow?.total_amount ?? 0),
     0
   );
   const balance = totalRevenue - totalExpenses;
-  const categoryTotals = expenses.reduce((acc, exp) => {
-    acc[exp.category] = (acc[exp.category] || 0) + parseFloat(exp.amount || 0);
+  const revenueByProject = revenueByEscrow.reduce((acc, { escrow, project }) => {
+    const projectId = project?.id;
+    if (!projectId) return acc;
+    const amount = Number(escrow?.artisan_payout ?? escrow?.total_amount ?? 0);
+    acc.set(projectId, (acc.get(projectId) || 0) + amount);
     return acc;
-  }, {} as Record<string, number>);
+  }, new Map<string, number>());
+  const expensesByProject = expenses.reduce((acc, exp) => {
+    const pId = exp.project_id;
+    if (!pId) return acc;
+    acc.set(pId, (acc.get(pId) || 0) + Number(exp.amount || 0));
+    return acc;
+  }, new Map<string, number>());
+  const projectLookup = new Map<string, any>();
+  projects.forEach((p) => projectLookup.set(p.id, p));
+  revenueByEscrow.forEach(({ project }) => {
+    if (project?.id) projectLookup.set(project.id, project);
+  });
+  expenses.forEach((exp) => {
+    if (exp?.projects?.id) projectLookup.set(exp.projects.id, exp.projects);
+  });
+  const projectMarginRows = Array.from(new Set([...revenueByProject.keys(), ...expensesByProject.keys()]))
+    .map((projectId) => {
+      const revenue = revenueByProject.get(projectId) || 0;
+      const expense = expensesByProject.get(projectId) || 0;
+      const margin = revenue - expense;
+      return {
+        projectId,
+        project: projectLookup.get(projectId),
+        revenue,
+        expense,
+        margin,
+      };
+    })
+    .sort((a, b) => Math.abs(b.margin) - Math.abs(a.margin))
+    .slice(0, 3);
 
   if (loading) {
     return <LoadingOverlay />;
@@ -249,6 +319,33 @@ export function ExpensesPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
+        {/* Pont workflow Finances -> Dépenses */}
+        <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1">Workflow financier</p>
+          <h2 className="font-bold text-gray-900 mb-1">Paiements -&gt; Dépenses -&gt; Solde</h2>
+          <p className="text-sm text-gray-500 mb-3">
+            {linkedProjectId
+              ? 'Projet pré-sélectionné depuis Finances. Enregistrez vos dépenses pour suivre la marge.'
+              : 'Liez vos dépenses aux projets pour une marge chantier claire et à jour.'}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/invoices', { state: { source: 'expenses', focus: 'payments', project_id: projectId || linkedProjectId || null } })}
+              className="flex-1 px-3 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold"
+            >
+              Retour Finances
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddForm(true)}
+              className="flex-1 px-3 py-2 rounded-xl bg-brand-500 text-white text-sm font-bold"
+            >
+              Ajouter une dépense
+            </button>
+          </div>
+        </div>
+
         {/* Bloc explicatif (artisan) */}
         {profile?.role === 'artisan' && (
           <div className="mb-6 p-4 bg-brand-50 border border-brand-100 rounded-2xl">
@@ -265,7 +362,7 @@ export function ExpensesPage() {
         )}
 
         {/* Revenus vs Dépenses (artisan) */}
-        {profile?.role === 'artisan' && revenueByEscrow.length > 0 && (
+        {profile?.role === 'artisan' && (
           <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
               <Wallet size={18} />
@@ -287,6 +384,27 @@ export function ExpensesPage() {
                 </p>
               </div>
             </div>
+            <p className="text-xs text-gray-500 mt-3 mb-2 font-medium">Marge par projet (aperçu)</p>
+            {projectMarginRows.length === 0 ? (
+              <p className="text-xs text-gray-400">Aucune marge par projet à afficher pour le moment.</p>
+            ) : (
+              <div className="space-y-2">
+                {projectMarginRows.map((row) => (
+                  <div key={row.projectId} className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+                    <p className="text-xs font-bold text-gray-800 truncate">
+                      {projectDisplayLabel(row.project || { project_number: row.projectId })}
+                    </p>
+                    <div className="mt-1 flex items-center justify-between text-xs text-gray-600">
+                      <span>Encaissé: {row.revenue.toLocaleString('fr-FR')} FCFA</span>
+                      <span>Dépensé: {row.expense.toLocaleString('fr-FR')} FCFA</span>
+                    </div>
+                    <p className={`text-sm font-bold mt-1 ${row.margin >= 0 ? 'text-brand-600' : 'text-red-600'}`}>
+                      Solde: {row.margin.toLocaleString('fr-FR')} FCFA
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -305,9 +423,11 @@ export function ExpensesPage() {
           <div className="bg-white rounded-2xl p-4 border border-gray-100">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp size={18} className="text-green-500" />
-              <p className="text-xs text-gray-500 font-medium">Nombre</p>
+              <p className="text-xs text-gray-500 font-medium">Ce mois / année</p>
             </div>
-            <p className="text-2xl font-black text-gray-900">{expenses.length}</p>
+            <p className="text-sm font-black text-gray-900">
+              {totalExpensesThisMonth.toLocaleString('fr-FR')} / {totalExpensesThisYear.toLocaleString('fr-FR')} FCFA
+            </p>
           </div>
         </div>
 
@@ -336,6 +456,29 @@ export function ExpensesPage() {
               </option>
             ))}
           </select>
+          <div className="flex bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setFilterPeriod('all')}
+              className={`px-3 py-2 text-xs font-bold ${filterPeriod === 'all' ? 'bg-brand-500 text-white' : 'text-gray-600'}`}
+            >
+              Tout
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterPeriod('month')}
+              className={`px-3 py-2 text-xs font-bold border-l border-gray-200 ${filterPeriod === 'month' ? 'bg-brand-500 text-white' : 'text-gray-600'}`}
+            >
+              Ce mois
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterPeriod('year')}
+              className={`px-3 py-2 text-xs font-bold border-l border-gray-200 ${filterPeriod === 'year' ? 'bg-brand-500 text-white' : 'text-gray-600'}`}
+            >
+              Cette année
+            </button>
+          </div>
         </div>
 
         {/* Expenses List */}

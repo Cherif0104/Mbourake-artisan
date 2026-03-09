@@ -104,7 +104,14 @@ export function NotificationBell() {
         }
         break;
       case 'payment_received':
-        navigate('/invoices', { state: { fromPaymentNotification: true, project_id: data?.project_id } });
+        navigate('/invoices', {
+          state: {
+            fromPaymentNotification: true,
+            source: 'notifications',
+            focus: 'payments',
+            project_id: data?.project_id,
+          },
+        });
         break;
       case 'verification_approved':
       case 'verification_rejected':

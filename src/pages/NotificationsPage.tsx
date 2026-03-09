@@ -63,7 +63,14 @@ export function NotificationsPage() {
     const target = getNotificationTarget(notification);
     const data = typeof notification.data === 'string' ? (() => { try { return JSON.parse(notification.data); } catch { return {}; } })() : (notification.data || {});
     if (notification.type === 'payment_received') {
-      navigate(target, { state: { fromPaymentNotification: true, project_id: data?.project_id } });
+      navigate(target, {
+        state: {
+          fromPaymentNotification: true,
+          source: 'notifications',
+          focus: 'payments',
+          project_id: data?.project_id,
+        },
+      });
     } else {
       navigate(target);
     }

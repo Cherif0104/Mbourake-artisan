@@ -801,7 +801,7 @@ export function Dashboard() {
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => navigate('/invoices')}
+                onClick={() => navigate('/invoices', { state: { source: 'dashboard', focus: 'payments' } })}
                 className="bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[92px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center mb-3">
@@ -812,7 +812,7 @@ export function Dashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/expenses')}
+                onClick={() => navigate('/expenses', { state: { source: 'dashboard', focus: 'overview' } })}
                 className="bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[92px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
@@ -1527,7 +1527,7 @@ export function Dashboard() {
 
           <button
             type="button"
-            onClick={() => navigate('/invoices')}
+            onClick={() => navigate('/invoices', { state: { source: 'dashboard', focus: 'payments' } })}
             className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
             aria-label="Finances"
           >

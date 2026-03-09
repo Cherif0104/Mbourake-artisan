@@ -18,24 +18,73 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   cancelled: { label: 'Annulée', color: 'bg-gray-100 text-gray-500 border border-gray-200', icon: <X size={16} /> },
 };
 
-/** Workflow paiement : 1) Séquestration (client paie) 2) Déblocage en cours (validation admin) 3) Versé à l'artisan (commission déduite) 4) Litige → admin */
-const PRESTATION_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  held: { label: 'Séquestration – En attente déblocage par l\'admin', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  advance_paid: { label: 'Séquestration – En attente déblocage par l\'admin', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  released: { label: 'Versé à l\'artisan (commission déduite)', color: 'bg-green-100 text-green-700 border border-green-200', icon: <Unlock size={16} /> },
-  frozen: { label: 'Litige – Prise en charge par l\'admin', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
-  refunded: { label: 'Remboursé', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <X size={16} /> },
-  pending: { label: 'En attente paiement client', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <Clock size={16} /> },
+type WorkflowStage = {
+  step: number;
+  key: string;
+  clientLabel: string;
+  artisanLabel: string;
+  color: string;
+  icon: React.ReactNode;
 };
 
-/** Côté client : mêmes étapes (séquestration → déblocage → versé / litige) */
-const CLIENT_PAYMENT_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  held: { label: 'Séquestration – Déblocage en cours (validation admin)', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  advance_paid: { label: 'Séquestration – Déblocage en cours (validation admin)', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Lock size={16} /> },
-  released: { label: 'Déblocage effectué – Versé à l\'artisan', color: 'bg-green-100 text-green-700 border border-green-200', icon: <Unlock size={16} /> },
-  frozen: { label: 'Litige – Prise en charge par l\'admin', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <AlertCircle size={16} /> },
-  refunded: { label: 'Remboursé', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <X size={16} /> },
-  pending: { label: 'En attente de paiement', color: 'bg-gray-100 text-gray-600 border border-gray-200', icon: <Clock size={16} /> },
+/** Workflow paiement : 1) Séquestration (client paie) 2) Déblocage en cours (validation admin) 3) Versé à l'artisan (commission déduite) 4) Litige → admin */
+const WORKFLOW_STAGE_BY_ESCROW_STATUS: Record<string, WorkflowStage> = {
+  pending: {
+    step: 1,
+    key: 'pending',
+    clientLabel: 'En attente de paiement',
+    artisanLabel: 'En attente paiement client',
+    color: 'bg-gray-100 text-gray-600 border border-gray-200',
+    icon: <Clock size={16} />,
+  },
+  held: {
+    step: 2,
+    key: 'held',
+    clientLabel: 'Séquestration – Déblocage en cours (validation admin)',
+    artisanLabel: 'Séquestration – En attente déblocage par l\'admin',
+    color: 'bg-blue-50 text-blue-700 border border-blue-100',
+    icon: <Lock size={16} />,
+  },
+  advance_paid: {
+    step: 2,
+    key: 'advance_paid',
+    clientLabel: 'Séquestration – Déblocage en cours (validation admin)',
+    artisanLabel: 'Séquestration – En attente déblocage par l\'admin',
+    color: 'bg-blue-50 text-blue-700 border border-blue-100',
+    icon: <Lock size={16} />,
+  },
+  released: {
+    step: 3,
+    key: 'released',
+    clientLabel: 'Déblocage effectué – Versé à l\'artisan',
+    artisanLabel: 'Versé à l\'artisan (commission déduite)',
+    color: 'bg-green-100 text-green-700 border border-green-200',
+    icon: <Unlock size={16} />,
+  },
+  frozen: {
+    step: 4,
+    key: 'frozen',
+    clientLabel: 'Litige – Prise en charge par l\'admin',
+    artisanLabel: 'Litige – Prise en charge par l\'admin',
+    color: 'bg-amber-50 text-amber-700 border border-amber-200',
+    icon: <AlertCircle size={16} />,
+  },
+  refunded: {
+    step: 4,
+    key: 'refunded',
+    clientLabel: 'Remboursé',
+    artisanLabel: 'Remboursé',
+    color: 'bg-gray-100 text-gray-600 border border-gray-200',
+    icon: <X size={16} />,
+  },
+};
+
+const getWorkflowStage = (status: string | null | undefined, role: 'client' | 'artisan') => {
+  const stage = WORKFLOW_STAGE_BY_ESCROW_STATUS[status || 'pending'] || WORKFLOW_STAGE_BY_ESCROW_STATUS.pending;
+  return {
+    ...stage,
+    label: role === 'client' ? stage.clientLabel : stage.artisanLabel,
+  };
 };
 
 export function InvoicesPage() {
@@ -54,8 +103,14 @@ export function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [tableUnavailable, setTableUnavailable] = useState(false);
 
-  const fromPaymentNotification = (location.state as { fromPaymentNotification?: boolean; project_id?: string } | null)?.fromPaymentNotification;
-  const highlightProjectId = (location.state as { project_id?: string } | null)?.project_id;
+  const navState = (location.state as {
+    fromPaymentNotification?: boolean;
+    project_id?: string;
+    source?: 'notifications' | 'dashboard' | 'invoices';
+    focus?: 'payments' | 'workflow' | 'expenses';
+  } | null) || null;
+  const fromPaymentNotification = !!navState?.fromPaymentNotification;
+  const highlightProjectId = navState?.project_id;
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -66,9 +121,10 @@ export function InvoicesPage() {
 
   // Quand on arrive depuis la notification "Paiement reçu", scroll vers la section Paiements reçus
   useEffect(() => {
-    if (!fromPaymentNotification || loading || !paymentsSectionRef.current) return;
+    const shouldFocusPayments = fromPaymentNotification || navState?.focus === 'payments';
+    if (!shouldFocusPayments || loading || !paymentsSectionRef.current) return;
     paymentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [fromPaymentNotification, loading]);
+  }, [fromPaymentNotification, navState?.focus, loading]);
 
   const fetchPrestations = async () => {
     if (!user || profile?.role !== 'artisan') return;
@@ -216,6 +272,21 @@ export function InvoicesPage() {
     .filter(inv => ['sent', 'overdue'].includes(inv.status))
     .reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
 
+  const workflowDataset = profile?.role === 'client' ? clientPaiements : prestations;
+  const highlightedWorkflowItem = workflowDataset.find(({ project }) => highlightProjectId && project?.id === highlightProjectId);
+  const workflowItem = highlightedWorkflowItem || workflowDataset[0] || null;
+  const workflowStatusKey = workflowItem
+    ? (workflowItem.project?.status === 'disputed' ? 'frozen' : workflowItem.escrow?.status) || 'pending'
+    : 'pending';
+  const workflowRole = profile?.role === 'client' ? 'client' : 'artisan';
+  const currentWorkflowStage = getWorkflowStage(workflowStatusKey, workflowRole);
+  const workflowSteps = [
+    { step: 1, label: 'Paiement initié' },
+    { step: 2, label: 'Séquestration / validation admin' },
+    { step: 3, label: 'Déblocage / versement' },
+    { step: 4, label: 'Clôture / litige' },
+  ];
+
   if (loading) {
     return <LoadingOverlay />;
   }
@@ -233,6 +304,61 @@ export function InvoicesPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
+        {/* Bandeau workflow guidé */}
+        <section className="mb-6 bg-white rounded-2xl p-4 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Workflow financier</p>
+              <h2 className="font-bold text-gray-900">
+                {profile?.role === 'artisan' ? 'Paiements reçus -> Dépenses -> Solde' : 'Paiements effectués -> Dépenses -> Suivi'}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {workflowItem?.project?.title
+                  ? `Projet actif: ${workflowItem.project.title}`
+                  : 'Aucun projet sélectionné. Les étapes s’actualisent automatiquement.'}
+              </p>
+            </div>
+            <span className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 flex-shrink-0 ${currentWorkflowStage.color}`}>
+              {currentWorkflowStage.icon}
+              {currentWorkflowStage.label}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 my-3">
+            {workflowSteps.map((s) => (
+              <div key={s.step} className={`rounded-lg px-2 py-2 text-center border text-[11px] font-medium ${
+                currentWorkflowStage.step >= s.step
+                  ? 'bg-brand-50 border-brand-100 text-brand-700'
+                  : 'bg-gray-50 border-gray-100 text-gray-500'
+              }`}>
+                <p className="font-bold">Étape {s.step}</p>
+                <p>{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            {workflowItem?.project?.id && (
+              <button
+                type="button"
+                onClick={() => navigate(`/projects/${workflowItem.project.id}`)}
+                className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold"
+              >
+                Voir le projet
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate(`/expenses?projectId=${encodeURIComponent(highlightProjectId || workflowItem?.project?.id || '')}`, {
+                state: { source: 'invoices', focus: 'add-expense', project_id: highlightProjectId || workflowItem?.project?.id || null },
+              })}
+              className="flex-1 px-3 py-2 bg-brand-500 text-white rounded-xl text-sm font-bold"
+            >
+              Continuer vers Dépenses
+            </button>
+          </div>
+        </section>
+
         {/* Paiements effectués (client) — tous les paiements / dépenses par projet (escrow) */}
         {profile?.role === 'client' && (
           <section className="mb-6">
@@ -247,7 +373,7 @@ export function InvoicesPage() {
               <div className="space-y-3">
                 {clientPaiements.map(({ escrow, project }) => {
                   const statusKey = (project?.status === 'disputed' ? 'frozen' : escrow?.status) || 'pending';
-                  const config = CLIENT_PAYMENT_STATUS[statusKey] || CLIENT_PAYMENT_STATUS.pending;
+                  const config = getWorkflowStage(statusKey, 'client');
                   const total = Number(escrow?.total_amount ?? 0);
                   return (
                     <div
@@ -315,7 +441,7 @@ export function InvoicesPage() {
               <div className="space-y-3">
                 {prestations.map(({ escrow, project }) => {
                   const statusKey = (project?.status === 'disputed' ? 'frozen' : escrow?.status) || 'pending';
-                  const config = PRESTATION_STATUS[statusKey] || PRESTATION_STATUS.pending;
+                  const config = getWorkflowStage(statusKey, 'artisan');
                   const total = Number(escrow?.total_amount ?? 0);
                   const net = escrow?.artisan_payout != null ? Number(escrow.artisan_payout) : total;
                   const fees = total - net;
