@@ -32,6 +32,9 @@ node_modules
 Thumbs.db
 .DS_Store
 
+# Icône source (backup local pour scripts/generate-app-icon.mjs)
+public/icons/icon-mbourake-source.png
+
 # Build files
 build/
 *.tsbuildinfo

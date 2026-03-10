@@ -267,16 +267,16 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] overflow-x-hidden selection:bg-brand-100 font-sans">
-      {/* Header — logo officiel + nav + CTA */}
-      <header className="bg-white border-b border-gray-100 px-4 md:px-8 lg:px-16 py-3 md:py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-        <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
-          <img src="/logo-mbourake.svg" alt="Mbouraké" className="h-10 w-10 md:h-12 md:w-12 object-contain" />
-          <span className="text-lg md:text-xl font-black text-gray-800 tracking-tight uppercase">
+      {/* Header — logo officiel + nav + CTA, harmonisé mobile/desktop */}
+      <header className="bg-white border-b border-gray-100 px-4 md:px-8 lg:px-16 py-3 md:py-4 flex items-center justify-between gap-3 sticky top-0 z-50 shadow-sm">
+        <button onClick={() => navigate('/')} className="flex items-center gap-2 sm:gap-3 group shrink-0 min-w-0">
+          <img src="/logo-mbourake.svg" alt="Mbouraké" className="h-9 w-9 sm:h-10 sm:w-10 md:h-12 md:w-12 object-contain shrink-0" />
+          <span className="text-base sm:text-lg md:text-xl font-black text-gray-800 tracking-tight uppercase truncate">
             MBOURAKÉ
           </span>
         </button>
 
-        <nav className="hidden md:flex items-center gap-6 lg:gap-8">
+        <nav className="hidden md:flex items-center gap-6 lg:gap-8 shrink-0">
           <button onClick={() => navigate('/artisans')} className="text-gray-700 hover:text-brand-600 font-semibold text-sm transition-colors">
             Artisans
           </button>
@@ -288,13 +288,13 @@ export function LandingPage() {
           </button>
         </nav>
 
-        {/* Menu mobile */}
-        <div className="md:hidden relative" ref={mobileMenuRef}>
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-600 hover:text-brand-600" aria-label="Menu">
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        {/* Mobile : menu hamburger + CTA regroupés à droite */}
+        <div className="md:hidden flex items-center gap-2 shrink-0" ref={mobileMenuRef}>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -mr-1 text-gray-600 hover:text-brand-600 rounded-lg hover:bg-gray-50" aria-label="Menu">
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
           {mobileMenuOpen && (
-            <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl border border-gray-100 shadow-lg py-2 z-50">
+            <div className="absolute right-4 left-4 top-full mt-2 bg-white rounded-xl border border-gray-100 shadow-xl py-2 z-50">
               <button onClick={() => { navigate('/artisans'); setMobileMenuOpen(false); }} className="w-full px-4 py-3 text-left text-gray-700 font-semibold text-sm hover:bg-brand-50">
                 Artisans
               </button>
@@ -308,13 +308,13 @@ export function LandingPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {isLoggedIn ? (
             <>
               <button onClick={() => navigate('/dashboard')} className="px-4 py-2 text-gray-700 font-semibold text-sm hover:text-brand-600 hidden sm:block">
                 Tableau de bord
               </button>
-              <button onClick={() => navigate('/marketplace')} className="px-5 py-2.5 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors shadow-md">
+              <button onClick={() => navigate('/marketplace')} className="px-4 py-2 sm:px-5 sm:py-2.5 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors shadow-md whitespace-nowrap">
                 Explorer
               </button>
             </>
@@ -323,7 +323,7 @@ export function LandingPage() {
               <button onClick={() => navigate('/onboard?mode=signup')} className="px-4 py-2 text-gray-700 font-semibold text-sm hover:text-brand-600 hidden sm:block">
                 S&apos;inscrire
               </button>
-              <button onClick={() => navigate('/onboard?mode=login')} className="px-5 py-2.5 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors shadow-md">
+              <button onClick={() => navigate('/onboard?mode=login')} className="px-4 py-2 sm:px-5 sm:py-2.5 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors shadow-md whitespace-nowrap">
                 Se Connecter
               </button>
             </>
@@ -331,13 +331,14 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Hero — image zoomée, plein écran mobile */}
+      {/* Hero — image zoomée, une seule instance, plein écran mobile */}
       <section 
-        className="relative min-h-[100dvh] sm:min-h-[560px] md:min-h-[620px] flex flex-col justify-end pb-8 sm:pb-12 md:pb-16 px-4 sm:px-6 overflow-hidden"
+        className="relative min-h-[100dvh] sm:min-h-[560px] md:min-h-[620px] flex flex-col justify-end pb-8 sm:pb-12 md:pb-16 px-4 sm:px-6 overflow-hidden bg-cover bg-center bg-no-repeat"
         style={{ 
           backgroundImage: 'url("/hero-mbourake.png")',
-          backgroundSize: '130%',
-          backgroundPosition: 'center'
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
         }}
       >
         {/* Overlay léger pour laisser la photo du hero bien visible */}

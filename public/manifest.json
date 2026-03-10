@@ -12,16 +12,22 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/icons/icon-mbourake.png",
+      "src": "/icons/icon-mbourake-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-mbourake.png",
+      "src": "/icons/icon-mbourake-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-mbourake-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "categories": ["business", "marketplace"],
