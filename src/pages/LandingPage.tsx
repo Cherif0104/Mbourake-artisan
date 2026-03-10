@@ -12,7 +12,6 @@ import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
 import { LoadingOverlay } from '../components/LoadingOverlay';
-import { DownloadOnMobileButton } from '../components/DownloadOnMobileButton';
 import { usePWAInstall } from '../contexts/PWAInstallContext';
 import { supabase } from '../lib/supabase';
 
@@ -348,15 +347,9 @@ export function LandingPage() {
         <div className="relative z-10 w-full max-w-4xl mx-auto text-left">
           {/* Bloc texte discret : fond très léger + ombre sur le texte pour lisibilité sans cacher la photo */}
           <div className="rounded-xl bg-black/15 backdrop-blur-[1px] p-3 sm:p-4 md:p-5 mb-4 max-w-2xl">
-            <h1 className="text-lg sm:text-xl md:text-3xl lg:text-4xl font-black text-white mb-3 sm:mb-4 tracking-tight leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
+            <h1 className="text-lg sm:text-xl md:text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
               Artisans & entrepreneurs : trouvez les talents pour vos projets
             </h1>
-            <p className="text-white/95 text-sm sm:text-base md:text-lg max-w-2xl mb-3 sm:mb-4 leading-relaxed [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
-              Rejoignez la plateforme pour engager des artisans qualifiés et des entrepreneurs au Sénégal. Publiez vos projets, obtenez des devis, et achetez des produits artisanaux auprès des artisans et des entreprises.
-            </p>
-            <p className="text-white/95 text-xs sm:text-sm md:text-base font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
-              Devis gratuit. Vous ne payez qu&apos;après avoir accepté un devis.
-            </p>
           </div>
 
           {/* Barre recherche : quoi + lieu + Rechercher + Artisan ou entrepreneur */}
@@ -791,13 +784,9 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="bg-white border-t py-20 px-6 text-center">
-        <div className="mb-8 flex items-center justify-center gap-2">
+        <div className="mb-10 flex items-center justify-center gap-2">
           <img src="/logo-mbourake.svg" alt="Mbouraké" className="h-12 w-12 object-contain" />
           <span className="text-2xl font-black text-gray-800 tracking-tight uppercase">MBOURAKÉ</span>
-        </div>
-        {/* Bloc CTA PWA */}
-        <div className="mb-10 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-50 border border-brand-200">
-          <DownloadOnMobileButton variant="footer" />
         </div>
         <div className="flex flex-wrap justify-center gap-6 mb-10">
           <button 
