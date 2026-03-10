@@ -34,14 +34,16 @@ export function SettingsPage() {
 
   const handleDeleteMyAccount = useCallback(async () => {
     if (!isConfirmDeleteMatch(confirmDeleteText)) return;
-    const session = auth.session;
-    const token = session?.access_token;
-    if (!token) {
-      showError('Session expirée. Reconnectez-vous puis réessayez.');
-      return;
-    }
     setDeletingAccount(true);
     try {
+      // Rafraîchir la session pour obtenir un token valide (évite 401 en prod si token expiré)
+      const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+      const token = session?.access_token;
+      if (refreshError || !token) {
+        showError('Session expirée. Reconnectez-vous puis réessayez.');
+        setDeletingAccount(false);
+        return;
+      }
       const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const fnUrl = isLocalhost
@@ -61,7 +63,7 @@ export function SettingsPage() {
     } finally {
       setDeletingAccount(false);
     }
-  }, [confirmDeleteText, auth.session, auth.signOut, navigate, showError]);
+  }, [confirmDeleteText, auth.signOut, navigate, showError]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
