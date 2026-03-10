@@ -4,7 +4,7 @@ import {
   Search, Heart, Star, CheckCircle, ArrowUpRight, Hammer,
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
   Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
-  ChevronRight, X, MapPin, User, ShoppingBag, Menu, Shield,
+  ChevronRight, X, MapPin, ShoppingBag, Menu, Shield,
   ShoppingCart, MessageCircle, Smartphone, Bell
 } from 'lucide-react';
 import { useDiscovery } from '../hooks/useDiscovery';
@@ -331,12 +331,12 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Hero — image mise en valeur + overlay texte pour lisibilité */}
+      {/* Hero — image zoomée, plein écran mobile */}
       <section 
-        className="relative min-h-[520px] sm:min-h-[560px] md:min-h-[620px] flex flex-col justify-end pb-8 sm:pb-12 md:pb-16 px-4 sm:px-6 overflow-hidden"
+        className="relative min-h-[100dvh] sm:min-h-[560px] md:min-h-[620px] flex flex-col justify-end pb-8 sm:pb-12 md:pb-16 px-4 sm:px-6 overflow-hidden"
         style={{ 
           backgroundImage: 'url("/hero-mbourake.png")',
-          backgroundSize: 'cover',
+          backgroundSize: '130%',
           backgroundPosition: 'center'
         }}
       >
@@ -352,22 +352,22 @@ export function LandingPage() {
             </h1>
           </div>
 
-          {/* Barre recherche : quoi + lieu + Rechercher + Artisan ou entrepreneur */}
+          {/* Barre recherche : mobile minimal (recherche + bouton), desktop complet */}
           <div ref={searchContainerRef} className="relative">
-            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 p-3 sm:p-3 bg-white/95 rounded-xl shadow-xl border border-white/20">
-              <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-gray-50 rounded-lg min-w-0">
-                <Search size={20} className="text-brand-500 shrink-0" />
+            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 p-2 sm:p-3 bg-white/95 rounded-xl shadow-xl border border-white/20">
+              <div className="flex-1 flex items-center gap-2 px-3 py-2.5 sm:px-4 sm:py-3 bg-gray-50 rounded-lg min-w-0">
+                <Search size={18} className="text-brand-500 shrink-0 sm:w-5 sm:h-5" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(true); }}
                   onFocus={() => setShowSuggestions(true)}
                   placeholder="Que cherchez-vous ? Plomberie, menuiserie..."
-                  className="w-full py-1 outline-none text-gray-800 font-medium placeholder:text-gray-500 bg-transparent"
+                  className="w-full py-1 text-sm sm:text-base outline-none text-gray-800 font-medium placeholder:text-gray-500 bg-transparent"
                   autoComplete="off"
                 />
               </div>
-              <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 rounded-lg sm:max-w-[200px]">
+              <div className="hidden sm:flex items-center gap-2 px-4 py-3 bg-gray-50 rounded-lg max-w-[200px]">
                 <MapPin size={20} className="text-brand-500 shrink-0" />
                 <input
                   type="text"
@@ -377,16 +377,8 @@ export function LandingPage() {
                   className="w-full py-1 outline-none text-gray-800 font-medium placeholder:text-gray-500 bg-transparent"
                 />
               </div>
-              <button type="submit" className="px-6 py-3 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors whitespace-nowrap">
+              <button type="submit" className="px-5 py-2.5 sm:px-6 sm:py-3 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors whitespace-nowrap">
                 Rechercher
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/onboard?mode=signup&role=artisan')}
-                className="flex items-center justify-center gap-2 px-4 py-3 text-gray-700 font-semibold text-sm hover:bg-brand-50 hover:text-brand-700 rounded-lg transition-colors border border-gray-200"
-              >
-                <User size={20} className="text-brand-500 shrink-0" />
-                Artisan ou entrepreneur
               </button>
             </form>
 
@@ -504,16 +496,16 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Artisans à découvrir */}
-      <section className="py-16 md:py-20 px-6 md:px-12 lg:px-20 bg-[#FDFDFD]">
+      {/* Artisans à découvrir — mobile: 3 colonnes pour voir plus, desktop: 4 */}
+      <section className="py-12 md:py-20 px-4 md:px-12 lg:px-20 bg-[#FDFDFD]">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col items-center mb-10 text-center">
-            <h2 className="text-2xl md:text-4xl font-black text-gray-900 tracking-tight mb-2">Artisans à découvrir</h2>
-            <p className="text-gray-500 max-w-xl text-sm md:text-base">Trouvez l&apos;artisan qu&apos;il vous faut et demandez un devis.</p>
-            <div className="h-1.5 w-24 bg-brand-500 rounded-full mt-4" />
+          <div className="flex flex-col items-center mb-6 md:mb-10 text-center">
+            <h2 className="text-xl md:text-4xl font-black text-gray-900 tracking-tight mb-2">Artisans à découvrir</h2>
+            <p className="text-gray-500 max-w-xl text-xs md:text-base">Trouvez l&apos;artisan qu&apos;il vous faut et demandez un devis.</p>
+            <div className="h-1.5 w-24 bg-brand-500 rounded-full mt-3 md:mt-4" />
           </div>
           {artisans.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-3 md:gap-6">
               {artisans.slice(0, MAX_FEATURED_ARTISANS).map((artisan) => (
                 <div
                   key={artisan.id}
@@ -522,18 +514,18 @@ export function LandingPage() {
                   <button
                     type="button"
                     onClick={() => navigate(`/artisans/${artisan.id}`)}
-                    className="p-4 flex flex-col items-center text-center"
+                    className="p-3 md:p-4 flex flex-col items-center text-center"
                   >
                     <img
                       src={artisan.img}
                       alt={artisan.name}
-                      className="w-20 h-20 rounded-full object-cover border-2 border-gray-100 mb-3"
+                      className="w-14 h-14 md:w-20 md:h-20 rounded-full object-cover border-2 border-gray-100 mb-2 md:mb-3"
                     />
-                    <h3 className="font-bold text-gray-900 text-sm line-clamp-1">{artisan.name}</h3>
-                    <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{artisan.specialty}</p>
-                    <p className="text-[10px] text-brand-600 font-semibold uppercase tracking-wide mt-1">{artisan.category}</p>
+                    <h3 className="font-bold text-gray-900 text-xs md:text-sm line-clamp-1">{artisan.name}</h3>
+                    <p className="text-[10px] md:text-xs text-gray-500 line-clamp-2 mt-0.5">{artisan.specialty}</p>
+                    <p className="text-[9px] md:text-[10px] text-brand-600 font-semibold uppercase tracking-wide mt-1">{artisan.category}</p>
                   </button>
-                  <div className="p-3 pt-0">
+                  <div className="p-2 md:p-3 pt-0">
                     <button
                       type="button"
                       onClick={() => {

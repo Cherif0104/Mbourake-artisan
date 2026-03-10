@@ -94,7 +94,7 @@ export function InvoicesPage() {
   const { profile } = useProfile();
   const { info } = useToastContext();
   const paymentsSectionRef = useRef<HTMLElement>(null);
-
+  
   const [invoices, setInvoices] = useState<any[]>([]);
   const [prestations, setPrestations] = useState<Array<{ escrow: any; project: any }>>([]);
   const [clientPaiements, setClientPaiements] = useState<Array<{ escrow: any; project: any }>>([]);
@@ -496,55 +496,55 @@ export function InvoicesPage() {
         {/* Stats + Filtres + Liste factures : masqués pour l'artisan si table indisponible (workflow = escrow uniquement) */}
         {!(profile?.role === 'artisan' && tableUnavailable) && (
           <>
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText size={18} className="text-brand-500" />
-                  <p className="text-xs text-gray-500 font-medium">Total factures</p>
-                </div>
-                <p className="text-2xl font-black text-gray-900">{totalInvoices}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {totalAmount.toLocaleString('fr-FR')} FCFA
-                </p>
-              </div>
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle size={18} className="text-green-500" />
-                  <p className="text-xs text-gray-500 font-medium">Payées</p>
-                </div>
-                <p className="text-2xl font-black text-green-600">
-                  {paidAmount.toLocaleString('fr-FR')} FCFA
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {invoices.filter(i => i.status === 'paid').length} facture(s)
-                </p>
-              </div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="bg-white rounded-2xl p-4 border border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText size={18} className="text-brand-500" />
+              <p className="text-xs text-gray-500 font-medium">Total factures</p>
             </div>
+            <p className="text-2xl font-black text-gray-900">{totalInvoices}</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {totalAmount.toLocaleString('fr-FR')} FCFA
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 border border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle size={18} className="text-green-500" />
+              <p className="text-xs text-gray-500 font-medium">Payées</p>
+            </div>
+            <p className="text-2xl font-black text-green-600">
+              {paidAmount.toLocaleString('fr-FR')} FCFA
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {invoices.filter(i => i.status === 'paid').length} facture(s)
+            </p>
+          </div>
+        </div>
 
-            {pendingAmount > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
-                <AlertCircle size={20} className="text-yellow-600 flex-shrink-0" />
-                <div>
-                  <p className="font-bold text-yellow-800 text-sm">En attente de paiement</p>
-                  <p className="text-sm text-yellow-700">
-                    {pendingAmount.toLocaleString('fr-FR')} FCFA
-                  </p>
-                </div>
-              </div>
-            )}
+        {pendingAmount > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+            <AlertCircle size={20} className="text-yellow-600 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-yellow-800 text-sm">En attente de paiement</p>
+              <p className="text-sm text-yellow-700">
+                {pendingAmount.toLocaleString('fr-FR')} FCFA
+              </p>
+            </div>
+          </div>
+        )}
 
             {/* Filtres : simplifiés pour l'artisan (Toutes / Payées uniquement) */}
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-              <button
-                onClick={() => setFilterStatus('all')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                  filterStatus === 'all'
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-white border border-gray-200 text-gray-600'
-                }`}
-              >
-                Toutes
-              </button>
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+          <button
+            onClick={() => setFilterStatus('all')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              filterStatus === 'all'
+                ? 'bg-brand-500 text-white'
+                : 'bg-white border border-gray-200 text-gray-600'
+            }`}
+          >
+            Toutes
+          </button>
               {profile?.role === 'artisan' ? (
                 <button
                   onClick={() => setFilterStatus('paid')}
@@ -559,21 +559,21 @@ export function InvoicesPage() {
                 </button>
               ) : (
                 Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                  <button
-                    key={key}
-                    onClick={() => setFilterStatus(key)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
-                      filterStatus === key
-                        ? 'bg-brand-500 text-white'
-                        : 'bg-white border border-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {config.icon}
-                    {config.label}
-                  </button>
+            <button
+              key={key}
+              onClick={() => setFilterStatus(key)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
+                filterStatus === key
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-white border border-gray-200 text-gray-600'
+              }`}
+            >
+              {config.icon}
+              {config.label}
+            </button>
                 ))
               )}
-            </div>
+        </div>
           </>
         )}
 

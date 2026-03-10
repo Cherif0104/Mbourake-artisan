@@ -10,8 +10,13 @@ import { supabase } from '../lib/supabase';
 
 const CONFIRM_DELETE_KEYWORD = 'SUPPRIMER';
 
+/** Normalise le texte (accents retirés) pour la comparaison. Accepte "supprimer" et "supprimé". */
+function normalizeForCompare(s: string): string {
+  return s.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function isConfirmDeleteMatch(value: string): boolean {
-  return value.trim().toUpperCase() === CONFIRM_DELETE_KEYWORD;
+  return normalizeForCompare(value) === CONFIRM_DELETE_KEYWORD;
 }
 
 export function SettingsPage() {
@@ -190,7 +195,7 @@ export function SettingsPage() {
               <h3 id="delete-account-title" className="text-lg font-bold text-gray-900">Supprimer définitivement mon compte</h3>
             </div>
             <p className="text-sm text-gray-600 mb-3">Cette action supprime votre compte et toutes les données associées. Elle est irréversible.</p>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Pour confirmer, tapez <strong>SUPPRIMER</strong> (minuscules ou majuscules)</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Pour confirmer, tapez <strong>SUPPRIMER</strong> ou <strong>supprimé</strong></label>
             <input
               type="text"
               value={confirmDeleteText}

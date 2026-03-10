@@ -8,19 +8,19 @@
   "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#FFFFFF",
   "theme_color": "#FBBF24",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "scope": "/",
   "icons": [
     {
-      "src": "/icons/icone-app-web-mbourake.svg",
+      "src": "/icons/icon-mbourake.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icone-app-web-mbourake.svg",
+      "src": "/icons/icon-mbourake.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     }
   ],

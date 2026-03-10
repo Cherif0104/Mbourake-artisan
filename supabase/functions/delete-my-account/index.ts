@@ -113,7 +113,22 @@ serve(async (req) => {
       invoiceIds = (invoicesToDelete ?? []).map((i) => i.id);
     } catch (_) { /* table invoices peut ne pas exister */ }
 
-    const safeDelete = async (fn: () => Promise<unknown>) => { try { await fn(); } catch (e) { console.warn('delete-my-account skip:', e); } };
+    let orderIds: string[] = [];
+    try {
+      const { data: ordersToDelete } = await admin.from('orders').select('id').or(`buyer_id.eq.${uid},seller_id.eq.${uid}`);
+      orderIds = (ordersToDelete ?? []).map((o) => o.id);
+    } catch (_) { /* table orders peut ne pas exister */ }
+
+    const safeDelete = async (fn: () => Promise<{ error?: unknown } | unknown>) => {
+      try {
+        const result = await fn();
+        if (result && typeof result === 'object' && 'error' in result && result.error) {
+          console.warn('delete-my-account skip:', result.error);
+        }
+      } catch (e) {
+        console.warn('delete-my-account skip:', e);
+      }
+    };
 
     // 2) Suppressions dans l'ordre (clés étrangères) — chaque bloc peut être ignoré si la table n'existe pas
     await safeDelete(() => admin.from('notifications').delete().eq('user_id', uid));
@@ -151,12 +166,27 @@ serve(async (req) => {
         await safeDelete(() => admin.from('projects').delete().eq('id', pid));
       }
     }
+    // Marketplace: order_items → orders (RESTRICT sur buyer_id/seller_id)
+    if (orderIds.length) {
+      await safeDelete(() => admin.from('order_items').delete().in('order_id', orderIds));
+      await safeDelete(() => admin.from('orders').delete().in('id', orderIds));
+    }
+    await safeDelete(() => admin.from('products').delete().eq('artisan_id', uid));
+    await safeDelete(() => admin.from('artisan_certifications').delete().eq('artisan_id', uid));
+    await safeDelete(() => admin.from('artisan_credit_transactions').delete().eq('artisan_id', uid));
     await safeDelete(() => admin.from('artisan_credit_wallets').delete().eq('artisan_id', uid));
     await safeDelete(() => admin.from('artisan_affiliations').delete().eq('artisan_id', uid));
     await safeDelete(() => admin.from('verification_documents').delete().eq('artisan_id', uid));
     await safeDelete(() => admin.from('verification_documents').delete().eq('reviewed_by', uid));
     await safeDelete(() => admin.from('favorites').delete().eq('client_id', uid));
     await safeDelete(() => admin.from('favorites').delete().eq('artisan_id', uid));
+    await safeDelete(() => admin.from('client_attributions').delete().eq('client_id', uid));
+    await safeDelete(() => admin.from('client_attribution_transfers').delete().eq('transferred_by', uid));
+    await safeDelete(() => admin.from('deletion_requests').delete().eq('user_id', uid));
+    await safeDelete(() => admin.from('organisation_members').delete().eq('user_id', uid));
+    await safeDelete(() => admin.from('admin_user_role_assignments').delete().eq('user_id', uid));
+    await safeDelete(() => admin.from('team_members').delete().eq('user_id', uid));
+    await safeDelete(() => admin.from('training_cohort_members').delete().eq('user_id', uid));
     await safeDelete(() => admin.from('artisans').delete().eq('id', uid));
     await safeDelete(() => admin.from('artisans').delete().eq('user_id', uid));
     await safeDelete(() => admin.from('profiles').delete().eq('id', uid));
