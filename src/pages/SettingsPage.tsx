@@ -10,6 +10,10 @@ import { supabase } from '../lib/supabase';
 
 const CONFIRM_DELETE_KEYWORD = 'SUPPRIMER';
 
+function isConfirmDeleteMatch(value: string): boolean {
+  return value.trim().toUpperCase() === CONFIRM_DELETE_KEYWORD;
+}
+
 export function SettingsPage() {
   const navigate = useNavigate();
   const auth = useAuth();
@@ -24,7 +28,7 @@ export function SettingsPage() {
   const [confirmDeleteText, setConfirmDeleteText] = useState('');
 
   const handleDeleteMyAccount = useCallback(async () => {
-    if (confirmDeleteText.trim() !== CONFIRM_DELETE_KEYWORD) return;
+    if (!isConfirmDeleteMatch(confirmDeleteText)) return;
     const session = auth.session;
     const token = session?.access_token;
     if (!token) {
@@ -186,20 +190,21 @@ export function SettingsPage() {
               <h3 id="delete-account-title" className="text-lg font-bold text-gray-900">Supprimer définitivement mon compte</h3>
             </div>
             <p className="text-sm text-gray-600 mb-3">Cette action supprime votre compte et toutes les données associées. Elle est irréversible.</p>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Pour confirmer, tapez <strong>SUPPRIMER</strong></label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Pour confirmer, tapez <strong>SUPPRIMER</strong> (minuscules ou majuscules)</label>
             <input
               type="text"
               value={confirmDeleteText}
               onChange={(e) => setConfirmDeleteText(e.target.value)}
               placeholder="SUPPRIMER"
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm mb-4 uppercase placeholder:normal-case"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm mb-4 placeholder:normal-case"
               autoComplete="off"
+              autoCapitalize="off"
             />
             <div className="flex gap-3">
               <button type="button" disabled={deletingAccount} onClick={() => setShowDeleteAccountModal(false)} className="flex-1 py-3 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Annuler</button>
               <button
                 type="button"
-                disabled={deletingAccount || confirmDeleteText.trim() !== CONFIRM_DELETE_KEYWORD}
+                disabled={deletingAccount || !isConfirmDeleteMatch(confirmDeleteText)}
                 onClick={handleDeleteMyAccount}
                 className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 disabled:bg-gray-300 flex items-center justify-center gap-2"
               >
