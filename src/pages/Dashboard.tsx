@@ -255,9 +255,9 @@ export function Dashboard() {
         // D'abord récupérer les données de l'artisan pour avoir sa catégorie
         const { data: artisan } = await supabase
           .from('artisans')
-          .select('*, categories(*)')
+          .select('*, categories!artisans_category_id_fkey(*)')
           .eq('id', profile.id)
-          .single();
+          .maybeSingle();
         
         if (artisan) {
           setArtisanData(artisan);
@@ -269,7 +269,7 @@ export function Dashboard() {
           // Un artisan ne voit QUE les projets liés à sa catégorie
           const { data: openProjects, error: openProjectsError } = await supabase
             .from('projects')
-            .select('id, title, status, created_at, project_number, location, category_id, client_id, categories(*)')
+            .select('id, title, status, created_at, project_number, location, category_id, client_id, categories!projects_category_id_fkey(*)')
             .eq('category_id', artisan.category_id) // FILTRE CRITIQUE : uniquement sa catégorie
             .in('status', ['open', 'quote_received'])
             .order('created_at', { ascending: false })
@@ -284,7 +284,7 @@ export function Dashboard() {
         // Récupérer TOUS les devis de l'artisan (historique complet)
         const { data: quotes, error: quotesError } = await supabase
           .from('quotes')
-          .select('id, project_id, amount, status, created_at, rejection_reason, artisan_id, projects(id, title, status, created_at, project_number, location, category_id, categories(*))')
+          .select('id, project_id, amount, status, created_at, rejection_reason, artisan_id, projects!quotes_project_id_fkey(id, title, status, created_at, project_number, location, category_id, categories!projects_category_id_fkey(*))')
           .eq('artisan_id', profile.id)
           .order('created_at', { ascending: false });
         if (quotesError) {
@@ -354,7 +354,7 @@ export function Dashboard() {
         // Récupérer tous les projets du client (historique complet inclus), sans jointure sensible
         const { data: clientProjects, error: clientProjectsError } = await supabase
           .from('projects')
-          .select('id, title, status, created_at, project_number, location, category_id, categories(*)')
+          .select('id, title, status, created_at, project_number, location, category_id, categories!projects_category_id_fkey(*)')
           .eq('client_id', profile.id)
           .order('created_at', { ascending: false });
         if (clientProjectsError) {

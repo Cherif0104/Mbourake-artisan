@@ -80,20 +80,33 @@ serve(async (req) => {
     const admin = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1) Récupérer les IDs des projets / devis / escrows / factures à supprimer
-    const { data: projectsToDelete } = await admin.from('projects').select('id').or(`client_id.eq.${uid},target_artisan_id.eq.${uid}`);
-    const projectIds = (projectsToDelete ?? []).map((p) => p.id);
-
-    const quoteFilter = projectIds.length
-      ? `artisan_id.eq.${uid},project_id.in.(${projectIds.join(',')})`
-      : `artisan_id.eq.${uid}`;
-    const { data: quotesToDelete } = await admin.from('quotes').select('id').or(quoteFilter);
-    const quoteIds = (quotesToDelete ?? []).map((q) => q.id);
-
+    let projectIds: string[] = [];
+    let quoteIds: string[] = [];
     let escrowIds: string[] = [];
     let invoiceIds: string[] = [];
+
     try {
-      const { data: escrowsToDelete } = await admin.from('escrows').select('id').in('project_id', projectIds);
-      escrowIds = (escrowsToDelete ?? []).map((e) => e.id);
+      const { data: projectsToDelete } = await admin.from('projects').select('id').or(`client_id.eq.${uid},target_artisan_id.eq.${uid}`);
+      projectIds = (projectsToDelete ?? []).map((p) => p.id);
+    } catch (e) {
+      console.warn('delete-my-account: projects fetch:', e);
+    }
+
+    try {
+      const quoteFilter = projectIds.length
+        ? `artisan_id.eq.${uid},project_id.in.(${projectIds.join(',')})`
+        : `artisan_id.eq.${uid}`;
+      const { data: quotesToDelete } = await admin.from('quotes').select('id').or(quoteFilter);
+      quoteIds = (quotesToDelete ?? []).map((q) => q.id);
+    } catch (e) {
+      console.warn('delete-my-account: quotes fetch:', e);
+    }
+
+    try {
+      if (projectIds.length > 0) {
+        const { data: escrowsToDelete } = await admin.from('escrows').select('id').in('project_id', projectIds);
+        escrowIds = (escrowsToDelete ?? []).map((e) => e.id);
+      }
     } catch (_) { /* table escrows peut ne pas exister */ }
     try {
       const { data: invoicesToDelete } = await admin.from('invoices').select('id').or(`client_id.eq.${uid},artisan_id.eq.${uid}`);
