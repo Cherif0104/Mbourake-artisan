@@ -5,13 +5,15 @@ import {
   Wrench, PaintBucket, Droplets, Zap, HardHat, CloudLightning,
   Wind, Car, Scissors, ChefHat, Truck, Lightbulb, Sparkles, Bike,
   ChevronRight, X, MapPin, User, ShoppingBag, Menu, Shield,
-  ShoppingCart, MessageCircle
+  ShoppingCart, MessageCircle, Smartphone, Bell
 } from 'lucide-react';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
 import { LoadingOverlay } from '../components/LoadingOverlay';
+import { DownloadOnMobileButton } from '../components/DownloadOnMobileButton';
+import { usePWAInstall } from '../contexts/PWAInstallContext';
 import { supabase } from '../lib/supabase';
 
 function normalizeForSearch(s: string): string {
@@ -50,6 +52,7 @@ export function LandingPage() {
   const auth = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { success: showSuccess } = useToastContext();
+  const pwaInstall = usePWAInstall();
   const { categories: dbCategories, loading } = useDiscovery();
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
@@ -731,11 +734,70 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* Section PWA : Utilisez Mbourake comme une app */}
+      <section className="py-20 px-6 bg-white border-t border-gray-100">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-4 tracking-tight">
+            Utilisez Mbourake comme une application
+          </h2>
+          <p className="text-gray-600 mb-10 max-w-xl mx-auto">
+            Installez-la sur votre téléphone pour un accès direct à vos projets, devis et messages.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10 text-left">
+            <div className="flex gap-4 p-4 rounded-xl bg-gray-50">
+              <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
+                <Smartphone size={20} className="text-brand-600" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 text-sm">Accès en 1 clic</p>
+                <p className="text-gray-600 text-xs">Depuis l&apos;écran d&apos;accueil de votre téléphone</p>
+              </div>
+            </div>
+            <div className="flex gap-4 p-4 rounded-xl bg-gray-50">
+              <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
+                <Zap size={20} className="text-brand-600" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 text-sm">Plus rapide</p>
+                <p className="text-gray-600 text-xs">Ouvre plus vite que le navigateur</p>
+              </div>
+            </div>
+            <div className="flex gap-4 p-4 rounded-xl bg-gray-50">
+              <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
+                <Bell size={20} className="text-brand-600" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 text-sm">Suivi simplifié</p>
+                <p className="text-gray-600 text-xs">Vos projets et devis à portée de main</p>
+              </div>
+            </div>
+          </div>
+          {pwaInstall?.isStandalone ? (
+            <p className="text-gray-500 text-sm font-medium">
+              L&apos;application est déjà installée sur cet appareil.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => pwaInstall?.promptInstall()}
+              className="inline-flex items-center gap-2 px-8 py-4 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200/50"
+            >
+              <Smartphone size={20} />
+              Installer sur mon téléphone
+            </button>
+          )}
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="bg-white border-t py-20 px-6 text-center">
-        <div className="mb-10 flex items-center justify-center gap-2">
+        <div className="mb-8 flex items-center justify-center gap-2">
           <img src="/logo-mbourake.svg" alt="Mbouraké" className="h-12 w-12 object-contain" />
           <span className="text-2xl font-black text-gray-800 tracking-tight uppercase">MBOURAKÉ</span>
+        </div>
+        {/* Bloc CTA PWA */}
+        <div className="mb-10 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-50 border border-brand-200">
+          <DownloadOnMobileButton variant="footer" />
         </div>
         <div className="flex flex-wrap justify-center gap-6 mb-10">
           <button 

@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ToastProvider } from './contexts/ToastContext';
+import { PWAInstallProvider } from './contexts/PWAInstallContext';
 import App from './App';
 import './styles.css';
 
@@ -20,7 +21,9 @@ if ('serviceWorker' in navigator) {
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
     <ToastProvider>
-      <App />
+      <PWAInstallProvider>
+        <App />
+      </PWAInstallProvider>
     </ToastProvider>
   </BrowserRouter>,
 );

@@ -2,6 +2,7 @@ import React from 'react';
 import { Route, Routes, useNavigate, Navigate } from 'react-router-dom';
 import { ToastContainer } from './components/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
+import { InstallPrompt } from './components/InstallPrompt';
 import { ScrollToTop } from './components/ScrollToTop';
 import { PageTransition } from './components/PageTransition';
 import { NotificationRealtimeToaster } from './components/NotificationRealtimeToaster';
@@ -148,6 +149,7 @@ function AppContent() {
         <ScrollToTop />
         <PageTransition />
         <OfflineBanner />
+        <InstallPrompt />
         <LastRoutePersistence />
         <Routes>
       {/* Public Routes */}

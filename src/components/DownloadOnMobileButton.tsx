@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Smartphone, Download } from 'lucide-react';
 import { usePWAInstall } from '../contexts/PWAInstallContext';
+import { Z_INDEX } from '../config/zIndex';
 
 const HINT_BY_BROWSER: Record<string, string> = {
   ios: 'Sur iPhone (Safari) : appuyez sur le bouton Partager puis « Sur l\'écran d\'accueil ».',
@@ -20,12 +21,12 @@ function isMobileDevice(): boolean {
 }
 
 /**
- * Bouton footer "Télécharger sur mobile" : un clic déclenche directement
- * l'installation de l'app (PWA) sur le téléphone — Android, iPhone, Samsung, etc.
- * Sur mobile : ouvre la boîte native d'installation (Chrome) ou le guide pas à pas (Safari, Firefox, Edge).
- * Sur ordinateur : affiche comment installer depuis le téléphone.
+ * Bouton "Installer l'app" / "Télécharger sur mobile" : un clic déclenche
+ * l'installation PWA — Android, iPhone, Samsung, etc.
+ * Sur mobile : boîte native (Chrome) ou guide (Safari, Firefox, Edge).
+ * Sur ordinateur : modale avec instructions pour installer depuis le téléphone.
  */
-export function DownloadOnMobileButton() {
+export function DownloadOnMobileButton({ variant = 'default' }: { variant?: 'default' | 'footer' }) {
   const ctx = usePWAInstall();
   const [showHint, setShowHint] = useState(false);
   const isMobile = useMemo(() => isMobileDevice(), []);
@@ -50,27 +51,34 @@ export function DownloadOnMobileButton() {
       <button
         type="button"
         onClick={handleClick}
-        className="flex items-center gap-2 text-gray-600 hover:text-brand-500 font-bold text-sm transition-colors"
-        aria-label="Télécharger l'application sur votre téléphone"
+        className="flex items-center gap-2 text-brand-600 hover:text-brand-700 font-bold text-sm transition-colors"
+        aria-label="Installer l'application sur votre téléphone"
       >
         <Smartphone size={20} className="shrink-0" />
-        Télécharger sur mobile
+        {variant === 'footer' ? "Installer l'app" : 'Télécharger sur mobile'}
       </button>
 
       {showHint && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setShowHint(false)}
-          role="presentation"
-        >
+        <>
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-left"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+            style={{ zIndex: Z_INDEX.INSTALL_PROMPT - 1 }}
+            onClick={() => setShowHint(false)}
+            role="presentation"
+            aria-hidden="true"
+          />
+          <div
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-sm bg-white rounded-2xl shadow-2xl p-6 text-left animate-in zoom-in-95 duration-200"
+            style={{ zIndex: Z_INDEX.INSTALL_PROMPT }}
             onClick={(e) => e.stopPropagation()}
             role="dialog"
+            aria-modal="true"
             aria-labelledby="pwa-hint-title"
           >
             <h2 id="pwa-hint-title" className="font-black text-gray-900 mb-3 flex items-center gap-2">
-              <Download size={22} className="text-brand-500" />
+              <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center">
+                <Download size={20} className="text-brand-600" />
+              </div>
               {isStandaloneHint ? 'Application installée' : 'Installer Mbourake'}
             </h2>
             {isStandaloneHint ? (
@@ -98,12 +106,12 @@ export function DownloadOnMobileButton() {
             <button
               type="button"
               onClick={() => setShowHint(false)}
-              className="w-full py-2.5 bg-brand-500 text-white rounded-xl font-bold text-sm"
+              className="w-full py-3.5 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200/50"
             >
               Compris
             </button>
           </div>
-        </div>
+        </>
       )}
     </>
   );
