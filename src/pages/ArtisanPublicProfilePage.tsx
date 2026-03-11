@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Star, MapPin, Phone, Mail, Shield, CheckCircle,
-  Heart, Share2, MessageSquare, Calendar, Clock, Image, Video,
-  ChevronLeft, ChevronRight, X, Play, Briefcase, Award, Hash,
+  Heart, Share2, MessageSquare, Calendar, Clock, Image,
+  X, Briefcase, Award, Hash,
   User, Quote, Building2, MessageCircle, Send, Pencil, Copy, ShoppingBag
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -40,8 +40,6 @@ interface ArtisanProfile {
   artisan: {
     bio: string | null;
     specialty: string | null;
-    portfolio_urls: string[];
-    video_urls: string[];
     verification_status: string;
     rating_avg: number | null;
     is_available: boolean | null;
@@ -66,7 +64,6 @@ interface ProductPreview {
 export function ArtisanPublicProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
   const { profile: currentUserProfile } = useProfile();
   const { success, error: showError } = useToastContext();
@@ -81,11 +78,6 @@ export function ArtisanPublicProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const { isFavorite, toggleFavorite } = useFavorites();
   const isArtisanFavorite = id ? isFavorite(id) : false;
-  
-  // Gallery modal state
-  const [showGallery, setShowGallery] = useState(false);
-  const [galleryIndex, setGalleryIndex] = useState(0);
-  const [galleryType, setGalleryType] = useState<'photo' | 'video'>('photo');
   
   // Review response modal state
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
@@ -157,7 +149,7 @@ export function ArtisanPublicProfilePage() {
       const { data: artisanData, error: artisanError } = await supabase
         .from('artisans')
         .select(`
-          bio, specialty, portfolio_urls, video_urls, verification_status, rating_avg, is_available,
+          bio, specialty, verification_status, rating_avg, is_available,
           categories (id, name, icon_name)
         `)
         .eq('id', id)
@@ -226,8 +218,6 @@ export function ArtisanPublicProfilePage() {
         artisan: artisanData ? {
           bio: artisanData.bio,
           specialty: artisanData.specialty,
-          portfolio_urls: artisanData.portfolio_urls || [],
-          video_urls: artisanData.video_urls || [],
           verification_status: artisanData.verification_status,
           rating_avg: artisanData.rating_avg,
           is_available: artisanData.is_available,
@@ -310,30 +300,6 @@ export function ArtisanPublicProfilePage() {
     fetchArtisan();
   }, [id]);
 
-  const openGallery = (type: 'photo' | 'video', index: number) => {
-    setGalleryType(type);
-    setGalleryIndex(index);
-    setShowGallery(true);
-  };
-
-  const closeGallery = () => {
-    setShowGallery(false);
-  };
-
-  const nextImage = () => {
-    const items = galleryType === 'photo' 
-      ? artisan?.artisan?.portfolio_urls || []
-      : artisan?.artisan?.video_urls || [];
-    setGalleryIndex((prev) => (prev + 1) % items.length);
-  };
-
-  const prevImage = () => {
-    const items = galleryType === 'photo'
-      ? artisan?.artisan?.portfolio_urls || []
-      : artisan?.artisan?.video_urls || [];
-    setGalleryIndex((prev) => (prev - 1 + items.length) % items.length);
-  };
-
   const handleRequestProject = () => {
     // Si l'utilisateur n'est pas connecté : connexion client (après Google, compte créé automatiquement si nouveau)
     if (!user) {
@@ -353,29 +319,9 @@ export function ArtisanPublicProfilePage() {
   };
 
   const isVerified = artisan?.artisan?.verification_status === 'verified';
-  const portfolioPhotos = artisan?.artisan?.portfolio_urls || [];
-  const portfolioVideos = artisan?.artisan?.video_urls || [];
   const isClient = currentUserProfile?.role === 'client';
   const isOwnProfile = Boolean(user && id && user.id === id);
   const showBottomBar = !isOwnProfile && (!user || isClient);
-
-  // Si on arrive avec ?focus=portfolio, scroller vers la section portfolio après chargement.
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const focus = params.get('focus');
-    if (focus !== 'portfolio') return;
-    if (loading) return;
-
-    // Attendre un tick pour que le DOM soit prêt
-    const t = window.setTimeout(() => {
-      const el = document.getElementById('portfolio');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 50);
-
-    return () => window.clearTimeout(t);
-  }, [location.search, loading]);
 
   // Projet commun : client connecté + artisan affiché → un projet où ils sont liés (devis accepté/pending/viewed)
   useEffect(() => {
@@ -611,66 +557,7 @@ export function ArtisanPublicProfilePage() {
           </section>
         )}
 
-        {/* Portfolio Photos */}
-        {portfolioPhotos.length > 0 && (
-          <section id="portfolio" className="bg-white border-b px-6 py-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <Image size={18} className="text-brand-500" />
-                Portfolio Photos
-              </h3>
-              <span className="text-xs text-gray-400 font-bold">{portfolioPhotos.length}/10</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {portfolioPhotos.slice(0, 6).map((url, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => openGallery('photo', idx)}
-                  className="relative aspect-square rounded-xl overflow-hidden group"
-                >
-                  <img src={url} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                  {idx === 5 && portfolioPhotos.length > 6 && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <span className="text-white font-bold text-lg">+{portfolioPhotos.length - 6}</span>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Portfolio Videos */}
-        {portfolioVideos.length > 0 && (
-          <section id={portfolioPhotos.length === 0 ? 'portfolio' : undefined} className="bg-white border-b px-6 py-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <Video size={18} className="text-brand-500" />
-                Portfolio Vidéos
-              </h3>
-              <span className="text-xs text-gray-400 font-bold">{portfolioVideos.length}/5</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {portfolioVideos.map((url, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => openGallery('video', idx)}
-                  className="relative aspect-video rounded-xl overflow-hidden group bg-gray-900"
-                >
-                  <video src={url} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/60 transition-colors">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                      <Play size={24} className="text-white ml-1" fill="white" />
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Boutique (portfolio marchand) */}
+        {/* Boutique (portfolio de l'artisan) */}
         <section className="bg-white border-b px-6 py-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
@@ -981,53 +868,6 @@ export function ArtisanPublicProfilePage() {
                 Instagram, TikTok : collez le lien copié dans l’app.
               </p>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Gallery Modal */}
-      {showGallery && (
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-          <button
-            onClick={closeGallery}
-            className="absolute top-4 right-4 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10"
-          >
-            <X size={24} />
-          </button>
-
-          <button
-            onClick={prevImage}
-            className="absolute left-4 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-          >
-            <ChevronLeft size={28} />
-          </button>
-
-          <button
-            onClick={nextImage}
-            className="absolute right-4 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-          >
-            <ChevronRight size={28} />
-          </button>
-
-          <div className="max-w-4xl max-h-[80vh] w-full mx-4">
-            {galleryType === 'photo' ? (
-              <img
-                src={portfolioPhotos[galleryIndex]}
-                alt={`Portfolio ${galleryIndex + 1}`}
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <video
-                src={portfolioVideos[galleryIndex]}
-                controls
-                autoPlay
-                className="w-full h-full object-contain"
-              />
-            )}
-          </div>
-
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white text-sm font-bold bg-black/50 px-4 py-2 rounded-full">
-            {galleryIndex + 1} / {galleryType === 'photo' ? portfolioPhotos.length : portfolioVideos.length}
           </div>
         </div>
       )}

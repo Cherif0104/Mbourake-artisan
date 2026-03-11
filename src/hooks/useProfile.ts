@@ -84,7 +84,6 @@ export function useProfile() {
       category_id?: number; 
       bio?: string;
       specialty?: string;
-      portfolio_urls?: string[];
     }) => {
       // Obtenir la session directement depuis Supabase pour éviter les problèmes de synchronisation
       // avec l'état React de useAuth
@@ -145,7 +144,6 @@ export function useProfile() {
           category_id: input.category_id ?? null,
           bio: input.bio ?? null,
           specialty: input.specialty ?? null,
-          portfolio_urls: input.portfolio_urls ?? [],
           updated_at: new Date().toISOString(),
         });
         if (artisanError) throw artisanError;

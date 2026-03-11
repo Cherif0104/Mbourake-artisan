@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Search, Heart, CheckCircle, Star, ArrowLeft, MapPin, 
   Award, Filter, X, ChevronDown, SlidersHorizontal, Shield,
-  User, Briefcase, PlusCircle, Image
+  User, Briefcase, PlusCircle
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -27,7 +27,6 @@ interface ArtisanData {
   verified: boolean;
   img: string;
   bio: string;
-  portfolio_first_image: string | null;
 }
 
 interface CategoryData {
@@ -103,7 +102,7 @@ export function CategoryPage() {
         .from('artisans')
         .select(`
           id, bio, specialty, verification_status, is_available, rating_avg,
-          category_id, portfolio_urls,
+          category_id,
           categories (name, slug)
         `)
         .eq('category_id', categoryId);
@@ -149,30 +148,12 @@ export function CategoryPage() {
               .eq('artisan_id', a.id)
               .eq('status', 'accepted');
             
-            // Récupérer les vraies données depuis la base de données
-            // Ne pas utiliser de valeurs par défaut qui masquent les vraies données
-            const portfolioUrls = Array.isArray(a.portfolio_urls) ? a.portfolio_urls.filter((url: string) => url && url.trim() !== '') : [];
-            
-            // Récupérer le profil depuis la map
             const profile = profilesMap[a.id];
-            
             const fullName = profile?.full_name?.trim() || null;
             const specialty = a.specialty?.trim() || null;
             const location = profile?.location?.trim() || null;
             const avatarUrl = profile?.avatar_url?.trim() || null;
             const bio = a.bio?.trim() || null;
-            
-            // Log pour debug (à retirer en production)
-            console.log('Artisan data:', {
-              id: a.id,
-              fullName,
-              specialty,
-              location,
-              avatarUrl,
-              portfolioUrls: portfolioUrls.length,
-              bio: bio ? bio.substring(0, 50) : null,
-              profileData: profile
-            });
             
             return {
               id: a.id,
@@ -189,7 +170,6 @@ export function CategoryPage() {
               verified: a.verification_status === 'verified',
               img: avatarUrl || (fullName ? `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=F97316&color=fff` : `https://ui-avatars.com/api/?name=Artisan&background=F97316&color=fff`),
               bio: bio || '',
-              portfolio_first_image: portfolioUrls.length > 0 ? portfolioUrls[0] : null,
             };
           })
         );
@@ -499,23 +479,9 @@ export function CategoryPage() {
                 className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 group animate-in fade-in slide-in-from-bottom-2"
                 style={{ animationDelay: `${i * 30}ms` }}
               >
-                {/* Image Section */}
+                {/* Image Section — avatar (la boutique sert de portfolio) */}
                 <div className="relative h-56 overflow-hidden bg-gray-100">
-                  {/* Portfolio image or avatar - Toujours afficher la vraie image */}
-                  {artisan.portfolio_first_image ? (
-                    <img 
-                      src={artisan.portfolio_first_image} 
-                      alt={`Portfolio de ${artisan.name}`} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                      onError={(e) => {
-                        // Si l'image du portfolio échoue, utiliser l'avatar
-                        const target = e.target as HTMLImageElement;
-                        if (artisan.img && target.src !== artisan.img) {
-                          target.src = artisan.img;
-                        }
-                      }}
-                    />
-                  ) : artisan.img ? (
+                  {artisan.img ? (
                     <img 
                       src={artisan.img} 
                       alt={artisan.name} 
@@ -613,14 +579,6 @@ export function CategoryPage() {
                     <p className="text-xs text-gray-600 mb-4 line-clamp-2 leading-relaxed">
                       {artisan.bio}
                     </p>
-                  )}
-                  
-                  {/* Portfolio indicator */}
-                  {artisan.portfolio_first_image && (
-                    <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
-                      <Image size={14} />
-                      <span className="font-medium">Portfolio disponible</span>
-                    </div>
                   )}
                   
                   {/* CTA */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Loader2, User, Check, Image, Video, X, Upload, Play, MapPin, Briefcase, ChevronRight, ChevronLeft, Search, Building2 } from 'lucide-react';
+import { Camera, Loader2, User, Check, X, MapPin, Briefcase, ChevronRight, ChevronLeft, Search, Building2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useDiscovery } from '../hooks/useDiscovery';
@@ -10,10 +10,6 @@ import { AffiliationSection } from '../components/AffiliationSection';
 import { supabase } from '../lib/supabase';
 import { senegalLocationData, senegalRegions } from '../data/senegalLocations';
 
-const MAX_PHOTOS = 10;
-const MAX_VIDEOS = 5;
-const MAX_PHOTO_SIZE_MB = 5;
-const MAX_VIDEO_SIZE_MB = 50;
 
 const getDepartmentsForRegion = (region: string): string[] => {
   if (!region || !senegalLocationData[region]) return [];
@@ -68,8 +64,6 @@ export function EditProfilePage() {
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [specialty, setSpecialty] = useState('');
   const [bio, setBio] = useState('');
-  const [portfolioUrls, setPortfolioUrls] = useState<string[]>([]);
-  const [videoUrls, setVideoUrls] = useState<string[]>([]);
   
   // Recherche de métier
   const [categorySearch, setCategorySearch] = useState('');
@@ -99,8 +93,7 @@ export function EditProfilePage() {
         { id: 1, title: 'Informations personnelles', icon: User },
         { id: 2, title: 'Localisation', icon: MapPin },
         { id: 3, title: 'Informations professionnelles', icon: Briefcase },
-        { id: 4, title: 'Portfolio', icon: Image },
-        { id: 5, title: 'Affiliation', icon: Building2 },
+        { id: 4, title: 'Affiliation', icon: Building2 },
       ];
     } else {
       return [
@@ -218,8 +211,6 @@ export function EditProfilePage() {
       }
       setSpecialty(data.specialty || '');
       setBio(data.bio || '');
-      setPortfolioUrls(data.portfolio_urls || []);
-      setVideoUrls(data.video_urls || []);
     }
   }, [user, categories]);
   
@@ -249,152 +240,6 @@ export function EditProfilePage() {
       loadArtisanData();
     }
   }, [profile?.id, profile?.full_name, profile?.company_name, profile?.phone, profile?.region, profile?.department, profile?.commune, profile?.avatar_url, profile?.role, loadArtisanData]);
-
-  // Upload portfolio photo
-  const handlePortfolioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || !user) return;
-    
-    if (portfolioUrls.length + files.length > MAX_PHOTOS) {
-      showError(`Maximum ${MAX_PHOTOS} photos autorisées`);
-      return;
-    }
-    
-    setUploadingPortfolio(true);
-    
-    try {
-      const newUrls: string[] = [];
-      
-      for (const file of Array.from(files)) {
-        // Check file size
-        if (file.size > MAX_PHOTO_SIZE_MB * 1024 * 1024) {
-          showError(`Photo trop volumineuse (max ${MAX_PHOTO_SIZE_MB}MB)`);
-          continue;
-        }
-        
-        if (!file.type.startsWith('image/')) continue;
-        
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/portfolio/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-        
-        const { error } = await supabase.storage
-          .from('photos')
-          .upload(fileName, file);
-        
-        if (error) continue;
-        
-        const { data: urlData } = supabase.storage
-          .from('photos')
-          .getPublicUrl(fileName);
-        
-        if (urlData?.publicUrl) {
-          newUrls.push(urlData.publicUrl);
-        }
-      }
-      
-      if (newUrls.length > 0) {
-        const updatedUrls = [...portfolioUrls, ...newUrls];
-        setPortfolioUrls(updatedUrls);
-        
-        // Save to database immediately
-        await supabase
-          .from('artisans')
-          .update({ portfolio_urls: updatedUrls })
-          .eq('id', user.id);
-      }
-    } catch (err) {
-      console.error('Portfolio upload error:', err);
-    }
-    
-    setUploadingPortfolio(false);
-    e.target.value = '';
-  };
-
-  // Remove portfolio photo
-  const removePortfolioPhoto = async (index: number) => {
-    if (!user) return;
-    
-    const updatedUrls = portfolioUrls.filter((_, i) => i !== index);
-    setPortfolioUrls(updatedUrls);
-    
-    await supabase
-      .from('artisans')
-      .update({ portfolio_urls: updatedUrls })
-      .eq('id', user.id);
-  };
-
-  // Upload video
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || !user) return;
-    
-    if (videoUrls.length + files.length > MAX_VIDEOS) {
-      showError(`Maximum ${MAX_VIDEOS} vidéos autorisées`);
-      return;
-    }
-    
-    setUploadingVideo(true);
-    
-    try {
-      const newUrls: string[] = [];
-      
-      for (const file of Array.from(files)) {
-        // Check file size
-        if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
-          showError(`Vidéo trop volumineuse (max ${MAX_VIDEO_SIZE_MB}MB)`);
-          continue;
-        }
-        
-        if (!file.type.startsWith('video/')) continue;
-        
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/videos/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-        
-        const { error } = await supabase.storage
-          .from('photos')
-          .upload(fileName, file);
-        
-        if (error) continue;
-        
-        const { data: urlData } = supabase.storage
-          .from('photos')
-          .getPublicUrl(fileName);
-        
-        if (urlData?.publicUrl) {
-          newUrls.push(urlData.publicUrl);
-        }
-      }
-      
-      if (newUrls.length > 0) {
-        const updatedUrls = [...videoUrls, ...newUrls];
-        setVideoUrls(updatedUrls);
-        
-        // Save to database immediately
-        await supabase
-          .from('artisans')
-          .update({ video_urls: updatedUrls })
-          .eq('id', user.id);
-      }
-    } catch (err) {
-      console.error('Video upload error:', err);
-    }
-    
-    setUploadingVideo(false);
-    e.target.value = '';
-  };
-
-  // Remove video
-  const removeVideo = async (index: number) => {
-    if (!user) return;
-    
-    const updatedUrls = videoUrls.filter((_, i) => i !== index);
-    setVideoUrls(updatedUrls);
-    
-    await supabase
-      .from('artisans')
-      .update({ video_urls: updatedUrls })
-      .eq('id', user.id);
-  };
 
   // Upload photo
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -519,8 +364,6 @@ export function EditProfilePage() {
             category_id: categoryId,
             specialty: specialty || null,
             bio: bio || null,
-            portfolio_urls: portfolioUrls.length > 0 ? portfolioUrls : null,
-            video_urls: videoUrls.length > 0 ? videoUrls : null,
             updated_at: new Date().toISOString(),
           });
         
@@ -584,9 +427,7 @@ export function EditProfilePage() {
       case 3: // Informations professionnelles (artisan uniquement)
         if (!isArtisan) return true;
         return !!categoryId;
-      case 4: // Portfolio (artisan uniquement, optionnel)
-        return true;
-      case 5: // Affiliation (artisan uniquement, optionnel)
+      case 4: // Affiliation (artisan uniquement, optionnel)
         return true;
       default:
         return true;
@@ -600,11 +441,7 @@ export function EditProfilePage() {
     if (!isMounted) return; // Éviter les actions si le composant est en train de se démonter
     if (!canGoToNextStep) return;
     
-    // Si on est à l'étape Portfolio (étape 4) pour un artisan et que c'était la dernière étape (pas d'étape Affiliation), sauvegarder
-    if (currentStep === 4 && isArtisan && totalSteps === 4) {
-      handleSubmit();
-      return;
-    }
+    // Si on est à la dernière étape, handleSubmit est géré par le bouton Enregistrer
     
     if (currentStep >= totalSteps) return;
     
@@ -1107,144 +944,9 @@ export function EditProfilePage() {
             </div>
           )}
 
-          {/* ÉTAPE 4 : Portfolio (artisan uniquement) */}
-          {currentStep === 4 && isArtisan && isMounted && (
+          {/* ÉTAPE 4 : Affiliation (artisan uniquement) — la boutique sert de portfolio */}
+          {currentStep === 4 && isArtisan && isMounted && (profile?.id ?? user?.id) && (
             <div key="step-4" className="animate-in fade-in slide-in-from-right-4">
-              <h2 className="text-xl font-black text-gray-900 mb-6">Portfolio</h2>
-              
-              <div className="bg-blue-50 rounded-xl p-4 mb-6">
-                <p className="text-sm text-blue-700 font-medium">
-                  📸 Les photos et vidéos sont visibles sur votre profil public et aident les clients à mieux connaître votre travail.
-                </p>
-              </div>
-
-              {/* Photos Section */}
-              <section className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                    <Image size={18} className="text-brand-500" />
-                    Photos ({portfolioUrls.length}/{MAX_PHOTOS})
-                  </h3>
-                </div>
-                
-                {/* Upload Zone */}
-                <div className="relative mb-4">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handlePortfolioUpload}
-                    disabled={uploadingPortfolio || portfolioUrls.length >= MAX_PHOTOS}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  />
-                  <div className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
-                    uploadingPortfolio ? 'border-brand-300 bg-brand-50' : 'border-gray-200 hover:border-brand-300 hover:bg-brand-50/50'
-                  }`}>
-                    {uploadingPortfolio ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 size={28} className="animate-spin text-brand-500" />
-                        <p className="text-sm font-bold text-brand-600">Upload en cours...</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <Upload size={28} className="text-gray-400" />
-                        <p className="font-bold text-gray-600">Ajouter des photos</p>
-                        <p className="text-xs text-gray-400">JPG, PNG (max {MAX_PHOTO_SIZE_MB}MB par photo)</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Photos Grid */}
-                {portfolioUrls.length > 0 && (
-                  <div className="grid grid-cols-3 gap-3">
-                    {portfolioUrls.map((url, index) => (
-                      <div key={`portfolio-${url}-${index}`} className="relative aspect-square rounded-xl overflow-hidden group">
-                        <img 
-                          src={url} 
-                          alt={`Portfolio ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removePortfolioPhoto(index)}
-                          className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              {/* Videos Section */}
-              <section>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                    <Video size={18} className="text-brand-500" />
-                    Vidéos ({videoUrls.length}/{MAX_VIDEOS})
-                  </h3>
-                </div>
-                
-                {/* Upload Zone */}
-                <div className="relative mb-4">
-                  <input
-                    type="file"
-                    accept="video/*"
-                    multiple
-                    onChange={handleVideoUpload}
-                    disabled={uploadingVideo || videoUrls.length >= MAX_VIDEOS}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  />
-                  <div className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
-                    uploadingVideo ? 'border-brand-300 bg-brand-50' : 'border-gray-200 hover:border-brand-300 hover:bg-brand-50/50'
-                  }`}>
-                    {uploadingVideo ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 size={28} className="animate-spin text-brand-500" />
-                        <p className="text-sm font-bold text-brand-600">Upload en cours...</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <Video size={28} className="text-gray-400" />
-                        <p className="font-bold text-gray-600">Ajouter des vidéos</p>
-                        <p className="text-xs text-gray-400">MP4, MOV (max {MAX_VIDEO_SIZE_MB}MB par vidéo)</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Videos Grid */}
-                {videoUrls.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {videoUrls.map((url, index) => (
-                      <div key={index} className="relative aspect-video rounded-xl overflow-hidden group bg-gray-900">
-                        <video 
-                          src={url}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <Play size={32} className="text-white" fill="white" />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeVideo(index)}
-                          className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
-          )}
-
-          {/* ÉTAPE 5 : Affiliation (artisan uniquement) */}
-          {currentStep === 5 && isArtisan && isMounted && (profile?.id ?? user?.id) && (
-            <div key="step-5" className="animate-in fade-in slide-in-from-right-4">
               <h2 className="text-xl font-black text-gray-900 mb-6">Affiliation</h2>
               <div className="bg-blue-50 rounded-xl p-4 mb-6">
                 <p className="text-sm text-blue-700 font-medium">

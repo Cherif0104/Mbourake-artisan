@@ -71,7 +71,7 @@ export function ArtisansPage() {
         .from('artisans')
         .select(`
           id, bio, specialty, verification_status, is_available, rating_avg,
-          category_id, portfolio_urls,
+          category_id,
           categories (name, slug)
         `)
         .limit(200);

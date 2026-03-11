@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Star, MapPin, Phone, Mail, Shield, CheckCircle,
-  Clock, Image, Video, ChevronLeft, ChevronRight, X, Play,
-  Briefcase, Award, Hash, User, Quote, Building2, Calendar,
+  Clock, Image, Briefcase, Award, Hash, User, Quote, Building2, Calendar,
   Pencil, Settings, ExternalLink, LogOut, ShoppingBag, Award as AwardIcon
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -38,8 +37,6 @@ interface ArtisanProfile {
   artisan: {
     bio: string | null;
     specialty: string | null;
-    portfolio_urls: string[];
-    video_urls: string[];
     verification_status: string;
     rating_avg: number | null;
     is_available: boolean | null;
@@ -74,9 +71,6 @@ export function ProfilePage() {
   const [certifications, setCertifications] = useState<Array<{ id: string; title: string; type: string; image_url: string | null; issuer: string | null }>>([]);
   const [products, setProducts] = useState<ProductPreview[]>([]);
   const [artisanLoading, setArtisanLoading] = useState(true);
-  const [showGallery, setShowGallery] = useState(false);
-  const [galleryIndex, setGalleryIndex] = useState(0);
-  const [galleryType, setGalleryType] = useState<'photo' | 'video'>('photo');
 
   const isArtisan = profile?.role === 'artisan';
   const userId = user?.id ?? '';
@@ -93,7 +87,7 @@ export function ProfilePage() {
       const { data: artisanData, error: artisanError } = await supabase
         .from('artisans')
         .select(`
-          bio, specialty, portfolio_urls, video_urls, verification_status, rating_avg, is_available,
+          bio, specialty, verification_status, rating_avg, is_available,
           categories (id, name, icon_name)
         `)
         .eq('id', userId)
@@ -120,8 +114,6 @@ export function ProfilePage() {
         artisan: {
           bio: artisanData.bio,
           specialty: artisanData.specialty,
-          portfolio_urls: artisanData.portfolio_urls || [],
-          video_urls: artisanData.video_urls || [],
           verification_status: artisanData.verification_status,
           rating_avg: artisanData.rating_avg,
           is_available: artisanData.is_available,
@@ -191,24 +183,6 @@ export function ProfilePage() {
 
     fetchArtisan();
   }, [isArtisan, userId]);
-
-  const openGallery = (type: 'photo' | 'video', index: number) => {
-    setGalleryType(type);
-    setGalleryIndex(index);
-    setShowGallery(true);
-  };
-
-  const closeGallery = () => setShowGallery(false);
-  const portfolioPhotos = artisan?.artisan?.portfolio_urls || [];
-  const portfolioVideos = artisan?.artisan?.video_urls || [];
-  const nextImage = () => {
-    const items = galleryType === 'photo' ? portfolioPhotos : portfolioVideos;
-    setGalleryIndex((prev) => (prev + 1) % items.length);
-  };
-  const prevImage = () => {
-    const items = galleryType === 'photo' ? portfolioPhotos : portfolioVideos;
-    setGalleryIndex((prev) => (prev - 1 + items.length) % items.length);
-  };
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -535,66 +509,7 @@ export function ProfilePage() {
           </section>
         )}
 
-        {/* Portfolio Photos */}
-        {portfolioPhotos.length > 0 && (
-          <section id="portfolio" className="bg-white border-b px-6 py-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <Image size={18} className="text-brand-500" />
-                Portfolio Photos
-              </h3>
-              <span className="text-xs text-gray-400 font-bold">{portfolioPhotos.length}/10</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {portfolioPhotos.slice(0, 6).map((url, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => openGallery('photo', idx)}
-                  className="relative aspect-square rounded-xl overflow-hidden group"
-                >
-                  <img src={url} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                  {idx === 5 && portfolioPhotos.length > 6 && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <span className="text-white font-bold text-lg">+{portfolioPhotos.length - 6}</span>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Portfolio Videos */}
-        {portfolioVideos.length > 0 && (
-          <section className="bg-white border-b px-6 py-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <Video size={18} className="text-brand-500" />
-                Portfolio Vidéos
-              </h3>
-              <span className="text-xs text-gray-400 font-bold">{portfolioVideos.length}/5</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {portfolioVideos.map((url, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => openGallery('video', idx)}
-                  className="relative aspect-video rounded-xl overflow-hidden group bg-gray-900"
-                >
-                  <video src={url} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/60 transition-colors">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                      <Play size={24} className="text-white ml-1" fill="white" />
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Boutique / Mes produits */}
+        {/* Boutique (portfolio de l'artisan) */}
         <section className="bg-white border-b px-6 py-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
@@ -754,30 +669,6 @@ export function ProfilePage() {
         </section>
       </main>
 
-      {/* Gallery Modal */}
-      {showGallery && (
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-          <button onClick={closeGallery} className="absolute top-4 right-4 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10">
-            <X size={24} />
-          </button>
-          <button onClick={prevImage} className="absolute left-4 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors">
-            <ChevronLeft size={28} />
-          </button>
-          <button onClick={nextImage} className="absolute right-4 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors">
-            <ChevronRight size={28} />
-          </button>
-          <div className="max-w-4xl max-h-[80vh] w-full mx-4">
-            {galleryType === 'photo' ? (
-              <img src={portfolioPhotos[galleryIndex]} alt={`Portfolio ${galleryIndex + 1}`} className="w-full h-full object-contain" />
-            ) : (
-              <video src={portfolioVideos[galleryIndex]} controls autoPlay className="w-full h-full object-contain" />
-            )}
-          </div>
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white text-sm font-bold bg-black/50 px-4 py-2 rounded-full">
-            {galleryIndex + 1} / {galleryType === 'photo' ? portfolioPhotos.length : portfolioVideos.length}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
