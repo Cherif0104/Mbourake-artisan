@@ -189,7 +189,7 @@ export function InstallPrompt() {
             <button
               onClick={canInstallNative ? handleInstall : handleLater}
               className="w-full flex items-center justify-center gap-2 py-4 px-5 bg-brand-500 text-white rounded-xl font-bold text-base hover:bg-brand-600 active:scale-[0.98] transition-all shadow-lg shadow-brand-200/50"
-              aria-label={canInstallNative ? "Installer l'application" : "J'ai compris"}
+              aria-label={canInstallNative ? "Installer l'application PWA" : "J'ai compris"}
             >
               {canInstallNative ? <Download size={22} /> : <Smartphone size={22} />}
               {canInstallNative ? 'Installer maintenant' : "J'ai compris"}

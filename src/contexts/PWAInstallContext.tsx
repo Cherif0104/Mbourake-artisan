@@ -55,8 +55,10 @@ export function PWAInstallProvider({ children }: { children: React.ReactNode }) 
 
   const promptInstall = useCallback(() => {
     if (deferredPrompt) {
+      // Android Chrome : boîte native PWA « Installer l'app »
       deferredPrompt.prompt();
     } else {
+      // iOS, Android (Firefox, Samsung, Edge) : modal avec instructions PWA
       setShowBanner(true);
     }
   }, [deferredPrompt]);
