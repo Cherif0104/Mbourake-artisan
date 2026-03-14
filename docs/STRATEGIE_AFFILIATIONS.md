@@ -1,4 +1,4 @@
-# Stratégie d'affiliation des artisans
+aor # Stratégie d'affiliation des artisans
 
 > Document de proposition — à valider avant implémentation.  
 > La plateforme reste 100 % fonctionnelle ; ce document décrit l’approche recommandée.

@@ -15,8 +15,8 @@ export function useAuth() {
     loading: true,
   });
 
-  // Référence pour éviter les redirections multiples
-  const redirectingRef = useRef(false);
+  // Référence conservée pour stabilité de l'ordre des hooks (utilisée par NotificationsProvider, etc.)
+  const _redirectingRef = useRef(false);
   const lastLoggedSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -50,25 +50,14 @@ export function useAuth() {
 
       // Redirection globale après authentification réussie
       if (event === 'SIGNED_IN' && typeof window !== 'undefined') {
-        // Cas spécial : compte admin technique -> accès direct au dashboard admin
-        // Sans passer par le flow classique de /dashboard et sans impacter les autres comptes.
         const adminEmail = 'techsupport@senegel.org';
         const currentEmail = session?.user?.email?.toLowerCase();
         if (currentEmail && currentEmail === adminEmail.toLowerCase()) {
-          // Éviter les redirections multiples en dev (événements SIGNED_IN répétés)
-          if (redirectingRef.current) {
-            return;
-          }
-          redirectingRef.current = true;
-
-          // Ne pas renvoyer vers /admin si on y est déjà
-          if (window.location.pathname !== '/admin') {
-            console.log('[useAuth] Admin détecté, redirection directe vers /admin');
-            try {
-              window.location.replace('/admin');
-            } catch (e) {
-              console.warn('[useAuth] Erreur pendant la redirection admin:', e);
-            }
+          // Redirection immédiate vers /admin pour éviter tout conflit avec /dashboard
+          if (_redirectingRef.current) return;
+          _redirectingRef.current = true;
+          if (window.location.pathname !== '/admin' && !window.location.pathname.startsWith('/admin/')) {
+            window.location.replace('/admin');
           }
           return;
         }
@@ -109,7 +98,6 @@ export function useAuth() {
           }
         } catch (e) {
           console.warn('[useAuth] Erreur pendant la redirection SIGNED_IN:', e);
-          redirectingRef.current = false;
         }
       }
       

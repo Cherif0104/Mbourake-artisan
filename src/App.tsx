@@ -28,7 +28,7 @@ import { ProjectWorkPage } from './pages/ProjectWorkPage';
 import { ProjectAwaitingPaymentPage } from './pages/ProjectAwaitingPaymentPage';
 import { ProjectCompletionPage } from './pages/ProjectCompletionPage';
 import { ChatPage } from './pages/ChatPage';
-import { Dashboard } from './pages/Dashboard';
+import { DashboardGate } from './components/DashboardGate';
 import { VerificationPage } from './pages/VerificationPage';
 import { EditProfilePage } from './pages/EditProfilePage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -59,6 +59,9 @@ import { AdminCommissions } from './pages/admin/AdminCommissions';
 import { AdminDeletionRequests } from './pages/admin/AdminDeletionRequests';
 import { AdminExecutive } from './pages/admin/AdminExecutive';
 import { AdminTraining } from './pages/admin/AdminTraining';
+import { AdminDepartments } from './pages/admin/AdminDepartments';
+import { AdminTeams } from './pages/admin/AdminTeams';
+import { AdminRoles } from './pages/admin/AdminRoles';
 import { RevisionsPage } from './pages/RevisionsPage';
 import { RequestRevisionPage } from './pages/RequestRevisionPage';
 import { RevisionResponsePage } from './pages/RevisionResponsePage';
@@ -171,7 +174,7 @@ function AppContent() {
       {/* Redirection URL courante vers l’admin (évite 404 sur /dashboard/ADMIN) */}
       <Route path="/dashboard/ADMIN" element={<Navigate to="/admin" replace />} />
       {/* Protected Routes */}
-      <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+      <Route path="/dashboard" element={<PrivateRoute><DashboardGate /></PrivateRoute>} />
       <Route path="/revisions" element={<PrivateRoute><RevisionsPage /></PrivateRoute>} />
       <Route path="/revisions/:revisionId/respond" element={<PrivateRoute><RevisionResponsePage /></PrivateRoute>} />
       <Route path="/create-project" element={<PrivateRoute><CreateProjectPage /></PrivateRoute>} />
@@ -229,6 +232,9 @@ function AppContent() {
         <Route path="training" element={<AdminTraining />} />
         <Route path="disputes" element={<AdminDisputes />} />
         <Route path="closures" element={<AdminClosures />} />
+        <Route path="departments" element={<AdminDepartments />} />
+        <Route path="teams" element={<AdminTeams />} />
+        <Route path="roles" element={<AdminRoles />} />
       </Route>
       
       {/* Route catch-all pour les routes non trouvées - DOIT ÊTRE EN DERNIER */}

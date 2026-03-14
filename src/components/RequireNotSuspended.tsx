@@ -19,7 +19,7 @@ export function RequireNotSuspended({ children }: { children: React.ReactNode })
     return <LoadingOverlay />;
   }
 
-  if (profile?.is_suspended) {
+  if (profile?.is_suspended || profile?.is_banned) {
     return <Navigate to="/compte-suspendu" replace />;
   }
 

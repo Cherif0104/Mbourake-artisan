@@ -34,6 +34,7 @@ Thumbs.db
 
 # Icône source (backup local pour scripts/generate-app-icon.mjs)
 public/icons/icon-mbourake-source.png
+dist/icons/icon-mbourake-source.png
 
 # Build files
 build/

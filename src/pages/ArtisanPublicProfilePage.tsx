@@ -87,11 +87,27 @@ export function ArtisanPublicProfilePage() {
   const [sharedProjectId, setSharedProjectId] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
 
-  const shareUrl = (typeof window !== 'undefined' && id) ? `${window.location.origin}/artisans/${id}` : '';
+  // URL canonique pour le partage (évite localhost ou URL incorrecte)
+  const baseUrl = (import.meta.env.VITE_APP_URL as string | undefined)?.trim() || 'https://mbourake.com';
+  const shareUrl = (typeof window !== 'undefined' && id) ? `${baseUrl.replace(/\/$/, '')}/artisans/${id}` : '';
   const shareTitle = artisan ? `${artisan.full_name} | Artisan sur Mbourake` : 'Profil artisan | Mbourake';
   const shareText = artisan ? `Découvrez le profil de ${artisan.full_name} sur Mbourake` : 'Découvrez ce profil artisan sur Mbourake';
 
   const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+
+  const handleFavoriteClick = async () => {
+    if (!id) return;
+    if (!user) {
+      showError?.('Connectez-vous pour ajouter cet artisan à vos favoris');
+      return;
+    }
+    const ok = await toggleFavorite(id);
+    if (ok) {
+      success(isArtisanFavorite ? 'Retiré des favoris' : 'Ajouté aux favoris');
+    } else {
+      showError?.('Impossible de modifier les favoris');
+    }
+  };
 
   const handleNativeShare = async () => {
     if (!canNativeShare || !shareUrl) return;
@@ -394,8 +410,9 @@ export function ArtisanPublicProfilePage() {
               </button>
             ) : (
               <button 
-                onClick={() => id && toggleFavorite(id)}
+                onClick={handleFavoriteClick}
                 className={`p-2 rounded-xl transition-colors ${isArtisanFavorite ? 'bg-red-50 text-red-500' : 'hover:bg-gray-100 text-gray-400'}`}
+                aria-label={isArtisanFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
               >
                 <Heart size={20} fill={isArtisanFavorite ? 'currentColor' : 'none'} />
               </button>

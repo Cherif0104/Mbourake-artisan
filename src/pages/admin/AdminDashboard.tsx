@@ -66,13 +66,18 @@ export function AdminDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const { can, isAdmin } = useAdminPermissions();
+  const { can, isAdmin, loading: permLoading } = useAdminPermissions();
+
+  // Compte admin technique : ne jamais rediriger vers /dashboard (évite la boucle)
+  const isAdminByEmail = auth.user?.email?.toLowerCase() === 'techsupport@senegel.org';
 
   useEffect(() => {
+    if (isAdminByEmail) return; // Ne jamais rediriger vers /dashboard pour ce compte
+    if (permLoading) return;
     if (profile && !isAdmin) {
       navigate('/dashboard', { replace: true });
     }
-  }, [profile, isAdmin, navigate]);
+  }, [profile, isAdmin, permLoading, navigate, isAdminByEmail]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -297,6 +302,9 @@ export function AdminDashboard() {
     { id: 'verifications', path: '/admin/verifications', icon: <Shield size={20} />, label: 'Vérifications', module: 'users', action: 'read' },
     { id: 'affiliations', path: '/admin/affiliations', icon: <Building2 size={20} />, label: 'Affiliations', module: 'organisations', action: 'read' },
     { id: 'organisations', path: '/admin/organisations', icon: <Landmark size={20} />, label: 'Organisations', module: 'organisations', action: 'read' },
+    { id: 'departments', path: '/admin/departments', icon: <Building2 size={20} />, label: 'Départements', module: 'organisations', action: 'read' },
+    { id: 'teams', path: '/admin/teams', icon: <Users size={20} />, label: 'Équipes', module: 'organisations', action: 'read' },
+    { id: 'roles', path: '/admin/roles', icon: <Shield size={20} />, label: 'Rôles', module: 'users', action: 'assign' },
     { id: 'disputes', path: '/admin/disputes', icon: <AlertTriangle size={20} />, label: 'Litiges', module: 'governance', action: 'read' },
     { id: 'exports', path: '/admin/exports', icon: <FileDown size={20} />, label: 'Exports', module: 'bi', action: 'export' },
     { id: 'audit', path: '/admin/audit', icon: <ScrollText size={20} />, label: 'Journal d\'audit', module: 'governance', action: 'read' },

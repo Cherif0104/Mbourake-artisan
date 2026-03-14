@@ -2,10 +2,13 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useProfile } from '../hooks/useProfile';
 
 export function CompteSuspenduPage() {
   const navigate = useNavigate();
   const auth = useAuth();
+  const { profile } = useProfile();
+  const isBanned = profile?.is_banned === true;
 
   const handleSignOut = async () => {
     await auth.signOut();
@@ -18,9 +21,13 @@ export function CompteSuspenduPage() {
         <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-6">
           <AlertTriangle size={32} className="text-amber-600" />
         </div>
-        <h1 className="text-xl font-black text-gray-900 mb-2">Compte suspendu</h1>
+        <h1 className="text-xl font-black text-gray-900 mb-2">
+          {isBanned ? 'Compte banni' : 'Compte suspendu'}
+        </h1>
         <p className="text-gray-600 text-sm mb-6">
-          Votre compte a été temporairement suspendu. Pour toute question, contactez le support.
+          {isBanned
+            ? 'Votre compte a été banni définitivement. Pour toute question, contactez le support.'
+            : 'Votre compte a été temporairement suspendu. Pour toute question, contactez le support.'}
         </p>
         {auth.user && (
           <button

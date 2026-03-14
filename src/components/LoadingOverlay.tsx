@@ -1,19 +1,13 @@
 /**
  * Overlay de chargement — utilisé pour chargements, refresh et transitions.
  * z-index élevé pour rester au-dessus des modales (évite conflits / tremblements).
- * Optimisé pour réduire les tremblements (GPU compositing, animations adoucies).
  * @param contentOnly — si true, n'utilise pas fixed (remplit le parent positionné)
  */
 export function LoadingOverlay({ className = '', contentOnly }: { className?: string; contentOnly?: boolean }) {
   return (
     <div
       className={`flex items-center justify-center bg-white ${contentOnly ? 'absolute inset-0' : 'fixed inset-0 z-[9999]'} ${className}`}
-      style={{
-        pointerEvents: 'auto',
-        contain: 'layout paint',
-        transform: 'translateZ(0)',
-        backfaceVisibility: 'hidden' as const,
-      }}
+      style={{ pointerEvents: 'auto', contain: 'layout' }}
       aria-hidden="true"
       aria-busy="true"
     >
@@ -60,21 +54,21 @@ export function LoadingOverlay({ className = '', contentOnly }: { className?: st
 
       <style>{`
         @keyframes float-fast {
-          0%, 100% { transform: translateY(0) translateX(0) rotate(0deg); }
-          33% { transform: translateY(-6px) translateX(4px) rotate(2deg); }
-          66% { transform: translateY(-4px) translateX(-4px) rotate(-2deg); }
+          0%, 100% { transform: translateY(0px) translateX(0px) rotate(0deg); }
+          33% { transform: translateY(-20px) translateX(10px) rotate(5deg); }
+          66% { transform: translateY(-10px) translateX(-10px) rotate(-5deg); }
         }
         @keyframes float-medium {
-          0%, 100% { transform: translateY(0) translateX(0) rotate(0deg); }
-          50% { transform: translateY(-8px) translateX(6px) rotate(4deg); }
+          0%, 100% { transform: translateY(0px) translateX(0px) rotate(0deg); }
+          50% { transform: translateY(-30px) translateX(15px) rotate(10deg); }
         }
         @keyframes float-slow {
-          0%, 100% { transform: translateY(0) translateX(0) rotate(0deg); }
-          50% { transform: translateY(-10px) translateX(8px) rotate(6deg); }
+          0%, 100% { transform: translateY(0px) translateX(0px) rotate(0deg); }
+          50% { transform: translateY(-40px) translateX(20px) rotate(15deg); }
         }
-        .animate-float-fast { animation: float-fast 5s ease-in-out infinite; will-change: transform; }
-        .animate-float-medium { animation: float-medium 7s ease-in-out infinite; will-change: transform; }
-        .animate-float-slow { animation: float-slow 9s ease-in-out infinite; will-change: transform; }
+        .animate-float-fast { animation: float-fast 4s ease-in-out infinite; }
+        .animate-float-medium { animation: float-medium 6s ease-in-out infinite; }
+        .animate-float-slow { animation: float-slow 8s ease-in-out infinite; }
       `}</style>
     </div>
   );

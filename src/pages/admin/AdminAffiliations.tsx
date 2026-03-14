@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, X, Clock, Building2, FileText, Search, User, Plus, Trash2 } from 'lucide-react';
+import { Check, X, Clock, Building2, FileText, Search, User, Plus, Trash2, ArrowRightLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useToastContext } from '../../contexts/ToastContext';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
@@ -39,10 +39,61 @@ export function AdminAffiliations() {
   const [chambres, setChambres] = useState<{ id: string; name: string }[]>([]);
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [changeRequests, setChangeRequests] = useState<{
+    id: string;
+    artisan_id: string;
+    from_chambre_id: string | null;
+    to_chambre_id: string;
+    reason: string;
+    status: string;
+    created_at: string;
+    artisan?: { full_name: string | null };
+    from_chambre?: { name: string };
+    to_chambre?: { name: string };
+  }[]>([]);
+  const [changeRequestsLoading, setChangeRequestsLoading] = useState(false);
+  const [processingChangeId, setProcessingChangeId] = useState<string | null>(null);
+  const [rejectChangeId, setRejectChangeId] = useState<string | null>(null);
+  const [rejectChangeReason, setRejectChangeReason] = useState('');
 
   useEffect(() => {
     loadAffiliations();
   }, [filter]);
+
+  useEffect(() => {
+    setChangeRequestsLoading(true);
+    supabase
+      .from('affiliation_change_requests')
+      .select('id, artisan_id, from_chambre_id, to_chambre_id, reason, status, created_at')
+      .order('created_at', { ascending: false })
+      .then(async ({ data: reqs, error }) => {
+        if (error) {
+          setChangeRequests([]);
+          setChangeRequestsLoading(false);
+          return;
+        }
+        const list = (reqs || []) as any[];
+        const artisanIds = [...new Set(list.map((r) => r.artisan_id))];
+        const chambreIds = [...new Set(list.flatMap((r) => [r.from_chambre_id, r.to_chambre_id]).filter(Boolean))];
+        const [profRes, chambreRes] = await Promise.all([
+          artisanIds.length ? supabase.from('profiles').select('id, full_name').in('id', artisanIds) : { data: [] },
+          chambreIds.length ? supabase.from('chambres_metier').select('id, name').in('id', chambreIds) : { data: [] },
+        ]);
+        const profs = (profRes.data || []) as { id: string; full_name: string | null }[];
+        const chambres = (chambreRes.data || []) as { id: string; name: string }[];
+        const profMap = Object.fromEntries(profs.map((p) => [p.id, p]));
+        const chambreMap = Object.fromEntries(chambres.map((c) => [c.id, c]));
+        setChangeRequests(
+          list.map((r) => ({
+            ...r,
+            artisan: profMap[r.artisan_id],
+            from_chambre: r.from_chambre_id ? chambreMap[r.from_chambre_id] : null,
+            to_chambre: r.to_chambre_id ? chambreMap[r.to_chambre_id] : null,
+          }))
+        );
+        setChangeRequestsLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
     supabase.from('chambres_metier').select('id, name').order('name').then(({ data, error }) => {
@@ -187,6 +238,68 @@ export function AdminAffiliations() {
     }
   };
 
+  const handleApproveChangeRequest = async (req: typeof changeRequests[0]) => {
+    setProcessingChangeId(req.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const lockedUntil = new Date();
+      lockedUntil.setMonth(lockedUntil.getMonth() + 6);
+
+      const { data: oldAff } = await supabase
+        .from('artisan_affiliations')
+        .select('id')
+        .eq('artisan_id', req.artisan_id)
+        .eq('status', 'verified')
+        .maybeSingle();
+
+      if (oldAff?.id) {
+        await supabase.from('artisan_affiliations').update({ status: 'rejected' }).eq('id', oldAff.id);
+      }
+      await supabase.from('artisan_affiliations').insert({
+        artisan_id: req.artisan_id,
+        chambre_id: req.to_chambre_id,
+        affiliation_type: 'chambre',
+        status: 'verified',
+        verified_at: new Date().toISOString(),
+        verified_by: user?.id ?? null,
+        affiliation_locked_until: lockedUntil.toISOString(),
+      });
+      await supabase
+        .from('affiliation_change_requests')
+        .update({ status: 'approved', decided_by: user?.id ?? null, decided_at: new Date().toISOString() })
+        .eq('id', req.id);
+      showSuccess('Changement d\'affiliation approuvé.');
+      setChangeRequests((prev) => prev.filter((r) => r.id !== req.id));
+      loadAffiliations();
+    } catch (err: any) {
+      showError(err.message || 'Erreur');
+    } finally {
+      setProcessingChangeId(null);
+    }
+  };
+
+  const handleRejectChangeRequest = async (req: (typeof changeRequests)[0], rejectionReason: string) => {
+    setProcessingChangeId(req.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase
+        .from('affiliation_change_requests')
+        .update({
+          status: 'rejected',
+          decided_by: user?.id ?? null,
+          decided_at: new Date().toISOString(),
+          rejection_reason: rejectionReason,
+        })
+        .eq('id', req.id);
+      showSuccess('Demande de changement rejetée.');
+      setChangeRequests((prev) => prev.filter((r) => r.id !== req.id));
+    } catch (err: any) {
+      showError(err.message || 'Erreur');
+    } finally {
+      setProcessingChangeId(null);
+    }
+  };
+
   const handleDeleteAffiliation = async (id: string) => {
     if (!window.confirm('Détacher cette affiliation ? L\'artisan ne sera plus rattaché à cette organisation.')) return;
     setDeletingId(id);
@@ -241,6 +354,80 @@ export function AdminAffiliations() {
             Vérifiez et validez les affiliations des artisans (chambres de métier, incubateurs, SAE)
           </p>
         </div>
+
+        {/* Demandes de changement d'affiliation */}
+        {changeRequests.filter((r) => r.status === 'pending').length > 0 && (
+          <div className="bg-amber-50 rounded-2xl p-6 mb-6 border border-amber-200">
+            <h2 className="font-black text-gray-900 mb-4 flex items-center gap-2">
+              <ArrowRightLeft size={20} /> Demandes de changement ({changeRequests.filter((r) => r.status === 'pending').length})
+            </h2>
+            <div className="space-y-3">
+              {changeRequests
+                .filter((r) => r.status === 'pending')
+                .map((req) => (
+                  <div key={req.id} className="bg-white rounded-xl p-4 border border-amber-100">
+                    <p className="font-bold text-gray-900">{req.artisan?.full_name || req.artisan_id}</p>
+                    <p className="text-sm text-gray-600">
+                      {(req.from_chambre as { name?: string })?.name || req.from_chambre_id || '—'} → {(req.to_chambre as { name?: string })?.name || req.to_chambre_id}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{req.reason}</p>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => handleApproveChangeRequest(req)}
+                        disabled={processingChangeId === req.id}
+                        className="px-4 py-2 bg-green-500 text-white rounded-xl font-bold text-sm hover:bg-green-600 disabled:opacity-50"
+                      >
+                        Approuver
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRejectChangeId(req.id)}
+                        className="px-4 py-2 bg-red-100 text-red-700 rounded-xl font-bold text-sm hover:bg-red-200"
+                      >
+                        Rejeter
+                      </button>
+                    </div>
+                    {rejectChangeId === req.id && (
+                      <div className="mt-3 pt-3 border-t">
+                        <input
+                          type="text"
+                          value={rejectChangeReason}
+                          onChange={(e) => setRejectChangeReason(e.target.value)}
+                          placeholder="Motif du rejet"
+                          className="w-full px-3 py-2 rounded-lg border text-sm mb-2"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRejectChangeId(null);
+                              setRejectChangeReason('');
+                            }}
+                            className="px-3 py-1.5 border rounded-lg text-sm"
+                          >
+                            Annuler
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRejectChangeRequest(req, rejectChangeReason);
+                              setRejectChangeId(null);
+                              setRejectChangeReason('');
+                            }}
+                            disabled={!rejectChangeReason.trim()}
+                            className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+                          >
+                            Confirmer rejet
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Créer une affiliation (rattachement manuel) */}
         <div className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">

@@ -1,0 +1,5 @@
+-- Bannissement: champs sur profiles
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ NULL;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS banned_reason TEXT NULL;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS banned_by UUID REFERENCES profiles(id) ON DELETE SET NULL;

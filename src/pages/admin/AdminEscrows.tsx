@@ -29,10 +29,25 @@ export function AdminEscrows() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedEscrow, setSelectedEscrow] = useState<Escrow | null>(null);
+  const [escrowAuditLogs, setEscrowAuditLogs] = useState<{ action: string; created_at: string; user_id: string | null }[]>([]);
 
   useEffect(() => {
     fetchEscrows();
   }, []);
+
+  useEffect(() => {
+    if (!selectedEscrow?.id) {
+      setEscrowAuditLogs([]);
+      return;
+    }
+    supabase
+      .from('escrow_audit_logs')
+      .select('action, created_at, user_id')
+      .eq('escrow_id', selectedEscrow.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => setEscrowAuditLogs((data || []) as any));
+  }, [selectedEscrow?.id]);
 
   const fetchEscrows = async () => {
     setLoading(true);
@@ -158,22 +173,38 @@ export function AdminEscrows() {
     .reduce((sum, e) => sum + (e.platform_commission || 0), 0);
 
   const handleReleasePayment = async (escrowId: string) => {
-    await supabase
-      .from('escrows')
-      .update({ status: 'released' })
-      .eq('id', escrowId);
+    const escrow = escrows.find((e) => e.id === escrowId);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('escrows').update({ status: 'released' }).eq('id', escrowId);
+    try {
+      await supabase.rpc('log_escrow_action', {
+        p_escrow_id: escrowId,
+        p_user_id: user?.id ?? null,
+        p_action: 'admin_released',
+        p_old_value: escrow ? { status: escrow.status } : null,
+        p_new_value: { status: 'released' },
+        p_metadata: {},
+      });
+    } catch (_) {}
     fetchEscrows();
     setSelectedEscrow(null);
   };
 
   const handlePayAdvance = async (escrowId: string, amount: number) => {
-    const escrow = escrows.find(e => e.id === escrowId);
+    const escrow = escrows.find((e) => e.id === escrowId);
     if (!escrow) return;
-
-    await supabase
-      .from('escrows')
-      .update({ advance_paid: amount })
-      .eq('id', escrowId);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('escrows').update({ advance_paid: amount }).eq('id', escrowId);
+    try {
+      await supabase.rpc('log_escrow_action', {
+        p_escrow_id: escrowId,
+        p_user_id: user?.id ?? null,
+        p_action: 'advance_paid',
+        p_old_value: { advance_paid: escrow.advance_paid },
+        p_new_value: { advance_paid: amount },
+        p_metadata: {},
+      });
+    } catch (_) {}
     fetchEscrows();
   };
 
@@ -431,6 +462,20 @@ export function AdminEscrows() {
                 <div>
                   <p className="font-bold text-green-700">Paiement libéré</p>
                   <p className="text-sm text-green-600">L'artisan a reçu son paiement</p>
+                </div>
+              </div>
+            )}
+
+            {escrowAuditLogs.length > 0 && (
+              <div className="mb-6">
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Historique des actions</p>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {escrowAuditLogs.map((log, i) => (
+                    <div key={i} className="flex justify-between text-sm py-1.5 px-2 rounded-lg bg-gray-50">
+                      <span className="font-medium">{log.action}</span>
+                      <span className="text-gray-500">{new Date(log.created_at).toLocaleString('fr-FR')}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

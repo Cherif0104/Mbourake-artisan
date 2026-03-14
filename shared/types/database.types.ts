@@ -118,6 +118,42 @@ export type Database = {
         }
         Relationships: []
       }
+      favorites: {
+        Row: {
+          id: string
+          client_id: string
+          artisan_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          artisan_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          artisan_id?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favorites_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favorites_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       escrows: {
         Row: {
           advance_amount: number | null
