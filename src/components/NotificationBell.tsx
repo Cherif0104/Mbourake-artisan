@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Bell, X, Check, CheckCheck, Briefcase, FileText, AlertTriangle,
   RotateCcw, CreditCard, Shield, MessageSquare, ChevronRight,
-  Trash2
+  Trash2, ShoppingBag
 } from 'lucide-react';
 import { useNotifications, type Notification } from '../hooks/useNotifications';
 
@@ -21,6 +21,7 @@ const NOTIFICATION_ICONS: Record<string, { icon: React.ReactNode; color: string;
   quote_revision_requested: { icon: <AlertTriangle size={16} />, color: 'text-yellow-600', bg: 'bg-yellow-100' },
   quote_revision_responded: { icon: <FileText size={16} />, color: 'text-blue-600', bg: 'bg-blue-100' },
   dispute_raised: { icon: <AlertTriangle size={16} />, color: 'text-orange-600', bg: 'bg-orange-100' },
+  new_order: { icon: <ShoppingBag size={16} />, color: 'text-brand-600', bg: 'bg-brand-100' },
   system: { icon: <Bell size={16} />, color: 'text-gray-600', bg: 'bg-gray-100' },
 };
 
@@ -45,6 +46,13 @@ export function NotificationBell() {
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Demander la permission pour les notifications natives (type WhatsApp) au premier clic sur la cloche
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, [isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -120,6 +128,13 @@ export function NotificationBell() {
       case 'new_message':
         if (data?.project_id) {
           navigate(`/chat/${data.project_id}`);
+        }
+        break;
+      case 'new_order':
+        if (data?.order_id) {
+          navigate(`/orders/${data.order_id}`);
+        } else {
+          navigate('/commandes?tab=recues');
         }
         break;
       case 'system':

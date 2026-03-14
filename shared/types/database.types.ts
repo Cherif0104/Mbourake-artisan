@@ -535,6 +535,7 @@ export type Database = {
           seller_id: string
           total_amount: number
           status: string
+          payment_mode: string
           shipping_address: Json | null
           created_at: string | null
           updated_at: string | null
@@ -545,6 +546,7 @@ export type Database = {
           seller_id: string
           total_amount: number
           status?: string
+          payment_mode?: string
           shipping_address?: Json | null
           created_at?: string | null
           updated_at?: string | null
@@ -555,6 +557,7 @@ export type Database = {
           seller_id?: string
           total_amount?: number
           status?: string
+          payment_mode?: string
           shipping_address?: Json | null
           created_at?: string | null
           updated_at?: string | null
@@ -614,6 +617,62 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_escrows: {
+        Row: {
+          id: string
+          order_id: string
+          total_amount: number
+          status: string
+          commission_amount: number | null
+          artisan_payout: number | null
+          platform_commission: number | null
+          partner_commission: number | null
+          payment_method: string | null
+          transaction_reference: string | null
+          released_at: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          total_amount: number
+          status?: string
+          commission_amount?: number | null
+          artisan_payout?: number | null
+          platform_commission?: number | null
+          partner_commission?: number | null
+          payment_method?: string | null
+          transaction_reference?: string | null
+          released_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          total_amount?: number
+          status?: string
+          commission_amount?: number | null
+          artisan_payout?: number | null
+          platform_commission?: number | null
+          partner_commission?: number | null
+          payment_method?: string | null
+          transaction_reference?: string | null
+          released_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_escrows_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -895,9 +954,29 @@ export type Database = {
         }
         Returns: string
       }
+      freeze_order_escrow: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
       get_accepted_quote_artisan_for_project: {
         Args: { p_project_id: string }
         Returns: string | null
+      }
+      mark_order_escrow_paid: {
+        Args: { p_order_id: string; p_transaction_reference?: string | null }
+        Returns: undefined
+      }
+      refund_order_escrow: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
+      release_order_escrow: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
+      unfreeze_order_escrow: {
+        Args: { p_order_id: string }
+        Returns: undefined
       }
     }
     Enums: {

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LoadingOverlay } from './LoadingOverlay';
+import { useGlobalLoading } from '../contexts/LoadingContext';
 import { Dashboard } from '../pages/Dashboard';
 
 const ADMIN_EMAIL = 'techsupport@senegel.org';
@@ -16,6 +16,7 @@ export function DashboardGate() {
   const navigate = useNavigate();
 
   const isAdminByEmail = !auth.loading && auth.user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  useGlobalLoading(isAdminByEmail, 'dashboard-gate');
 
   useEffect(() => {
     if (!isAdminByEmail || location.pathname !== '/dashboard') return;
@@ -24,7 +25,7 @@ export function DashboardGate() {
 
   // Ne jamais rendre le Dashboard pour un admin (évite flash et conflit)
   if (isAdminByEmail) {
-    return <LoadingOverlay />;
+    return null;
   }
 
   return <Dashboard />;

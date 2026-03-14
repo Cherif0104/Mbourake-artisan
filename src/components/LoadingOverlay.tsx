@@ -1,9 +1,21 @@
+interface LoadingOverlayProps {
+  className?: string;
+  contentOnly?: boolean;
+  /** Si false, n'affiche rien (évite overlay bloquant quand loading=false) */
+  visible?: boolean;
+  /** Message optionnel (ex. "Chargement des commandes...") */
+  message?: string;
+}
+
 /**
  * Overlay de chargement — utilisé pour chargements, refresh et transitions.
  * z-index élevé pour rester au-dessus des modales (évite conflits / tremblements).
  * @param contentOnly — si true, n'utilise pas fixed (remplit le parent positionné)
+ * @param visible — si false, ne rend rien (défaut: true pour compatibilité)
  */
-export function LoadingOverlay({ className = '', contentOnly }: { className?: string; contentOnly?: boolean }) {
+export function LoadingOverlay({ className = '', contentOnly, visible = true, message }: LoadingOverlayProps) {
+  if (!visible) return null;
+
   return (
     <div
       className={`flex items-center justify-center bg-white ${contentOnly ? 'absolute inset-0' : 'fixed inset-0 z-[9999]'} ${className}`}
@@ -47,7 +59,7 @@ export function LoadingOverlay({ className = '', contentOnly }: { className?: st
               <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: '150ms' }} />
               <div className="w-2 h-2 rounded-full bg-brand-500 animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
-            <span className="text-sm font-bold text-gray-500 ml-2">Chargement...</span>
+            <span className="text-sm font-bold text-gray-500 ml-2">{message ?? 'Chargement...'}</span>
           </div>
         </div>
       </div>

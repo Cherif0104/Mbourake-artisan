@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
 import { isCloudinaryConfigured, uploadToCloudinary } from '../lib/cloudinary';
 import type { Database } from '@shared';
 import { useProfile } from '../hooks/useProfile';
-import { LoadingOverlay } from '../components/LoadingOverlay';
+import { useGlobalLoading } from '../contexts/LoadingContext';
+import { ImageGalleryFullscreen } from '../components/ImageGalleryFullscreen';
 import { useToastContext } from '../contexts/ToastContext';
 import { HomeButton } from '../components/HomeButton';
 
@@ -33,6 +34,9 @@ export function MyProductsPage() {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
 
   const isArtisan = profile?.role === 'artisan';
+  const myProductsLoading = profileLoading || loading;
+  useGlobalLoading(myProductsLoading, 'my-products');
+  const [fullscreenProduct, setFullscreenProduct] = useState<ProductRow | null>(null);
 
   useEffect(() => {
     if (profileLoading) return;
@@ -281,7 +285,7 @@ export function MyProductsPage() {
   };
 
   if (profileLoading || loading) {
-    return <LoadingOverlay />;
+    return null;
   }
 
   if (!profile || !isArtisan) {
@@ -347,15 +351,31 @@ export function MyProductsPage() {
               Aucun produit dans votre boutique pour le moment.
             </div>
           ) : (
-            products.map((product) => (
+            <>
+              {fullscreenProduct && Array.isArray(fullscreenProduct.images) && fullscreenProduct.images.length > 0 && (
+                <ImageGalleryFullscreen
+                  images={fullscreenProduct.images as string[]}
+                  onClose={() => setFullscreenProduct(null)}
+                  title={fullscreenProduct.title}
+                />
+              )}
+              {products.map((product) => {
+                const imageList = Array.isArray(product.images) && product.images.length > 0 ? (product.images as string[]) : [];
+                const canOpenGallery = (product.status === 'published' || product.status === 'sold_out') && imageList.length > 0;
+                return (
               <div key={product.id} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-start gap-3">
-                <div className="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {Array.isArray(product.images) && product.images.length > 0 ? (
-                    <img src={String(product.images[0])} alt={product.title} className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => canOpenGallery && setFullscreenProduct(product)}
+                  className={`w-14 h-14 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center flex-shrink-0 ${canOpenGallery ? 'cursor-zoom-in hover:ring-2 hover:ring-brand-300 transition-shadow' : 'cursor-default'}`}
+                  aria-label={canOpenGallery ? `Voir les photos de ${product.title}` : undefined}
+                >
+                  {imageList.length > 0 ? (
+                    <img src={String(product.images![0])} alt={product.title} className="w-full h-full object-cover" />
                   ) : (
                     <ImageIcon size={20} className="text-gray-400" />
                   )}
-                </div>
+                </button>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-1 flex-wrap">
                     <h3 className="text-sm font-bold text-gray-900 line-clamp-2">
@@ -443,7 +463,9 @@ export function MyProductsPage() {
                   </div>
                 </div>
               </div>
-            ))
+                );
+              })}
+            </>
           )}
         </section>
 

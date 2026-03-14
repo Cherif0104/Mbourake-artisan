@@ -6,6 +6,7 @@ import type { Database } from '@shared';
 import { useAuth } from '../hooks/useAuth';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
+import { CartBadge } from '../components/CartBadge';
 import { addToCart } from '../lib/cart';
 import { useToastContext } from '../contexts/ToastContext';
 
@@ -206,7 +207,10 @@ export function MarketplaceProductPage() {
         >
           <ArrowLeft size={24} className="text-gray-700" />
         </button>
-        <HomeButton />
+        <div className="flex items-center gap-2">
+          <CartBadge />
+          <HomeButton />
+        </div>
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">

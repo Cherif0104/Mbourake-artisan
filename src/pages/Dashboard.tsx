@@ -11,8 +11,9 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useNotifications } from '../hooks/useNotifications';
-import { LoadingOverlay } from '../components/LoadingOverlay';
+import { useGlobalLoading } from '../contexts/LoadingContext';
 import { supabase } from '../lib/supabase';
+import { getCart, CART_UPDATED_EVENT } from '../lib/cart';
 import { NotificationBell } from '../components/NotificationBell';
 import { CREDITS_ENABLED } from '../config/features';
 
@@ -81,8 +82,18 @@ export function Dashboard() {
   const [activitySubTab, setActivitySubTab] = useState<'demandes' | 'devis' | 'revisions_attente' | 'revisions_envoyees'>('devis');
   const [satisfactionStats, setSatisfactionStats] = useState<{ ratingAvg: number; reviewCount: number; satisfactionPercent: number } | null>(null);
   const [recentReviews, setRecentReviews] = useState<Array<{ rating: number; comment: string | null; created_at: string }>>([]);
-  
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setCartCount(getCart().reduce((s, i) => s + i.quantity, 0));
+    refresh();
+    window.addEventListener(CART_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(CART_UPDATED_EVENT, refresh);
+  }, []);
+
   const { signOut } = auth;
+  const dashboardLoading = auth.loading || profileLoading || loading;
+  useGlobalLoading(dashboardLoading, 'dashboard');
 
   // Si l'utilisateur est un admin, le Dashboard ne doit pas s'afficher :
   // on le redirige automatiquement vers le panel admin.
@@ -267,13 +278,15 @@ export function Dashboard() {
 
           // Récupérer UNIQUEMENT les projets de sa catégorie
           // Un artisan ne voit QUE les projets liés à sa catégorie
-          const { data: openProjects, error: openProjectsError } = await supabase
+          const projectsQuery = supabase
             .from('projects')
             .select('id, title, status, created_at, project_number, location, category_id, client_id, categories!projects_category_id_fkey(*)')
-            .eq('category_id', artisan.category_id) // FILTRE CRITIQUE : uniquement sa catégorie
             .in('status', ['open', 'quote_received'])
             .order('created_at', { ascending: false })
             .limit(10);
+          const { data: openProjects, error: openProjectsError } = artisan.category_id != null
+            ? await projectsQuery.eq('category_id', artisan.category_id)
+            : await projectsQuery.is('category_id', null);
           if (openProjectsError) {
             console.error('[Dashboard] openProjects error:', openProjectsError);
           }
@@ -466,9 +479,9 @@ export function Dashboard() {
     return projects.filter(p => p.status === 'open' && !quotedProjectIds.has(p.id));
   }, [isArtisan, projects, myQuotes]);
 
-  // Un seul overlay de chargement (auth + profil + données) pour éviter tout flash entre PrivateRoute et Dashboard
+  // Overlay global géré par useGlobalLoading — on ne rend rien pendant le chargement
   if (auth.loading || profileLoading) {
-    return <LoadingOverlay />;
+    return null;
   }
 
   if (!profile) {
@@ -544,7 +557,7 @@ export function Dashboard() {
     : projects.slice(0, 5);
 
   if (loading) {
-    return <LoadingOverlay />;
+    return null;
   }
 
   return (
@@ -624,11 +637,18 @@ export function Dashboard() {
                           <span className="font-medium text-gray-700">Ma boutique</span>
                         </button>
                         <button 
-                          onClick={() => { navigate('/my-shop-orders'); setShowMenu(false); }}
+                          onClick={() => { navigate('/commandes?tab=recues'); setShowMenu(false); }}
                           className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
                         >
                           <Package size={18} className="text-gray-400" />
-                          <span className="font-medium text-gray-700">Commandes boutique</span>
+                          <span className="font-medium text-gray-700">Commandes reçues</span>
+                        </button>
+                        <button 
+                          onClick={() => { navigate('/commandes'); setShowMenu(false); }}
+                          className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <ShoppingBag size={18} className="text-gray-400" />
+                          <span className="font-medium text-gray-700">Mes achats</span>
                         </button>
                         <button 
                           onClick={() => { navigate('/profile'); setShowMenu(false); }}
@@ -648,7 +668,7 @@ export function Dashboard() {
                     ) : (
                       <>
                         <button 
-                          onClick={() => { navigate('/my-orders'); setShowMenu(false); }}
+                          onClick={() => { navigate('/commandes'); setShowMenu(false); }}
                           className="w-full px-5 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors text-sm font-medium"
                         >
                           <ShoppingBag size={18} className="text-gray-400" />
@@ -842,17 +862,32 @@ export function Dashboard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/my-shop-orders')}
+                  onClick={() => navigate('/commandes?tab=recues')}
                   className="mt-3 w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[88px] flex items-center justify-between"
                 >
                   <div>
-                    <p className="text-sm font-black text-gray-900">Commandes boutique</p>
+                    <p className="text-sm font-black text-gray-900">Commandes reçues</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Voir les commandes reçues
+                      Commandes sur votre boutique
                     </p>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
                     <Package size={18} className="text-brand-600" />
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/commandes')}
+                  className="mt-3 w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[88px] flex items-center justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-black text-gray-900">Mes achats</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Commandes passées chez d&apos;autres artisans
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                    <ShoppingBag size={18} className="text-brand-600" />
                   </div>
                 </button>
                 <button
@@ -876,7 +911,7 @@ export function Dashboard() {
             {!isArtisan && (
               <button
                 type="button"
-                onClick={() => navigate('/my-orders')}
+                onClick={() => navigate('/commandes')}
                 className="mt-3 w-full bg-white/85 backdrop-blur-xl rounded-2xl p-4 border border-white/60 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] text-left min-h-[88px] flex items-center justify-between"
               >
                 <div>
@@ -1495,10 +1530,15 @@ export function Dashboard() {
             type="button"
             onClick={() => navigate('/panier')}
             className="relative flex flex-col items-center justify-center gap-1.5 py-3 px-3 min-w-[70px] rounded-2xl transition-all duration-200 flex-shrink-0 text-gray-400 hover:text-gray-600"
-            aria-label="Panier"
+            aria-label={cartCount > 0 ? `Panier : ${cartCount} article${cartCount > 1 ? 's' : ''}` : 'Panier'}
           >
             <div className="relative scale-100 transition-transform duration-200">
               <ShoppingCart size={22} strokeWidth={2} className="text-gray-400" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-brand-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                  {cartCount > 99 ? '99+' : cartCount}
+                </span>
+              )}
             </div>
             <span className="text-[10px] font-bold transition-all duration-200 text-gray-400 scale-100">
               Panier

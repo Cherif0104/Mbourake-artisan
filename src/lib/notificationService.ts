@@ -17,6 +17,7 @@ export type NotificationType =
   | 'new_message' 
   | 'quote_revision_requested'
   | 'quote_revision_responded'
+  | 'new_order'
   | 'system';
 
 interface CreateNotificationParams {
@@ -364,8 +365,25 @@ export async function notifyOtherPartyDisputeRaised(
 }
 
 /**
- * Notifie quand un nouveau message arrive dans le chat
+ * Notifie l'artisan quand une nouvelle commande marketplace est créée.
+ * Utilise une RPC SECURITY DEFINER pour contourner la RLS (insert user_id ≠ auth.uid()).
  */
+export async function notifyArtisanNewOrder(orderId: string, artisanId: string, productTitle: string, buyerName: string) {
+  try {
+    const { error } = await supabase.rpc('notify_artisan_new_order', {
+      p_artisan_id: artisanId,
+      p_order_id: orderId,
+      p_product_title: productTitle || 'Produit',
+      p_buyer_name: buyerName || 'Un client',
+    });
+    if (error) {
+      console.error('Error notifying artisan new order:', error);
+    }
+  } catch (err) {
+    console.error('Failed to notify artisan new order:', err);
+  }
+}
+
 export async function notifyNewMessage(projectId: string, recipientId: string, senderName: string) {
   await createNotification({
     userId: recipientId,

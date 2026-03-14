@@ -1,10 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { MapPin, Search, AlertTriangle, User, Image as ImageIcon, ChevronDown, Star, ShieldCheck } from 'lucide-react';
+import { MapPin, Search, AlertTriangle, User, Image as ImageIcon, ChevronDown, Star, ShieldCheck, ShoppingCart, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { addToCart, removeFromCart, getCart, CART_UPDATED_EVENT } from '../lib/cart';
+import { useToastContext } from '../contexts/ToastContext';
+import { useAuth } from '../hooks/useAuth';
 import type { Database } from '@shared';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
+import { CartBadge } from '../components/CartBadge';
+import { ImageGalleryFullscreen } from '../components/ImageGalleryFullscreen';
 
 type ProductRow = Database['public']['Tables']['products']['Row'];
 
@@ -29,6 +34,8 @@ function escapeIlike(term: string): string {
 
 export function MarketplacePage() {
   const navigate = useNavigate();
+  const { success } = useToastContext();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<ProductWithArtisan[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -38,15 +45,30 @@ export function MarketplacePage() {
   const [sortBy, setSortBy] = useState<SortBy>('recent');
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [artisanStatsMap, setArtisanStatsMap] = useState<Record<string, ArtisanStats>>({});
+  const [fullscreenProduct, setFullscreenProduct] = useState<ProductWithArtisan | null>(null);
+  const [cartProductIds, setCartProductIds] = useState<Set<string>>(new Set());
+  const hasLoadedOnce = useRef(false);
 
+  const refreshCartIds = useCallback(() => {
+    setCartProductIds(new Set(getCart().map((i) => i.productId)));
+  }, []);
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    refreshCartIds();
+    const handle = () => refreshCartIds();
+    window.addEventListener(CART_UPDATED_EVENT, handle);
+    return () => window.removeEventListener(CART_UPDATED_EVENT, handle);
+  }, [refreshCartIds]);
+
+  // Debounce 500ms : ne pas rechercher à chaque frappe, attendre que l'utilisateur ait fini
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 500);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
   useEffect(() => {
     const fetchProducts = async () => {
-      setLoading(true);
+      const isInitialLoad = !hasLoadedOnce.current;
+      if (isInitialLoad) setLoading(true);
       setError(null);
       setTableUnavailable(false);
       try {
@@ -96,6 +118,7 @@ export function MarketplacePage() {
           }
         } else {
           const list = (data as ProductWithArtisan[]) || [];
+          hasLoadedOnce.current = true;
           setProducts(list);
           const artisanIds = [...new Set(list.map((p) => p.artisan_id).filter(Boolean))] as string[];
           if (artisanIds.length > 0) {
@@ -137,13 +160,15 @@ export function MarketplacePage() {
         }
       } finally {
         setLoading(false);
+        setSearching(false);
       }
     };
 
     fetchProducts();
   }, [debouncedSearch, sortBy]);
 
-  if (loading) {
+  // Overlay uniquement au premier chargement (pas pendant la recherche/tri)
+  if (loading && products.length === 0) {
     return <LoadingOverlay />;
   }
 
@@ -174,10 +199,11 @@ export function MarketplacePage() {
           <h1 className="font-bold text-gray-900 truncate">Marketplace</h1>
           <p className="text-xs text-gray-400">Découvrir les produits des artisans</p>
         </div>
+        <CartBadge />
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32 space-y-4">
-        {/* Barre de recherche */}
+        {/* Barre de recherche — résultats en direct, pas d'overlay */}
         <div className="bg-white rounded-2xl border border-gray-100 p-3 flex items-center gap-2 shadow-sm">
           <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center">
             <Search size={18} className="text-gray-400" />
@@ -282,12 +308,21 @@ export function MarketplacePage() {
             )}
           </div>
         ) : (
+          <>
+          {fullscreenProduct && Array.isArray(fullscreenProduct.images) && fullscreenProduct.images.length > 0 && (
+            <ImageGalleryFullscreen
+              images={fullscreenProduct.images as string[]}
+              onClose={() => setFullscreenProduct(null)}
+              title={fullscreenProduct.title}
+            />
+          )}
           <div className="grid grid-cols-2 gap-3">
             {products.map((product) => {
               const primaryImage =
                 Array.isArray(product.images) && product.images.length > 0
                   ? (product.images[0] as string)
                   : null;
+              const imageList = Array.isArray(product.images) && product.images.length > 0 ? (product.images as string[]) : [];
               const artisan = product.profiles;
               const location =
                 artisan?.commune ||
@@ -306,7 +341,15 @@ export function MarketplacePage() {
                   onKeyDown={(e) => e.key === 'Enter' && navigate(`/marketplace/${product.id}`)}
                   className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col cursor-pointer hover:border-brand-200 transition-colors"
                 >
-                  <div className="aspect-[4/3] bg-gray-100 overflow-hidden relative">
+                  <div
+                    className="aspect-[4/3] bg-gray-100 overflow-hidden relative"
+                    onClick={(e) => {
+                      if (imageList.length > 0) {
+                        e.stopPropagation();
+                        setFullscreenProduct(product);
+                      }
+                    }}
+                  >
                     {primaryImage ? (
                       <img
                         src={primaryImage}
@@ -355,6 +398,46 @@ export function MarketplacePage() {
                         {location}
                       </span>
                     </div>
+                    {product.status === 'published' &&
+                      product.artisan_id !== user?.id &&
+                      (product.stock == null || product.stock > 0) && (
+                      cartProductIds.has(product.id) ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFromCart(product.id);
+                            success('Article retiré du panier');
+                          }}
+                          className="p-1.5 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-colors mt-1.5"
+                          title="Retirer du panier"
+                          aria-label="Retirer du panier"
+                        >
+                          <Check size={14} strokeWidth={3} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const img = Array.isArray(product.images) && product.images.length > 0 ? String(product.images[0]) : null;
+                            addToCart({
+                              productId: product.id,
+                              title: product.title ?? '',
+                              price: Number(product.price ?? 0),
+                              promoPercent: (product.promo_percent ?? 0) > 0 ? product.promo_percent : null,
+                              image: img,
+                            });
+                            success('Article ajouté au panier');
+                          }}
+                          className="p-1.5 rounded-lg bg-brand-500/10 text-brand-600 hover:bg-brand-500/20 transition-colors mt-1.5"
+                          title="Ajouter au panier"
+                          aria-label="Ajouter au panier"
+                        >
+                          <ShoppingCart size={14} />
+                        </button>
+                      )
+                    )}
                     {artisan && (
                       <div className="mt-auto space-y-1.5">
                         <button
@@ -397,6 +480,7 @@ export function MarketplacePage() {
               );
             })}
           </div>
+          </>
         )}
       </main>
     </div>

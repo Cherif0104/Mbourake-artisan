@@ -1,7 +1,7 @@
 // Bumper la version à chaque déploiement pour forcer la mise à jour des clients (skipWaiting + controllerchange → reload)
-const CACHE_NAME = 'mbourake-v2.6.2';
-const STATIC_CACHE_NAME = 'mbourake-static-v2.6.2';
-const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.6.2';
+const CACHE_NAME = 'mbourake-v2.6.4';
+const STATIC_CACHE_NAME = 'mbourake-static-v2.6.4';
+const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.6.4';
 
 // Assets à mettre en cache immédiatement
 const STATIC_ASSETS = [
@@ -63,6 +63,11 @@ self.addEventListener('fetch', (event) => {
 
   // Ignorer les requêtes vers Supabase (toujours en ligne)
   if (url.hostname.includes('supabase.co')) {
+    return;
+  }
+
+  // Ne pas intercepter Cloudinary (évite CSP / failed to fetch sur mobile PWA)
+  if (url.hostname.includes('cloudinary.com')) {
     return;
   }
 

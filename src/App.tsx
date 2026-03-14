@@ -71,9 +71,10 @@ import { ChambreDashboardPage } from './pages/ChambreDashboardPage';
 import { ChambreMetierRoute } from './components/ChambreMetierRoute';
 import { MyProductsPage } from './pages/MyProductsPage';
 import { MyCertificationsPage } from './pages/MyCertificationsPage';
-import { MyOrdersPage } from './pages/MyOrdersPage';
-import { MyShopOrdersPage } from './pages/MyShopOrdersPage';
+import { CommandesPage } from './pages/CommandesPage';
+import { OrderDetailPage } from './pages/OrderDetailPage';
 import { PanierPage } from './pages/PanierPage';
+import { PanierCheckoutPage } from './pages/PanierCheckoutPage';
 import { CompteSuspenduPage } from './pages/CompteSuspenduPage';
 import { InvitePage } from './pages/InvitePage';
 import { LastRoutePersistence } from './components/LastRoutePersistence';
@@ -208,9 +209,12 @@ function AppContent() {
       />
       <Route path="/my-products" element={<PrivateRoute><MyProductsPage /></PrivateRoute>} />
       <Route path="/my-certifications" element={<PrivateRoute><MyCertificationsPage /></PrivateRoute>} />
-      <Route path="/my-orders" element={<PrivateRoute><MyOrdersPage /></PrivateRoute>} />
-      <Route path="/my-shop-orders" element={<PrivateRoute><MyShopOrdersPage /></PrivateRoute>} />
+      <Route path="/commandes" element={<PrivateRoute><CommandesPage /></PrivateRoute>} />
+      <Route path="/my-orders" element={<Navigate to="/commandes" replace />} />
+      <Route path="/my-shop-orders" element={<Navigate to="/commandes?tab=recues" replace />} />
+      <Route path="/orders/:orderId" element={<PrivateRoute><OrderDetailPage /></PrivateRoute>} />
       <Route path="/panier" element={<PrivateRoute><PanierPage /></PrivateRoute>} />
+      <Route path="/panier/checkout" element={<PrivateRoute><PanierCheckoutPage /></PrivateRoute>} />
       
       {/* Admin Routes (layout commun avec sidebar) */}
       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>}>

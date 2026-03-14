@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, ArrowLeft, CheckCheck, Check, Briefcase, FileText, AlertTriangle,
-  X, CreditCard, Shield, MessageSquare, Trash2
+  X, CreditCard, Shield, MessageSquare, Trash2, ShoppingBag
 } from 'lucide-react';
 import { useNotifications, type Notification } from '../hooks/useNotifications';
 import { LoadingOverlay } from '../components/LoadingOverlay';
@@ -19,6 +19,7 @@ const NOTIFICATION_ICONS: Record<string, { icon: React.ReactNode; color: string;
   new_message: { icon: <MessageSquare size={20} />, color: 'text-brand-600', bg: 'bg-brand-100' },
   quote_revision_requested: { icon: <AlertTriangle size={20} />, color: 'text-yellow-600', bg: 'bg-yellow-100' },
   quote_revision_responded: { icon: <FileText size={20} />, color: 'text-blue-600', bg: 'bg-blue-100' },
+  new_order: { icon: <ShoppingBag size={20} />, color: 'text-brand-600', bg: 'bg-brand-100' },
   system: { icon: <Bell size={20} />, color: 'text-gray-600', bg: 'bg-gray-100' },
 };
 
@@ -38,6 +39,8 @@ function formatRelativeTime(dateString: string): string {
 
 function getNotificationTarget(notification: Notification): string {
   const { type, data } = notification;
+  if (type === 'new_order' && data?.order_id) return `/orders/${data.order_id}`;
+  if (type === 'new_order') return '/commandes?tab=recues';
   if (type === 'new_message' && data?.project_id) return `/chat/${data.project_id}`;
   if (type === 'new_quote' && data?.project_id) return data?.chat_enabled ? `/chat/${data.project_id}` : `/projects/${data.project_id}#devis`;
   if (type === 'quote_revision_requested' && data?.project_id && data?.revision_id) return `/projects/${data.project_id}?revision=${data.revision_id}`;

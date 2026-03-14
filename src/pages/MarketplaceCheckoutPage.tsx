@@ -6,6 +6,9 @@ import type { Database } from '@shared';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
 import { useToastContext } from '../contexts/ToastContext';
+import { useAuth } from '../hooks/useAuth';
+import { useProfile } from '../hooks/useProfile';
+import { notifyArtisanNewOrder } from '../lib/notificationService';
 
 type ProductRow = Database['public']['Tables']['products']['Row'];
 
@@ -13,6 +16,8 @@ export function MarketplaceCheckoutPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { success, error: showError } = useToastContext();
+  const { user } = useAuth();
+  const { profile } = useProfile();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [product, setProduct] = useState<ProductRow | null>(null);
@@ -35,7 +40,7 @@ export function MarketplaceCheckoutPage() {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('id, title, price, stock, status, promo_percent')
+          .select('id, title, price, stock, status, promo_percent, artisan_id')
           .eq('id', productId)
           .eq('status', 'published')
           .maybeSingle();
@@ -77,8 +82,14 @@ export function MarketplaceCheckoutPage() {
       });
 
       if (error) throw error;
-      success('Commande enregistrée. L\'artisan vous contactera pour la livraison.');
-      navigate('/my-orders', { state: { orderId: data } });
+      const orderId = data as string;
+      const artisanId = product.artisan_id;
+      const buyerName = profile?.full_name || user?.user_metadata?.full_name || user?.email || 'Un client';
+      if (artisanId) {
+        notifyArtisanNewOrder(orderId, artisanId, product.title ?? 'Produit', buyerName).catch(() => {});
+      }
+      success('Commande enregistrée. Paiement à la livraison. Consultez Mes achats.');
+      navigate('/commandes', { state: { orderId } });
     } catch (e: any) {
       const msg = e?.message ?? 'Impossible de créer la commande.';
       showError(msg);
@@ -170,7 +181,7 @@ export function MarketplaceCheckoutPage() {
         </form>
 
         <p className="text-xs text-gray-500 text-center mt-4">
-          L'artisan vous contactera pour convenir du paiement et de la livraison.
+          Paiement à la livraison. L'artisan vous contactera pour organiser la livraison.
         </p>
       </main>
     </div>

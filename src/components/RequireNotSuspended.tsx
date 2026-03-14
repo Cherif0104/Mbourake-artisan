@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useProfile } from '../hooks/useProfile';
-import { LoadingOverlay } from './LoadingOverlay';
+import { useGlobalLoading } from '../contexts/LoadingContext';
 
 /**
  * À utiliser à l'intérieur de PrivateRoute.
@@ -10,13 +10,15 @@ import { LoadingOverlay } from './LoadingOverlay';
 export function RequireNotSuspended({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { profile, loading: profileLoading } = useProfile();
+  const showProfileLoading = profileLoading && !profile;
+  useGlobalLoading(showProfileLoading, 'require-not-suspended');
 
   if (location.pathname === '/compte-suspendu') {
     return <>{children}</>;
   }
 
-  if (profileLoading && !profile) {
-    return <LoadingOverlay />;
+  if (showProfileLoading) {
+    return null;
   }
 
   if (profile?.is_suspended || profile?.is_banned) {

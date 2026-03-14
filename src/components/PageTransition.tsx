@@ -2,13 +2,45 @@ import { useLayoutEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { LoadingOverlay } from './LoadingOverlay';
 
-// Routes qui affichent déjà leur propre LoadingOverlay plein écran — on n'affiche pas PageTransition pour éviter le double overlay.
-const ROUTES_WITH_OWN_LOADING = ['/dashboard', '/revisions', '/projects/', '/credits', '/verification', '/edit-profile', '/conversations', '/notifications'];
+// Routes qui affichent déjà leur propre LoadingOverlay — on n'affiche pas PageTransition pour éviter le double overlay.
+// Liste étendue pour couvrir toutes les pages avec chargement propre (évite enchaînement/superposition).
+const ROUTES_WITH_OWN_LOADING = [
+  '/',
+  '/dashboard',
+  '/revisions',
+  '/projects',
+  '/credits',
+  '/verification',
+  '/edit-profile',
+  '/conversations',
+  '/notifications',
+  '/artisans',
+  '/category',
+  '/marketplace',
+  '/profile',
+  '/settings',
+  '/expenses',
+  '/invoices',
+  '/avis-recus',
+  '/create-project',
+  '/my-products',
+  '/my-certifications',
+  '/commandes',
+  '/my-orders',
+  '/my-shop-orders',
+  '/panier',
+  '/panier/checkout',
+  '/orders',
+  '/favorites',
+  '/chambre',
+  '/admin',
+];
 
 function shouldSkipTransition(pathname: string) {
-  return ROUTES_WITH_OWN_LOADING.some(
-    (r) => r.endsWith('/') ? pathname.startsWith(r) : pathname === r
-  );
+  return ROUTES_WITH_OWN_LOADING.some((r) => {
+    if (r === '/') return pathname === '/';
+    return pathname === r || pathname.startsWith(r + '/');
+  });
 }
 
 /**
@@ -40,8 +72,8 @@ export function PageTransition() {
 
     timeoutRef.current = setTimeout(() => {
       setIsTransitioning(false);
-      animationRef.current = setTimeout(() => setDisplayContent(false), 300);
-    }, 500);
+      animationRef.current = setTimeout(() => setDisplayContent(false), 200);
+    }, 350);
 
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);

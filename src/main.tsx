@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ToastProvider } from './contexts/ToastContext';
 import { PWAInstallProvider } from './contexts/PWAInstallContext';
+import { LoadingProvider } from './contexts/LoadingContext';
 import App from './App';
 import './styles.css';
 
@@ -22,7 +23,9 @@ createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
     <ToastProvider>
       <PWAInstallProvider>
-        <App />
+        <LoadingProvider>
+          <App />
+        </LoadingProvider>
       </PWAInstallProvider>
     </ToastProvider>
   </BrowserRouter>,

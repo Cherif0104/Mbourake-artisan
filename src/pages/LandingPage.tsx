@@ -11,7 +11,7 @@ import { useDiscovery } from '../hooks/useDiscovery';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToastContext } from '../contexts/ToastContext';
-import { LoadingOverlay } from '../components/LoadingOverlay';
+import { useGlobalLoading } from '../contexts/LoadingContext';
 import { usePWAInstall } from '../contexts/PWAInstallContext';
 import { supabase } from '../lib/supabase';
 
@@ -82,6 +82,7 @@ export function LandingPage() {
   const fromRecherche = searchParams.get('recherche') === '1';
   const willRedirectToDashboard = !!auth.user && !fromRecherche;
   const showLoading = (auth.loading || profileLoading || willRedirectToDashboard) && !loadingTimeout;
+  useGlobalLoading(showLoading, 'landing');
 
   const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;
   // Map icon names to Lucide components
@@ -262,7 +263,7 @@ export function LandingPage() {
   }, [auth.loading, auth.user, fromRecherche, navigate]);
 
   if (showLoading) {
-    return <LoadingOverlay />;
+    return null;
   }
 
   return (

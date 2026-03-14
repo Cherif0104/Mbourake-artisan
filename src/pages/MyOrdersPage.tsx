@@ -124,7 +124,11 @@ export function MyOrdersPage() {
               const statusLabel = STATUS_LABELS[order.status] ?? order.status;
               return (
                 <li key={order.id}>
-                  <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/orders/${order.id}`)}
+                    className="w-full bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm text-left hover:border-brand-100 transition-colors"
+                  >
                     <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
                       <Package size={22} className="text-gray-400" />
                     </div>
@@ -143,7 +147,7 @@ export function MyOrdersPage() {
                       </p>
                     </div>
                     <ChevronRight size={20} className="text-gray-400 flex-shrink-0" />
-                  </div>
+                  </button>
                 </li>
               );
             })}

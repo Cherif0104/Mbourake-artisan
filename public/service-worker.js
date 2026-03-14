@@ -120,7 +120,7 @@ self.addEventListener('fetch', (event) => {
         .catch(() => {
           return caches.match(request).then((cachedResponse) => {
             if (cachedResponse) return cachedResponse;
-            return caches.match('/index.html');
+            return caches.match('/index.html').then((fallback) => fallback || fetch('/index.html').catch(() => new Response('', { status: 503, statusText: 'Unavailable' })));
           });
         })
     );
@@ -140,7 +140,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        return caches.match(request);
+        return caches.match(request).then((cached) => cached || caches.match('/index.html').then((c) => c || new Response('', { status: 503, statusText: 'Unavailable' })));
       })
   );
 });

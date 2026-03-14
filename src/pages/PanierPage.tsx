@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
-  ShoppingBag,
   Heart,
   ArrowLeft,
   Plus,
@@ -10,9 +9,10 @@ import {
   Trash2,
   ChevronRight,
   Package,
+  ShoppingBag,
 } from 'lucide-react';
 import { HomeButton } from '../components/HomeButton';
-import { LoadingOverlay } from '../components/LoadingOverlay';
+import { CartBadge } from '../components/CartBadge';
 import {
   getCart,
   removeFromCart,
@@ -20,34 +20,13 @@ import {
   getCartTotal,
   type CartItem,
 } from '../lib/cart';
-import { supabase } from '../lib/supabase';
 
-type TabId = 'panier' | 'commandes' | 'favoris';
-
-type OrderRow = {
-  id: string;
-  total_amount: number;
-  status: string;
-  created_at: string;
-  order_items?: { products?: { title: string; images: unknown } | null }[];
-  profiles?: { full_name: string | null } | null;
-};
-
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  pending: 'En attente',
-  confirmed: 'Confirmée',
-  shipped: 'Expédiée',
-  delivered: 'Livrée',
-  cancelled: 'Annulée',
-};
+type TabId = 'panier' | 'favoris';
 
 export function PanierPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabId>('panier');
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [ordersUnavailable, setOrdersUnavailable] = useState(false);
 
   const refreshCart = useCallback(() => {
     setCartItems(getCart());
@@ -56,60 +35,6 @@ export function PanierPage() {
   useEffect(() => {
     refreshCart();
   }, [refreshCart]);
-
-  useEffect(() => {
-    if (activeTab !== 'commandes') return;
-    const fetchOrders = async () => {
-      setOrdersLoading(true);
-      try {
-        const { data: userData } = await supabase.auth.getUser();
-        const userId = userData.data.user?.id;
-        if (!userId) {
-          setOrders([]);
-          setOrdersLoading(false);
-          return;
-        }
-        const { data: ordersData, error } = await supabase
-          .from('orders')
-          .select(
-            `
-            id, total_amount, status, created_at,
-            profiles!orders_seller_id_fkey ( full_name )
-          `
-          )
-          .eq('buyer_id', userId)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          const msg = (error.message || '').toLowerCase();
-          if (msg.includes('does not exist') || msg.includes('relation')) {
-            setOrdersUnavailable(true);
-          }
-          setOrders([]);
-          setOrdersLoading(false);
-          return;
-        }
-        const list = (ordersData as OrderRow[]) ?? [];
-        const withItems: OrderRow[] = await Promise.all(
-          list.map(async (o) => {
-            const { data: items } = await supabase
-              .from('order_items')
-              .select('*, products(title, images)')
-              .eq('order_id', o.id);
-            return { ...o, order_items: items as OrderRow['order_items'] };
-          })
-        );
-        setOrders(withItems);
-        setOrdersUnavailable(false);
-      } catch {
-        setOrders([]);
-        setOrdersUnavailable(true);
-      } finally {
-        setOrdersLoading(false);
-      }
-    };
-    fetchOrders();
-  }, [activeTab]);
 
   const handleRemove = (productId: string) => {
     removeFromCart(productId);
@@ -128,7 +53,6 @@ export function PanierPage() {
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'panier', label: 'Panier', icon: <ShoppingCart size={18} /> },
-    { id: 'commandes', label: 'Commandes', icon: <ShoppingBag size={18} /> },
     { id: 'favoris', label: 'Favoris', icon: <Heart size={18} /> },
   ];
 
@@ -144,13 +68,13 @@ export function PanierPage() {
           <ArrowLeft size={22} className="text-gray-700" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-gray-900 truncate">Panier & Commandes</h1>
-          <p className="text-xs text-gray-400">Articles, commandes validées et favoris</p>
+          <h1 className="font-bold text-gray-900 truncate">Panier</h1>
+          <p className="text-xs text-gray-400">Articles et favoris</p>
         </div>
+        <CartBadge />
         <HomeButton />
       </header>
 
-      {/* Tabs */}
       <div className="bg-white border-b border-gray-100 px-4">
         <div className="flex gap-1">
           {tabs.map((tab) => (
@@ -194,6 +118,14 @@ export function PanierPage() {
                   className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600"
                 >
                   Voir le marché
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/commandes')}
+                  className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-brand-500 text-brand-600 font-bold text-sm"
+                >
+                  <ShoppingBag size={18} />
+                  Voir mes commandes
                 </button>
               </div>
             ) : (
@@ -276,88 +208,21 @@ export function PanierPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    const first = cartItems[0];
-                    if (first)
-                      navigate(`/marketplace/${first.productId}/checkout`);
-                  }}
+                  onClick={() => navigate('/panier/checkout')}
                   className="w-full py-3.5 rounded-xl bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 transition-colors flex items-center justify-center gap-2"
                 >
                   Passer la commande
                   <ChevronRight size={18} />
                 </button>
-              </div>
-            )}
-          </>
-        )}
-
-        {activeTab === 'commandes' && (
-          <>
-            {ordersLoading ? (
-              <LoadingOverlay message="Chargement des commandes..." />
-            ) : ordersUnavailable ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-sm text-gray-500">
-                <Package size={40} className="mx-auto mb-3 text-gray-300" />
-                <p>Les commandes ne sont pas encore disponibles.</p>
                 <button
                   type="button"
-                  onClick={() => navigate('/dashboard')}
-                  className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-bold"
+                  onClick={() => navigate('/commandes')}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm"
                 >
-                  Retour au tableau de bord
+                  <ShoppingBag size={18} />
+                  Voir mes commandes
                 </button>
               </div>
-            ) : orders.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-                <ShoppingBag size={40} className="mx-auto mb-3 text-gray-300" />
-                <p className="font-medium text-gray-700 mb-1">Aucune commande</p>
-                <p className="text-sm text-gray-500 mb-6">
-                  Vos commandes validées apparaîtront ici.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/marketplace')}
-                  className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm"
-                >
-                  Découvrir le marché
-                </button>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {orders.map((order) => {
-                  const primaryItem = order.order_items?.[0];
-                  const title = primaryItem?.products?.title ?? 'Commande';
-                  const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
-                  return (
-                    <li key={order.id}>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/my-orders')}
-                        className="w-full bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm text-left hover:border-brand-100 transition-colors"
-                      >
-                        <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-                          <Package size={22} className="text-gray-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-gray-900 truncate">{title}</p>
-                          <p className="text-xs text-gray-500">
-                            {order.order_items && order.order_items.length > 1
-                              ? `${order.order_items.length} articles`
-                              : '1 article'}
-                            {' · '}
-                            {Number(order.total_amount).toLocaleString('fr-FR')} FCFA
-                          </p>
-                          <p className="text-[11px] font-medium text-brand-600 mt-0.5">
-                            {statusLabel}
-                            {order.profiles?.full_name && ` · ${order.profiles.full_name}`}
-                          </p>
-                        </div>
-                        <ChevronRight size={20} className="text-gray-400 flex-shrink-0" />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
             )}
           </>
         )}
@@ -374,7 +239,7 @@ export function PanierPage() {
             <button
               type="button"
               onClick={() => navigate('/favorites')}
-              className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600"
+              className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm"
             >
               Voir mes favoris
             </button>

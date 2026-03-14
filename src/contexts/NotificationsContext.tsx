@@ -40,7 +40,7 @@ function playNotificationSound() {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'new_project' | 'new_quote' | 'quote_accepted' | 'quote_rejected' | 'project_completed' | 'payment_received' | 'verification_approved' | 'verification_rejected' | 'new_message' | 'quote_revision_requested' | 'quote_revision_responded' | 'dispute_raised' | 'system';
+  type: 'new_project' | 'new_quote' | 'quote_accepted' | 'quote_rejected' | 'project_completed' | 'payment_received' | 'verification_approved' | 'verification_rejected' | 'new_message' | 'quote_revision_requested' | 'quote_revision_responded' | 'dispute_raised' | 'new_order' | 'system';
   title: string;
   message: string | null;
   data: Record<string, any>;
@@ -193,6 +193,23 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
           }
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             navigator.vibrate(200);
+          }
+          // Notification native (type WhatsApp) : visible même si l'app est en arrière-plan
+          if (typeof window !== 'undefined' && 'Notification' in window && document.visibilityState !== 'visible') {
+            if (Notification.permission === 'granted') {
+              try {
+                const n = new Notification(newNotification.title, {
+                  body: newNotification.message ?? undefined,
+                  icon: '/icons/icon-mbourake-512.png',
+                  tag: `mbourake-${newNotification.id}`,
+                  requireInteraction: false,
+                });
+                n.onclick = () => {
+                  window.focus();
+                  n.close();
+                };
+              } catch { /* ignoré */ }
+            }
           }
         }
       )

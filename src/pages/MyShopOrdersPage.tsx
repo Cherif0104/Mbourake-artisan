@@ -148,8 +148,8 @@ export function MyShopOrdersPage() {
       <header className="sticky top-0 z-40 px-4 py-4 bg-white border-b border-gray-100 flex items-center gap-4">
         <HomeButton />
         <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-gray-900 truncate">Commandes boutique</h1>
-          <p className="text-xs text-gray-400">Commandes reçues sur votre boutique</p>
+          <h1 className="font-bold text-gray-900 truncate">Commandes reçues</h1>
+          <p className="text-xs text-gray-400">Commandes sur votre boutique</p>
         </div>
       </header>
 
@@ -187,7 +187,13 @@ export function MyShopOrdersPage() {
               const nextStatus = NEXT_STATUS[order.status];
               return (
                 <li key={order.id}>
-                  <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/orders/${order.id}`)}
+                    onKeyDown={(e) => e.key === 'Enter' && navigate(`/orders/${order.id}`)}
+                    className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm cursor-pointer hover:border-brand-100 transition-colors"
+                  >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <p className="font-bold text-gray-900 truncate">{title}</p>
                       <span
@@ -221,7 +227,10 @@ export function MyShopOrdersPage() {
                       <button
                         type="button"
                         disabled={updatingId === order.id}
-                        onClick={() => handleUpdateStatus(order.id, nextStatus)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateStatus(order.id, nextStatus);
+                        }}
                         className="mt-3 w-full rounded-xl bg-brand-500 text-white text-sm font-bold py-2.5 disabled:opacity-60"
                       >
                         {updatingId === order.id

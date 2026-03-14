@@ -13,6 +13,7 @@ export type CartItem = {
 };
 
 const STORAGE_KEY = 'mbourake_cart';
+export const CART_UPDATED_EVENT = 'mbourake-cart-updated';
 
 function read(): CartItem[] {
   try {
@@ -54,10 +55,16 @@ export function addToCart(item: Omit<CartItem, 'quantity'> & { quantity?: number
     });
   }
   write(items);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+  }
 }
 
 export function removeFromCart(productId: string): void {
   write(read().filter((i) => i.productId !== productId));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+  }
 }
 
 export function updateCartQuantity(productId: string, quantity: number): void {
@@ -66,14 +73,23 @@ export function updateCartQuantity(productId: string, quantity: number): void {
   if (!item) return;
   if (quantity <= 0) {
     write(items.filter((i) => i.productId !== productId));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+    }
     return;
   }
   item.quantity = quantity;
   write(items);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+  }
 }
 
 export function clearCart(): void {
   write([]);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+  }
 }
 
 export function getCartTotal(items: CartItem[]): number {
