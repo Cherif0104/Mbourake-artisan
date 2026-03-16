@@ -246,10 +246,11 @@ export function Dashboard() {
   // Fetch data
   useEffect(() => {
     if (!profile) return;
-    
+
+    let mounted = true;
     const fetchData = async () => {
       setLoading(true);
-      
+      try {
       if (profile.role === 'artisan') {
         // Charger le solde de crédits de l'artisan
         try {
@@ -400,11 +401,15 @@ export function Dashboard() {
           setProjects(normalizedProjects);
         }
       }
-      
-      setLoading(false);
+      } catch (err) {
+        console.error('[Dashboard] fetchData error:', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     };
-    
+
     fetchData();
+    return () => { mounted = false; };
   }, [profile, location.pathname]); // Rafraîchir aussi quand on arrive sur la page
 
   // Scroll en haut à chaque changement d'onglet
