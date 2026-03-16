@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Star, MapPin, Phone, Mail, Shield, CheckCircle,
   Clock, Image, Briefcase, Award, Hash, User, Quote, Building2, Calendar,
-  Pencil, Settings, ExternalLink, LogOut, ShoppingBag, Award as AwardIcon
+  Pencil, Settings, ExternalLink, LogOut, ShoppingBag, Award as AwardIcon,
+  ChevronRight
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
