@@ -10,6 +10,7 @@ import { useDiscovery } from '../hooks/useDiscovery';
 import { useProjects } from '../hooks/useProjects';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { supabase } from '../lib/supabase';
+import { isCloudinaryConfigured, uploadToCloudinary } from '../lib/cloudinary';
 import { notifyArtisansNewProject } from '../lib/notificationService';
 import { senegalRegions } from '../data/senegalLocations';
 
@@ -197,15 +198,20 @@ export function CreateProjectPage() {
         videoUrl = supabase.storage.from('videos').getPublicUrl(videoData.path).data.publicUrl;
       }
 
-      // 3. Upload Photos
+      // 3. Upload Photos (Cloudinary si configuré, sinon Supabase Storage)
+      const useCloudinary = isCloudinaryConfigured();
       for (const photo of photos) {
-        const fileName = `${auth.user.id}/projects/${Date.now()}-${photo.name}`;
-        const { data: photoData, error: photoError } = await supabase.storage
-          .from('photos')
-          .upload(fileName, photo);
-        
-        if (photoError) throw photoError;
-        photoUrls.push(supabase.storage.from('photos').getPublicUrl(photoData.path).data.publicUrl);
+        if (useCloudinary) {
+          const url = await uploadToCloudinary(photo, `mbourake/projects/${auth.user.id}`);
+          photoUrls.push(url);
+        } else {
+          const fileName = `${auth.user.id}/projects/${Date.now()}-${photo.name}`;
+          const { data: photoData, error: photoError } = await supabase.storage
+            .from('photos')
+            .upload(fileName, photo);
+          if (photoError) throw photoError;
+          photoUrls.push(supabase.storage.from('photos').getPublicUrl(photoData.path).data.publicUrl);
+        }
       }
 
       // 4. Prepare property_details - ensure floor is not an empty string if present

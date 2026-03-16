@@ -8,6 +8,7 @@ import { useToastContext } from '../contexts/ToastContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { AffiliationSection } from '../components/AffiliationSection';
 import { supabase } from '../lib/supabase';
+import { isCloudinaryConfigured, uploadToCloudinary } from '../lib/cloudinary';
 import { senegalLocationData, senegalRegions } from '../data/senegalLocations';
 
 
@@ -245,36 +246,29 @@ export function EditProfilePage() {
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    
+
     setUploadingPhoto(true);
-    
+
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/avatar/${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('photos')
-        .upload(fileName, file);
-      
-      if (uploadError) throw uploadError;
-      
-      const { data } = supabase.storage
-        .from('photos')
-        .getPublicUrl(fileName);
-      
-      if (data?.publicUrl) {
-        setAvatarUrl(data.publicUrl);
-        
-        // Update profile immediately
-        await supabase
-          .from('profiles')
-          .update({ avatar_url: data.publicUrl })
-          .eq('id', user.id);
+      let publicUrl: string;
+      if (isCloudinaryConfigured()) {
+        publicUrl = await uploadToCloudinary(file, `mbourake/avatars/${user.id}`);
+      } else {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}/avatar/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('photos').upload(fileName, file);
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
+        publicUrl = data.publicUrl;
+      }
+      if (publicUrl) {
+        setAvatarUrl(publicUrl);
+        await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
       }
     } catch (err) {
       console.error('Photo upload error:', err);
     }
-    
+
     setUploadingPhoto(false);
   };
 

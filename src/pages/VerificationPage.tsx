@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
+import { isCloudinaryConfigured, uploadToCloudinary } from '../lib/cloudinary';
 
 type Step = 'intro' | 'selfie' | 'id' | 'business' | 'review';
 
@@ -28,22 +29,18 @@ export function VerificationPage() {
   const [registreUrl, setRegistreUrl] = useState<string | null>(null);
   const [registreNumber, setRegistreNumber] = useState('');
 
-  // Upload file handler
+  // Upload file handler (images → Cloudinary si configuré, sinon Supabase)
   const uploadFile = async (file: File, folder: string): Promise<string | null> => {
     try {
+      const isImage = file.type.startsWith('image/');
+      if (isImage && isCloudinaryConfigured()) {
+        return await uploadToCloudinary(file, `mbourake/verification/${user?.id}/${folder}`);
+      }
       const fileExt = file.name.split('.').pop();
       const fileName = `${user?.id}/${folder}/${Date.now()}.${fileExt}`;
-      
-      const { error } = await supabase.storage
-        .from('photos')
-        .upload(fileName, file);
-      
+      const { error } = await supabase.storage.from('photos').upload(fileName, file);
       if (error) throw error;
-      
-      const { data } = supabase.storage
-        .from('photos')
-        .getPublicUrl(fileName);
-      
+      const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
       return data?.publicUrl || null;
     } catch (err) {
       console.error('Upload error:', err);
