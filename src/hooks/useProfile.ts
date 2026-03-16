@@ -17,6 +17,7 @@ export function useProfile() {
 
   useEffect(() => {
     let mounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const run = async () => {
       if (!auth.user) {
@@ -28,6 +29,21 @@ export function useProfile() {
       if (!mounted) return;
       setState((s) => ({ ...s, loading: true }));
 
+      // Timeout de secours (prod/mobile) : si la requête bloque, débloquer l’UI après 10s
+      const FALLBACK_MS = 10000;
+      timeoutId = setTimeout(() => {
+        if (!mounted) return;
+        setState((prev) => {
+          if (prev.loading) {
+            if (import.meta.env.DEV) {
+              console.warn('[useProfile] Timeout chargement profil après', FALLBACK_MS, 'ms');
+            }
+            return { profile: null, loading: false };
+          }
+          return prev;
+        });
+      }, FALLBACK_MS);
+
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -37,16 +53,19 @@ export function useProfile() {
         .eq('id', auth.user.id)
         .maybeSingle();
 
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       if (!mounted) return;
 
       if (error) {
-        // Ne pas afficher d'erreur si c'est un problème de connexion réseau
-        const isNetworkError = 
+        const isNetworkError =
           error.message?.toLowerCase().includes('failed to fetch') ||
           error.message?.toLowerCase().includes('network') ||
           error.message?.toLowerCase().includes('connection') ||
           error.message?.toLowerCase().includes('timeout');
-        
+
         if (!isNetworkError) {
           console.error('Erreur lors du chargement du profil:', error);
         }
@@ -54,12 +73,12 @@ export function useProfile() {
         return;
       }
 
-      // Enrichir le profil avec category_id depuis artisans
-      // La relation artisans_id_fkey est one-to-one, donc artisans est un objet unique
-      const enrichedProfile = data ? {
-        ...data,
-        category_id: (data as any).artisans?.category_id ?? data.category_id ?? null
-      } : null;
+      const enrichedProfile = data
+        ? {
+            ...data,
+            category_id: (data as any).artisans?.category_id ?? data.category_id ?? null,
+          }
+        : null;
 
       setState({ profile: enrichedProfile, loading: false });
     };
@@ -68,6 +87,7 @@ export function useProfile() {
 
     return () => {
       mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [auth.user]);
 

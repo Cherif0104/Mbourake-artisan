@@ -21,6 +21,22 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    // Timeout de secours : en prod/mobile si getSession() bloque (réseau, WebSocket), on débloque l'UI après 8s
+    const FALLBACK_MS = 8000;
+    timeoutId = setTimeout(() => {
+      if (!mounted) return;
+      setState((prev) => {
+        if (prev.loading) {
+          if (import.meta.env.DEV) {
+            console.warn('[useAuth] Timeout getSession après', FALLBACK_MS, 'ms — déblocage de l’affichage');
+          }
+          return { ...prev, loading: false };
+        }
+        return prev;
+      });
+    }, FALLBACK_MS);
 
     supabase.auth
       .getSession()
@@ -37,7 +53,7 @@ export function useAuth() {
         console.warn('Erreur lors du chargement de la session:', error);
         setState({ user: null, session: null, loading: false });
       });
-    
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       // Ne pas logger INITIAL_SESSION ni les SIGNED_IN répétés pour la même session
       const sessionId = session?.user?.id ?? null;
@@ -126,6 +142,7 @@ export function useAuth() {
 
     return () => {
       mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
       sub.subscription.unsubscribe();
     };
   }, []);

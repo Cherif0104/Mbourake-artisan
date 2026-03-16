@@ -93,6 +93,9 @@ export function OnboardPage() {
     setError(null);
     setLoading(true);
     try {
+      // En mode login sans rôle : si le compte n'existe pas, on considère comme inscription client par défaut
+      const effectiveRole = authMode === 'login' ? (role ?? 'client') : role;
+
       // Mémoriser rôle, mode, invite et redirect dans localStorage pour après OAuth
       if (authMode === 'signup' && role) {
         localStorage.setItem('mbourake_pending_role', role);
@@ -104,8 +107,8 @@ export function OnboardPage() {
           } catch (_) { /* ignore */ }
         }
       }
-      if (authMode === 'login' && role) {
-        localStorage.setItem('mbourake_pending_role', role);
+      if (authMode === 'login') {
+        localStorage.setItem('mbourake_pending_role', effectiveRole);
         localStorage.setItem('mbourake_pending_mode', authMode);
         const redirect = searchParams.get('redirect');
         if (redirect && redirect.startsWith('/')) {
@@ -113,8 +116,8 @@ export function OnboardPage() {
         }
       }
 
-      // En login avec role=client : transmettre le rôle pour créer le profil en client si nouvel utilisateur
-      const roleToSend = (authMode === 'signup' || (authMode === 'login' && role === 'client')) ? role || undefined : undefined;
+      // En login : transmettre le rôle (client par défaut) pour créer le profil en client si nouvel utilisateur
+      const roleToSend = (authMode === 'signup' ? role : effectiveRole) ?? undefined;
       await auth.signInWithGoogle(authMode, roleToSend);
       // signInWithGoogle redirige vers /dashboard après OAuth
     } catch (e: any) {

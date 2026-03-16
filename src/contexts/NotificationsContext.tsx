@@ -172,9 +172,12 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
     fetchNotifications();
 
-    const channelName = `notifications_${user.id}`;
-    const channel = supabase
-      .channel(channelName)
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const delayMs = 2500;
+    const t = setTimeout(() => {
+      const channelName = `notifications_${user.id}`;
+      channel = supabase
+        .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -234,12 +237,18 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       )
       .subscribe((status, err) => {
         if (status === 'CHANNEL_ERROR' && err) {
-          console.warn('[Notifications] Realtime channel error, will retry on next mount:', err);
+          console.warn('[Notifications] Realtime channel error:', err);
         }
       });
+    }, delayMs);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearTimeout(t);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch { /* ignore */ }
+      }
     };
   }, [user?.id, fetchNotifications]);
 
