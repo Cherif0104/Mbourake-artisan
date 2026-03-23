@@ -2,7 +2,7 @@
 
 ## Contexte
 
-Le support Supabase a identifié que les uploads Storage (bucket `photos`, etc.) échouent en **500** à cause d’une **récursion infinie** dans les politiques RLS de la table **`staff_users`** :
+Le support Supabase a identifié que les uploads Storage (bucket `photos`, etc.) échouent en **500** à cause d'une **récursion infinie** dans les politiques RLS de la table **`staff_users`** :
 
 - Une politique sur `staff_users` fait référence à `staff_users` dans sa condition → PostgreSQL lève `42P17: infinite recursion detected in policy for relation "staff_users"`.
 - Certaines politiques Storage font référence à `staff_users`. Lors d’un INSERT dans `storage.objects`, ces politiques sont évaluées, ce qui déclenche la politique récursive sur `staff_users` → l’upload échoue.
@@ -12,6 +12,21 @@ Le support Supabase a identifié que les uploads Storage (bucket `photos`, etc.)
 Déplacer la logique de vérification dans une **fonction `SECURITY DEFINER`** qui lit `staff_users` **sans déclencher RLS** (la fonction s’exécute avec les privilèges du propriétaire, ce qui évite la récursion).
 
 Référence : [Supabase RLS – Using SECURITY DEFINER functions](https://supabase.com/docs/guides/auth/row-level-security#using-security-definer-functions) et [discussion GitHub #22336](https://github.com/orgs/supabase/discussions/22336).
+
+---
+
+## Statut
+
+### ✅ Table `staff_users` — corrigée (migration appliquée)
+
+La migration **`fix_staff_users_rls_recursion_42p17`** a été appliquée via le MCP Supabase. Elle :
+
+1. Crée `public.is_staff_user(p_user_id UUID)` — fonction SECURITY DEFINER
+2. Crée `public.is_super_admin_staff(p_user_id UUID)` — fonction SECURITY DEFINER
+3. Supprime la politique récursive `super_admin_staff_via_staff`
+4. Recrée des politiques utilisant ces fonctions au lieu de `SELECT` sur `staff_users`
+
+La récursion 42P17 sur `staff_users` est résolue.
 
 ---
 

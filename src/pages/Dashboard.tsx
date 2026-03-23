@@ -107,16 +107,6 @@ export function Dashboard() {
     }
   }, [profileLoading, profile?.role, location.pathname, navigate]);
 
-  // Nettoyer localStorage après atterrissage sur le dashboard en mode signup
-  // pour éviter qu'une prochaine visite réutilise ces clés de façon incohérente
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    if (searchParams.get('mode') === 'signup' && typeof window !== 'undefined') {
-      localStorage.removeItem('mbourake_pending_role');
-      localStorage.removeItem('mbourake_pending_mode');
-    }
-  }, [location.search]);
-
   // Consommer le lien d'invitation après création du profil (rattachement à l'organisation)
   useEffect(() => {
     if (profileLoading || !profile?.id || typeof window === 'undefined') return;
@@ -166,7 +156,8 @@ export function Dashboard() {
 
     const searchParams = new URLSearchParams(location.search);
     const modeFromUrl = searchParams.get('mode');
-    const roleFromUrl = searchParams.get('role');
+    // Priorité URL, puis localStorage (OAuth peut perdre les params)
+    const roleFromUrl = searchParams.get('role') || (typeof window !== 'undefined' ? localStorage.getItem('mbourake_pending_role') : null);
 
     if (roleFromUrl !== 'client' && roleFromUrl !== 'artisan') {
       return;
@@ -211,18 +202,23 @@ export function Dashboard() {
 
       try {
         await upsertProfile({
-      full_name: fullNameToUse,
-      role: roleFromUrl,
-      phone: profile?.phone ?? null,
-      location: profile?.location ?? null,
-      company_name: profile?.company_name ?? null,
-      region: profile?.region ?? null,
-      department: profile?.department ?? null,
-      commune: profile?.commune ?? null,
-      category_id: profile?.category_id ?? undefined,
+          full_name: fullNameToUse,
+          role: roleFromUrl,
+          phone: profile?.phone ?? null,
+          location: profile?.location ?? null,
+          company_name: profile?.company_name ?? null,
+          region: profile?.region ?? null,
+          department: profile?.department ?? null,
+          commune: profile?.commune ?? null,
+          category_id: profile?.category_id ?? undefined,
           bio: profile?.bio ?? undefined,
           specialty: profile?.specialty ?? undefined,
         });
+        // Nettoyer uniquement après succès (évite perte du rôle artisan si redirect avant init)
+        if (modeFromUrl === 'signup' && typeof window !== 'undefined') {
+          localStorage.removeItem('mbourake_pending_role');
+          localStorage.removeItem('mbourake_pending_mode');
+        }
       } catch (e) {
         console.error('Erreur lors de l\'initialisation/mise à jour du profil:', e);
       } finally {
@@ -524,7 +520,10 @@ export function Dashboard() {
                 de base pour accéder à toutes les fonctionnalités.
               </p>
               <button
-                onClick={() => navigate('/edit-profile?mode=onboarding')}
+                onClick={() => {
+                const r = profile?.role || new URLSearchParams(location.search).get('role') || (typeof window !== 'undefined' ? localStorage.getItem('mbourake_pending_role') : null) || 'client';
+                navigate(`/edit-profile?mode=onboarding&role=${r}`);
+              }}
                 className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 text-white font-black py-3 shadow-cta hover:shadow-cta-hover hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-cta-active transition-all duration-200 text-sm"
               >
                 <User size={18} />
@@ -731,7 +730,10 @@ export function Dashboard() {
             {/* Alertes simplifiées - Design minimaliste */}
             {needsProfileCompletion && (
               <button
-                onClick={() => navigate('/edit-profile?mode=onboarding')}
+                onClick={() => {
+                const r = profile?.role || new URLSearchParams(location.search).get('role') || (typeof window !== 'undefined' ? localStorage.getItem('mbourake_pending_role') : null) || 'client';
+                navigate(`/edit-profile?mode=onboarding&role=${r}`);
+              }}
                 className="w-full bg-white/85 backdrop-blur-xl border border-white/60 rounded-xl p-3 flex items-center gap-3 shadow-glass hover:shadow-glass-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] border-brand-200/80"
               >
                 <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">

@@ -8,7 +8,6 @@ import { useToastContext } from '../contexts/ToastContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { AffiliationSection } from '../components/AffiliationSection';
 import { supabase } from '../lib/supabase';
-import { isCloudinaryConfigured, uploadToCloudinary } from '../lib/cloudinary';
 import { senegalLocationData, senegalRegions } from '../data/senegalLocations';
 
 
@@ -168,14 +167,16 @@ export function EditProfilePage() {
 
       try {
         await upsertProfile({
-      full_name: defaultName,
-      role: targetRole as 'client' | 'artisan', // IMPORTANT : forcer le bon rôle même si le profil existe déjà
+          full_name: defaultName,
+          role: targetRole as 'client' | 'artisan', // IMPORTANT : forcer le bon rôle même si le profil existe déjà
           phone: profile?.phone ?? null,
           location: profile?.location ?? null,
           company_name: profile?.company_name ?? null,
           region: profile?.region ?? null,
           department: profile?.department ?? null,
           commune: profile?.commune ?? null,
+          // CRITIQUE : préserver la catégorie existante pour éviter d'écraser avec null
+          category_id: profile?.category_id ?? undefined,
         });
       } catch (e) {
         console.error('Erreur lors de l\'initialisation/correction du profil dans EditProfilePage:', e);
@@ -250,17 +251,12 @@ export function EditProfilePage() {
     setUploadingPhoto(true);
 
     try {
-      let publicUrl: string;
-      if (isCloudinaryConfigured()) {
-        publicUrl = await uploadToCloudinary(file, `mbourake/avatars/${user.id}`);
-      } else {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/avatar/${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('photos').upload(fileName, file);
-        if (uploadError) throw uploadError;
-        const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
-        publicUrl = data.publicUrl;
-      }
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/avatar/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('photos').upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
+      const publicUrl = data.publicUrl;
       if (publicUrl) {
         setAvatarUrl(publicUrl);
         await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
@@ -301,10 +297,12 @@ export function EditProfilePage() {
           : null;
 
       // Règle de sécurité anti-régression :
+      // - CRITIQUE : un artisan ne doit JAMAIS être repassé en client.
       // - En onboarding explicite : respecter le rôle choisi.
       // - Hors onboarding : conserver le rôle persistant en base si présent.
-      // - Ne jamais "downgrader" un artisan existant vers client par défaut.
-      if (onboardingRole) {
+      if (profile?.role === 'artisan') {
+        finalRole = 'artisan'; // Jamais downgrader artisan → client
+      } else if (onboardingRole) {
         finalRole = onboardingRole;
       } else if (persistedRole) {
         finalRole = persistedRole;

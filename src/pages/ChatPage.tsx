@@ -10,7 +10,6 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useCall } from '../hooks/useCall';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { supabase } from '../lib/supabase';
-import { isCloudinaryConfigured, uploadToCloudinary } from '../lib/cloudinary';
 import { notifyNewMessage } from '../lib/notificationService';
 
 interface ProjectInfo {
@@ -299,17 +298,12 @@ export function ChatPage() {
 
     setSending(true);
     try {
-      let mediaUrl: string;
-      if (!isVideo && isCloudinaryConfigured()) {
-        mediaUrl = await uploadToCloudinary(file, `mbourake/messages/${auth.user.id}`);
-      } else {
-        const fileName = `${auth.user.id}/${Date.now()}-${file.name}`;
-        const bucket = isVideo ? 'videos' : 'photos';
-        const path = isVideo ? fileName : `messages/${fileName}`;
-        const { data, error } = await supabase.storage.from(bucket).upload(path, file, isVideo ? { contentType: file.type || 'video/mp4' } : {});
-        if (error) throw error;
-        mediaUrl = supabase.storage.from(bucket).getPublicUrl(data.path).data.publicUrl;
-      }
+      const fileName = `${auth.user.id}/${Date.now()}-${file.name}`;
+      const bucket = isVideo ? 'videos' : 'photos';
+      const path = isVideo ? fileName : `messages/${fileName}`;
+      const { data, error } = await supabase.storage.from(bucket).upload(path, file, isVideo ? { contentType: file.type || 'video/mp4' } : {});
+      if (error) throw error;
+      const mediaUrl = supabase.storage.from(bucket).getPublicUrl(data.path).data.publicUrl;
 
       await sendMessage({
         project_id: projectId,

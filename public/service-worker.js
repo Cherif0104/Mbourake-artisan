@@ -66,11 +66,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Ne pas intercepter Cloudinary (évite CSP / failed to fetch sur mobile PWA)
-  if (url.hostname.includes('cloudinary.com')) {
-    return;
-  }
-
   // Cache First pour les assets statiques
   if (request.destination === 'image' || request.destination === 'style' || request.destination === 'script') {
     event.respondWith(

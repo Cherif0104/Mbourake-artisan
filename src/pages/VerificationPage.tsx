@@ -7,7 +7,6 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
-import { isCloudinaryConfigured, uploadToCloudinary } from '../lib/cloudinary';
 
 type Step = 'intro' | 'selfie' | 'id' | 'business' | 'review';
 
@@ -29,13 +28,9 @@ export function VerificationPage() {
   const [registreUrl, setRegistreUrl] = useState<string | null>(null);
   const [registreNumber, setRegistreNumber] = useState('');
 
-  // Upload file handler (images → Cloudinary si configuré, sinon Supabase)
+  // Upload file handler (Supabase Storage)
   const uploadFile = async (file: File, folder: string): Promise<string | null> => {
     try {
-      const isImage = file.type.startsWith('image/');
-      if (isImage && isCloudinaryConfigured()) {
-        return await uploadToCloudinary(file, `mbourake/verification/${user?.id}/${folder}`);
-      }
       const fileExt = file.name.split('.').pop();
       const fileName = `${user?.id}/${folder}/${Date.now()}.${fileExt}`;
       const { error } = await supabase.storage.from('photos').upload(fileName, file);

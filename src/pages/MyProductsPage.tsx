@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, AlertTriangle, Image as ImageIcon, Trash2, Edit3, Percent, Package, ImagePlus, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { isCloudinaryConfigured, uploadToCloudinary } from '../lib/cloudinary';
 import type { Database } from '@shared';
 import { useProfile } from '../hooks/useProfile';
 import { useGlobalLoading } from '../contexts/LoadingContext';
@@ -214,32 +213,20 @@ export function MyProductsPage() {
     setUploadingImages(true);
     try {
       const uploaded: string[] = [];
-      const useCloudinary = isCloudinaryConfigured();
-
       for (const file of selected) {
-        let url: string;
-        if (useCloudinary) {
-          url = await uploadToCloudinary(file, `mbourake/products/${profile.id}`);
-        } else {
-          const safeName = sanitizeStorageFileName(file.name);
-          const fileName = `${profile.id}/products/${Date.now()}-${safeName}`;
-          const arrayBuffer = await file.arrayBuffer();
-          const { data, error } = await supabase.storage
-            .from('photos')
-            .upload(fileName, arrayBuffer, { contentType: file.type || 'image/jpeg' });
-          if (error) throw error;
-          url = supabase.storage.from('photos').getPublicUrl(data.path).data.publicUrl;
-        }
-        uploaded.push(url);
+        const safeName = sanitizeStorageFileName(file.name);
+        const fileName = `${profile.id}/products/${Date.now()}-${safeName}`;
+        const arrayBuffer = await file.arrayBuffer();
+        const { data, error } = await supabase.storage
+          .from('photos')
+          .upload(fileName, arrayBuffer, { contentType: file.type || 'image/jpeg' });
+        if (error) throw error;
+        uploaded.push(supabase.storage.from('photos').getPublicUrl(data.path).data.publicUrl);
       }
       setImageUrls((prev) => [...prev, ...uploaded].slice(0, 10));
       success(`${uploaded.length} image(s) ajoutée(s).`);
     } catch (e: any) {
-      const msg = e?.message ?? "Impossible d'uploader les images.";
-      const hint = !isCloudinaryConfigured() && (msg.includes('500') || (e?.statusCode === 500))
-        ? ' (Configurez Cloudinary ou attendez la correction Supabase)'
-        : '';
-      showError(msg + hint);
+      showError(e?.message ?? "Impossible d'uploader les images.");
     } finally {
       setUploadingImages(false);
     }

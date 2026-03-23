@@ -132,10 +132,13 @@ export function useProfile() {
         (currentUser.user_metadata?.picture as string | undefined) ||
         null;
 
-      // Ne jamais rétrograder un admin : si le profil existant a role = 'admin', conserver admin
+      // Ne jamais rétrograder admin ni artisan vers client
       let roleToWrite = input.role;
       const { data: existing } = await supabase.from('profiles').select('role').eq('id', currentUser.id).maybeSingle();
-      if ((existing as { role?: string } | null)?.role === 'admin') roleToWrite = 'admin';
+      const existingRole = (existing as { role?: string } | null)?.role;
+      if (existingRole === 'admin') roleToWrite = 'admin';
+      // CRITIQUE : un artisan ne doit jamais être repassé en client (bug signalé)
+      else if (existingRole === 'artisan' && input.role === 'client') roleToWrite = 'artisan';
 
       // Update or create Profile
       const { error: profileError } = await supabase.from('profiles').upsert({
@@ -158,10 +161,23 @@ export function useProfile() {
 
       // If Artisan, update/create Artisan record
       if (roleToWrite === 'artisan') {
+        // Ne jamais écraser category_id avec null si non fourni (évite perte métier)
+        let categoryIdToWrite = input.category_id ?? null;
+        if (categoryIdToWrite === null && input.category_id === undefined) {
+          const { data: existingArtisan } = await supabase
+            .from('artisans')
+            .select('category_id')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+          if (existingArtisan?.category_id != null) {
+            categoryIdToWrite = existingArtisan.category_id;
+          }
+        }
+
         const { error: artisanError } = await supabase.from('artisans').upsert({
           id: currentUser.id,
           user_id: currentUser.id,
-          category_id: input.category_id ?? null,
+          category_id: categoryIdToWrite,
           bio: input.bio ?? null,
           specialty: input.specialty ?? null,
           updated_at: new Date().toISOString(),
