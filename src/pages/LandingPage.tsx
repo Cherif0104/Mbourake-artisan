@@ -80,8 +80,9 @@ export function LandingPage() {
   }, [searchParams, setSearchParams, showSuccess]);
 
   const fromRecherche = searchParams.get('recherche') === '1';
-  const willRedirectToDashboard = !!auth.user && !fromRecherche;
-  const showLoading = (auth.loading || profileLoading || willRedirectToDashboard) && !loadingTimeout;
+  // Ne pas garder l’overlay juste parce qu’on va rediriger : sur mobile ça donne un spinner
+  // bloqué si le profil peine à répondre. On n’affiche l’overlay que pendant auth / profil réels.
+  const showLoading = (auth.loading || profileLoading) && !loadingTimeout;
   useGlobalLoading(showLoading, 'landing');
 
   const isLoggedIn = !auth.loading && !profileLoading && !!auth.user && !!profile;

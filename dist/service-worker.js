@@ -1,7 +1,7 @@
 // Bumper la version à chaque déploiement pour forcer la mise à jour des clients (skipWaiting + controllerchange → reload)
-const CACHE_NAME = 'mbourake-v2.6.4';
-const STATIC_CACHE_NAME = 'mbourake-static-v2.6.4';
-const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.6.4';
+const CACHE_NAME = 'mbourake-v2.6.5';
+const STATIC_CACHE_NAME = 'mbourake-static-v2.6.5';
+const DYNAMIC_CACHE_NAME = 'mbourake-dynamic-v2.6.5';
 
 // Assets à mettre en cache immédiatement
 const STATIC_ASSETS = [
@@ -56,7 +56,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Ne jamais mettre en cache les schémas non supportés (chrome-extension, etc.)
+  // Ne jamais mettre en cache les schémas non supportés (chrome-extension://, etc.)
   if (!canCache(request)) {
     return;
   }
@@ -66,18 +66,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Ne pas intercepter Cloudinary (évite CSP / failed to fetch sur mobile PWA)
-  if (url.hostname.includes('cloudinary.com')) {
+  // Images : cache first (OK). JS/CSS (bundles Vite avec hash) : network first — évite après déploiement
+  // un index qui pointe vers de nouveaux chunks alors que le cache sert d’anciens scripts → écran bloqué sur mobile.
+  if (request.destination === 'script' || request.destination === 'style') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.status === 200 && canCache(request)) {
+            const responseToCache = response.clone();
+            caches.open(DYNAMIC_CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache).catch(() => {});
+            });
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || new Response('', { status: 503, statusText: 'Offline' })))
+    );
     return;
   }
 
-  // Cache First pour les assets statiques
-  if (request.destination === 'image' || request.destination === 'style' || request.destination === 'script') {
+  if (request.destination === 'image') {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
+        if (cachedResponse) return cachedResponse;
         return fetch(request).then((response) => {
           if (response.status === 200 && canCache(request)) {
             const responseToCache = response.clone();
@@ -120,7 +131,7 @@ self.addEventListener('fetch', (event) => {
         .catch(() => {
           return caches.match(request).then((cachedResponse) => {
             if (cachedResponse) return cachedResponse;
-            return caches.match('/index.html');
+            return caches.match('/index.html').then((fallback) => fallback || fetch('/index.html').catch(() => new Response('', { status: 503, statusText: 'Unavailable' })));
           });
         })
     );
@@ -140,7 +151,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        return caches.match(request);
+        return caches.match(request).then((cached) => cached || caches.match('/index.html').then((c) => c || new Response('', { status: 503, statusText: 'Unavailable' })));
       })
   );
 });
