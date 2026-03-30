@@ -188,7 +188,7 @@ export function useProfile() {
         // Vérifier d'abord si un wallet existe déjà
         const { data: existingWallet } = await supabase
           .from('artisan_credit_wallets')
-          .select('id, balance')
+          .select('balance')
           .eq('artisan_id', currentUser.id)
           .maybeSingle();
 

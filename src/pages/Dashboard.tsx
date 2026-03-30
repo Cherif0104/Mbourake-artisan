@@ -163,6 +163,23 @@ export function Dashboard() {
       return;
     }
 
+    // Rétrogradation artisan → client refusée dans upsertProfile : si l'URL / le stockage
+    // indiquent encore « client », cet effet rebouclait indéfiniment (overlay + spam wallet).
+    if (profile && roleFromUrl === 'client' && profile.role === 'artisan') {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('mbourake_pending_role');
+        localStorage.removeItem('mbourake_pending_mode');
+      }
+      const sp = new URLSearchParams(location.search);
+      if (sp.has('role') || sp.has('mode')) {
+        sp.delete('role');
+        sp.delete('mode');
+        const next = sp.toString();
+        navigate({ pathname: location.pathname, search: next ? `?${next}` : '', hash: location.hash }, { replace: true });
+      }
+      return;
+    }
+
     const defaultName =
       profile?.full_name ||
       (auth.user.user_metadata?.full_name as string | undefined) ||
