@@ -39,6 +39,9 @@ function formatRelativeTime(dateString: string): string {
 
 function getNotificationTarget(notification: Notification): string {
   const { type, data } = notification;
+  if (type === 'system' && data?.kind === 'marketplace_order' && data?.order_id) {
+    return `/orders/${data.order_id}`;
+  }
   if (type === 'new_order' && data?.order_id) return `/orders/${data.order_id}`;
   if (type === 'new_order') return '/commandes?tab=recues';
   if (type === 'new_message' && data?.project_id) return `/chat/${data.project_id}`;

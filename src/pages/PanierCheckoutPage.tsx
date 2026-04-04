@@ -14,6 +14,14 @@ import {
   CART_UPDATED_EVENT,
 } from '../lib/cart';
 import { notifyArtisanNewOrder } from '../lib/notificationService';
+import {
+  MarketplaceShippingFields,
+  emptyMarketplaceShipping,
+  shippingFormToJson,
+  validateMarketplaceShipping,
+  type MarketplaceShippingForm,
+} from '../components/MarketplaceShippingFields';
+import { persistBuyerPhone } from '../lib/marketplaceCheckout';
 
 export function PanierCheckoutPage() {
   const navigate = useNavigate();
@@ -23,6 +31,7 @@ export function PanierCheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [cartItems, setCartItems] = useState(getCart());
+  const [shipping, setShipping] = useState<MarketplaceShippingForm>(() => emptyMarketplaceShipping());
 
   useEffect(() => {
     const refresh = () => setCartItems(getCart());
@@ -39,6 +48,11 @@ export function PanierCheckoutPage() {
     setLoading(false);
   }, [cartItems.length]);
 
+  useEffect(() => {
+    if (!profile?.phone) return;
+    setShipping((s) => (s.phone ? s : { ...s, phone: profile.phone ?? '' }));
+  }, [profile?.phone]);
+
   const total = getCartTotal(cartItems);
   const buyerName =
     profile?.full_name ||
@@ -52,16 +66,22 @@ export function PanierCheckoutPage() {
       showError('Votre panier est vide.');
       return;
     }
+    const v = validateMarketplaceShipping(shipping);
+    if (v) {
+      showError(v);
+      return;
+    }
     setSaving(true);
     try {
       const items = cartItems.map((i) => ({
         product_id: i.productId,
         quantity: i.quantity,
       }));
+      const addr = shippingFormToJson(shipping);
 
       const { data: orderIds, error } = await supabase.rpc(
         'create_marketplace_orders_from_cart',
-        { p_items: items }
+        { p_items: items, p_shipping_address: addr }
       );
 
       if (error) throw error;
@@ -69,6 +89,10 @@ export function PanierCheckoutPage() {
       const ids = (orderIds as string[]) || [];
       if (ids.length === 0) {
         throw new Error('Aucune commande créée.');
+      }
+
+      if (user?.id) {
+        await persistBuyerPhone(user.id, shipping.phone, profile?.phone).catch(() => {});
       }
 
       // Notifier chaque artisan (seller_id = artisan)
@@ -208,6 +232,16 @@ export function PanierCheckoutPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Livraison</h3>
+            <MarketplaceShippingFields
+              value={shipping}
+              onChange={setShipping}
+              disabled={saving}
+              initialPhoneHint={profile?.phone}
+            />
+          </div>
+
           <div className="flex items-center justify-between text-lg font-bold text-gray-900 pt-2">
             <span>Total</span>
             <span>{total.toLocaleString('fr-FR')} FCFA</span>

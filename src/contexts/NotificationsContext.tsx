@@ -2,6 +2,28 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
+/** data peut être jsonb objet ou chaîne JSON selon le client — normaliser pour éviter plantages. */
+function parseNotificationData(raw: unknown): Record<string, unknown> {
+  if (raw == null) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  if (typeof raw === 'string') {
+    try {
+      const p = JSON.parse(raw);
+      return typeof p === 'object' && p !== null && !Array.isArray(p) ? (p as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function normalizeNotificationRow(row: Record<string, unknown>): Notification {
+  return {
+    ...row,
+    data: parseNotificationData(row.data),
+  } as Notification;
+}
+
 /** Joue un son de notification : .mp3 si dispo, sinon beep Web Audio. */
 function playNotificationSound() {
   try {
@@ -104,8 +126,11 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
-      setNotifications(data || []);
-      setUnreadCount(data?.filter(n => !n.is_read).length || 0);
+      const rows = (data || []).map((r) =>
+        normalizeNotificationRow(r as Record<string, unknown>)
+      );
+      setNotifications(rows);
+      setUnreadCount(rows.filter((n) => !n.is_read).length || 0);
     } catch (err) {
       console.error('Error fetching notifications:', err);
     } finally {
@@ -173,7 +198,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     fetchNotifications();
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    const delayMs = 2500;
+    const delayMs = 400;
     const t = setTimeout(() => {
       const channelName = `notifications_${user.id}`;
       channel = supabase
@@ -187,7 +212,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const newNotification = payload.new as Notification;
+          const newNotification = normalizeNotificationRow(payload.new as Record<string, unknown>);
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
           playNotificationSound();
@@ -225,7 +250,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const updated = payload.new as Notification;
+          const updated = normalizeNotificationRow(payload.new as Record<string, unknown>);
           const oldRow = payload.old as { is_read?: boolean } | undefined;
           setNotifications(prev => prev.map(n => (n.id === updated.id ? { ...n, ...updated } : n)));
           if (updated.is_read && !oldRow?.is_read) {

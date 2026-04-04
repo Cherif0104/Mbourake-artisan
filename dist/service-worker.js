@@ -56,7 +56,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Ne jamais mettre en cache les schémas non supportés (chrome-extension://, etc.)
+  // Ne jamais mettre en cache les schémas non supportés (chrome-extension, etc.)
   if (!canCache(request)) {
     return;
   }

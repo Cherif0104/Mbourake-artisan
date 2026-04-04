@@ -9,6 +9,14 @@ import { useToastContext } from '../contexts/ToastContext';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { notifyArtisanNewOrder } from '../lib/notificationService';
+import {
+  MarketplaceShippingFields,
+  emptyMarketplaceShipping,
+  shippingFormToJson,
+  validateMarketplaceShipping,
+  type MarketplaceShippingForm,
+} from '../components/MarketplaceShippingFields';
+import { persistBuyerPhone } from '../lib/marketplaceCheckout';
 
 type ProductRow = Database['public']['Tables']['products']['Row'];
 
@@ -23,6 +31,7 @@ export function MarketplaceCheckoutPage() {
   const [product, setProduct] = useState<ProductRow | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [notFound, setNotFound] = useState(false);
+  const [shipping, setShipping] = useState<MarketplaceShippingForm>(() => emptyMarketplaceShipping());
 
   const maxQty =
     product?.stock != null
@@ -62,6 +71,11 @@ export function MarketplaceCheckoutPage() {
     fetchProduct();
   }, [productId]);
 
+  useEffect(() => {
+    if (!profile?.phone) return;
+    setShipping((s) => (s.phone ? s : { ...s, phone: profile.phone ?? '' }));
+  }, [profile?.phone]);
+
   const unitPrice =
     product && product.promo_percent != null && product.promo_percent > 0
       ? Number(product.price) * (1 - product.promo_percent / 100)
@@ -73,16 +87,25 @@ export function MarketplaceCheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productId || !product || quantity < 1 || quantity > maxQty) return;
+    const verr = validateMarketplaceShipping(shipping);
+    if (verr) {
+      showError(verr);
+      return;
+    }
     setSaving(true);
     try {
+      const addr = shippingFormToJson(shipping);
       const { data, error } = await supabase.rpc('create_marketplace_order', {
         p_product_id: productId,
         p_quantity: quantity,
-        p_shipping_address: null,
+        p_shipping_address: addr,
       });
 
       if (error) throw error;
       const orderId = data as string;
+      if (user?.id) {
+        await persistBuyerPhone(user.id, shipping.phone, profile?.phone).catch(() => {});
+      }
       const artisanId = product.artisan_id;
       const buyerName = profile?.full_name || user?.user_metadata?.full_name || user?.email || 'Un client';
       if (artisanId) {
@@ -162,6 +185,16 @@ export function MarketplaceCheckoutPage() {
               value={quantity}
               onChange={(e) => setQuantity(Math.max(1, Math.min(maxQty, parseInt(e.target.value, 10) || 1)))}
               className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Livraison</h3>
+            <MarketplaceShippingFields
+              value={shipping}
+              onChange={setShipping}
+              disabled={saving}
+              initialPhoneHint={profile?.phone}
             />
           </div>
 

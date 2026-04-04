@@ -256,10 +256,25 @@ export function LandingPage() {
     navigate(qs ? `/marketplace?${qs}` : '/marketplace');
   };
 
-  // Redirection pour utilisateurs authentifiés : toujours vers le dashboard
-  // (dès que la session est connue, pour éviter tout flash edit-profile ou contenu landing)
+  // Connecté sur / : restaurer la dernière route (sessionStorage) si dispo, sinon dashboard.
+  // Évite la course avec LastRoutePersistence où la redirection dashboard écrasait la restauration.
   useEffect(() => {
     if (auth.loading || !auth.user || fromRecherche) return;
+    try {
+      const saved = sessionStorage.getItem('mbourake_last_route');
+      if (
+        saved &&
+        saved !== '/' &&
+        !saved.startsWith('/onboard') &&
+        !saved.startsWith('/download/') &&
+        !saved.startsWith('/invite/')
+      ) {
+        navigate(saved, { replace: true });
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
     navigate('/dashboard', { replace: true });
   }, [auth.loading, auth.user, fromRecherche, navigate]);
 

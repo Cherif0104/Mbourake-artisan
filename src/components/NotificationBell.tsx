@@ -139,7 +139,9 @@ export function NotificationBell() {
         break;
       case 'system':
       case 'dispute_raised':
-        if (data?.kind === 'rating_received' || data?.rating != null) {
+        if (data?.kind === 'marketplace_order' && data?.order_id) {
+          navigate(`/orders/${data.order_id}`);
+        } else if (data?.kind === 'rating_received' || data?.rating != null) {
           navigate('/avis-recus');
         } else if (data?.project_id) {
           if (data?.kind === 'quote_revision_requested' && data?.revision_id) {

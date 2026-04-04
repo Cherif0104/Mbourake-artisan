@@ -954,6 +954,30 @@ export type Database = {
         }
         Returns: string
       }
+      create_marketplace_orders_from_cart: {
+        Args: {
+          p_items: Json
+          p_shipping_address?: Json | null
+        }
+        Returns: string[]
+      }
+      buyer_confirm_marketplace_delivery: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
+      seller_advance_marketplace_order: {
+        Args: { p_order_id: string; p_new_status: string }
+        Returns: undefined
+      }
+      notify_artisan_new_order: {
+        Args: {
+          p_artisan_id: string
+          p_order_id: string
+          p_product_title: string
+          p_buyer_name: string
+        }
+        Returns: undefined
+      }
       freeze_order_escrow: {
         Args: { p_order_id: string }
         Returns: undefined
@@ -994,6 +1018,7 @@ export type Database = {
         | "quote_revision_requested"
         | "quote_revision_responded"
         | "system"
+        | "new_order"
       project_status:
         | "draft"
         | "open"

@@ -6,14 +6,14 @@ import {
   Phone,
   User,
   MapPin,
-  ChevronRight,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Database } from '@shared';
+import type { Database, Json } from '@shared';
 import { useProfile } from '../hooks/useProfile';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
 import { useToastContext } from '../contexts/ToastContext';
+import { useNotificationsContext } from '../contexts/NotificationsContext';
 
 type OrderRow = Database['public']['Tables']['orders']['Row'];
 type OrderItemRow = Database['public']['Tables']['order_items']['Row'];
@@ -39,19 +39,50 @@ const STATUS_SUBTITLE: Record<string, string> = {
   cancelled: 'Commande annulée',
 };
 
-const NEXT_STATUS: Record<string, string | null> = {
+/** Vendeur : jusqu'à expédié ; la livraison finale est confirmée par l'acheteur. */
+const SELLER_NEXT_STATUS: Record<string, string | null> = {
   pending: 'confirmed',
   confirmed: 'shipped',
-  shipped: 'delivered',
+  shipped: null,
   delivered: null,
   cancelled: null,
 };
+
+function parseShippingAddress(raw: Json | null): {
+  phone?: string;
+  region?: string;
+  department?: string;
+  commune?: string;
+  complement?: string;
+} | null {
+  if (raw == null || raw === '') return null;
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+  const o = parsed as Record<string, unknown>;
+  const str = (k: string) => (typeof o[k] === 'string' ? (o[k] as string) : undefined);
+  if (!str('phone') && !str('region') && !str('complement')) return null;
+  return {
+    phone: str('phone'),
+    region: str('region'),
+    department: str('department'),
+    commune: str('commune'),
+    complement: str('complement'),
+  };
+}
 
 export function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const { profile } = useProfile();
   const { success, error: showError } = useToastContext();
+  const { refresh: refreshNotifications } = useNotificationsContext();
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<OrderWithDetails | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -60,7 +91,7 @@ export function OrderDetailPage() {
   const isBuyer = order && profile && order.buyer_id === profile.id;
   const isSeller = order && profile && order.seller_id === profile.id;
   const canUpdateStatus = isSeller;
-  const nextStatus = order ? NEXT_STATUS[order.status] : null;
+  const sellerNextStatus = order ? SELLER_NEXT_STATUS[order.status] : null;
 
   useEffect(() => {
     if (!orderId) {
@@ -117,19 +148,36 @@ export function OrderDetailPage() {
     fetchOrder();
   }, [orderId]);
 
-  const handleUpdateStatus = async (newStatus: string) => {
+  const handleSellerAdvance = async (newStatus: string) => {
     if (!orderId || !canUpdateStatus) return;
     setUpdating(true);
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', orderId)
-        .eq('seller_id', profile?.id ?? '');
-
+      const { error } = await supabase.rpc('seller_advance_marketplace_order', {
+        p_order_id: orderId,
+        p_new_status: newStatus,
+      });
       if (error) throw error;
       setOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
       success('Statut mis à jour.');
+      refreshNotifications().catch(() => {});
+    } catch (e: any) {
+      showError(e?.message ?? 'Erreur');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleBuyerConfirmDelivery = async () => {
+    if (!orderId || !isBuyer || order?.status !== 'shipped') return;
+    setUpdating(true);
+    try {
+      const { error } = await supabase.rpc('buyer_confirm_marketplace_delivery', {
+        p_order_id: orderId,
+      });
+      if (error) throw error;
+      setOrder((prev) => (prev ? { ...prev, status: 'delivered' } : null));
+      success('Merci ! La commande est marquée comme livrée.');
+      refreshNotifications().catch(() => {});
     } catch (e: any) {
       showError(e?.message ?? 'Erreur');
     } finally {
@@ -189,6 +237,7 @@ export function OrderDetailPage() {
   const statusLabel = STATUS_LABELS[order.status] ?? order.status;
   const statusSubtitle = STATUS_SUBTITLE[order.status];
   const otherParty = isBuyer ? order.seller : order.buyer;
+  const shippingParsed = parseShippingAddress(order.shipping_address);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -277,6 +326,48 @@ export function OrderDetailPage() {
           </ul>
         </div>
 
+        {shippingParsed && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+            <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <MapPin size={16} className="text-brand-600" />
+              Adresse de livraison
+            </h2>
+            <ul className="text-sm text-gray-700 space-y-1.5">
+              {shippingParsed.region && (
+                <li>
+                  <span className="text-gray-500">Région : </span>
+                  {shippingParsed.region}
+                </li>
+              )}
+              {shippingParsed.department && (
+                <li>
+                  <span className="text-gray-500">Département : </span>
+                  {shippingParsed.department}
+                </li>
+              )}
+              {shippingParsed.commune && (
+                <li>
+                  <span className="text-gray-500">Commune : </span>
+                  {shippingParsed.commune}
+                </li>
+              )}
+              {shippingParsed.complement && (
+                <li className="pt-1 border-t border-gray-100">
+                  {shippingParsed.complement}
+                </li>
+              )}
+              {shippingParsed.phone && (
+                <li className="flex items-center gap-2 pt-1">
+                  <Phone size={14} className="text-brand-600 shrink-0" />
+                  <a href={`tel:${shippingParsed.phone}`} className="text-brand-600 font-semibold">
+                    {shippingParsed.phone}
+                  </a>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+
         {otherParty && (
           <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
             <h2 className="text-sm font-bold text-gray-900 mb-3">
@@ -300,43 +391,68 @@ export function OrderDetailPage() {
                 <p className="font-semibold text-gray-900">
                   {otherParty.full_name ?? '—'}
                 </p>
-                {'phone' in otherParty && otherParty.phone && (
-                  <a
-                    href={`tel:${otherParty.phone}`}
-                    className="flex items-center gap-1.5 text-sm text-brand-600 mt-1"
-                  >
-                    <Phone size={14} />
-                    {otherParty.phone}
-                  </a>
-                )}
+                {(() => {
+                  const tel =
+                    isSeller && order.buyer
+                      ? order.buyer.phone || shippingParsed?.phone
+                      : 'phone' in otherParty
+                        ? otherParty.phone
+                        : undefined;
+                  return tel ? (
+                    <a
+                      href={`tel:${tel}`}
+                      className="flex items-center gap-1.5 text-sm text-brand-600 mt-1"
+                    >
+                      <Phone size={14} />
+                      {tel}
+                    </a>
+                  ) : null;
+                })()}
               </div>
-              {'phone' in otherParty && otherParty.phone && (
-                <a
-                  href={`tel:${otherParty.phone}`}
-                  className="p-2 rounded-xl bg-brand-500 text-white"
-                  aria-label="Appeler"
-                >
-                  <Phone size={18} />
-                </a>
-              )}
+              {(() => {
+                const tel =
+                  isSeller && order.buyer
+                    ? order.buyer.phone || shippingParsed?.phone
+                    : 'phone' in otherParty
+                      ? otherParty.phone
+                      : undefined;
+                return tel ? (
+                  <a
+                    href={`tel:${tel}`}
+                    className="p-2 rounded-xl bg-brand-500 text-white"
+                    aria-label="Appeler"
+                  >
+                    <Phone size={18} />
+                  </a>
+                ) : null;
+              })()}
             </div>
           </div>
         )}
 
-        {canUpdateStatus && nextStatus && (
+        {canUpdateStatus && sellerNextStatus && (
           <button
             type="button"
             disabled={updating}
-            onClick={() => handleUpdateStatus(nextStatus)}
+            onClick={() => handleSellerAdvance(sellerNextStatus)}
             className="w-full py-3.5 rounded-xl bg-brand-500 text-white font-bold text-sm disabled:opacity-60"
           >
             {updating
               ? 'Mise à jour...'
-              : nextStatus === 'confirmed'
+              : sellerNextStatus === 'confirmed'
                 ? 'Confirmer la commande'
-                : nextStatus === 'shipped'
-                  ? 'Marquer expédiée'
-                  : 'Marquer livrée'}
+                : 'Marquer expédiée'}
+          </button>
+        )}
+
+        {isBuyer && order.status === 'shipped' && (
+          <button
+            type="button"
+            disabled={updating}
+            onClick={handleBuyerConfirmDelivery}
+            className="w-full py-3.5 rounded-xl bg-green-600 text-white font-bold text-sm disabled:opacity-60"
+          >
+            {updating ? 'Enregistrement...' : 'J’ai reçu ma commande'}
           </button>
         )}
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ShoppingBag, Package, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Database } from '@shared';
+import type { Database, Json } from '@shared';
 import { useProfile } from '../hooks/useProfile';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { HomeButton } from '../components/HomeButton';
@@ -29,13 +29,19 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Annulée',
 };
 
-const NEXT_STATUS: Record<string, string | null> = {
+/** Vendeur : uniquement jusqu'à expédié ; la livraison est confirmée par l'acheteur sur le détail. */
+const SELLER_NEXT_STATUS: Record<string, string | null> = {
   pending: 'confirmed',
   confirmed: 'shipped',
-  shipped: 'delivered',
+  shipped: null,
   delivered: null,
   cancelled: null,
 };
+
+function oneEmbed<T extends { id?: string }>(p: T | T[] | null | undefined): T | null {
+  if (p == null) return null;
+  return Array.isArray(p) ? p[0] ?? null : p;
+}
 
 type TabId = 'achats' | 'recues';
 
@@ -87,11 +93,15 @@ export function CommandesPage() {
           return;
         }
 
-        const list = (data as (OrderRow & { profiles?: { id: string; full_name: string | null; avatar_url: string | null } | null })[]) ?? [];
+        const list = (data as (OrderRow & { profiles?: unknown })[]) ?? [];
         const withItems: OrderAsBuyer[] = await Promise.all(
           list.map(async (o) => {
             const { data: items } = await supabase.from('order_items').select('*, products(title, images)').eq('order_id', o.id);
-            return { ...o, order_items: items as OrderAsBuyer['order_items'], seller: o.profiles ?? null };
+            return {
+              ...o,
+              order_items: items as OrderAsBuyer['order_items'],
+              seller: oneEmbed(o.profiles as { id: string; full_name: string | null; avatar_url: string | null } | null),
+            };
           })
         );
         setOrdersAchats(withItems);
@@ -128,11 +138,15 @@ export function CommandesPage() {
           return;
         }
 
-        const list = (data as (OrderRow & { profiles?: { id: string; full_name: string | null; phone: string | null } | null })[]) ?? [];
+        const list = (data as (OrderRow & { profiles?: unknown })[]) ?? [];
         const withItems: OrderAsSeller[] = await Promise.all(
           list.map(async (o) => {
             const { data: items } = await supabase.from('order_items').select('*, products(title)').eq('order_id', o.id);
-            return { ...o, order_items: items as OrderAsSeller['order_items'], buyer: o.profiles ?? null };
+            return {
+              ...o,
+              order_items: items as OrderAsSeller['order_items'],
+              buyer: oneEmbed(o.profiles as { id: string; full_name: string | null; phone: string | null } | null),
+            };
           })
         );
         setOrdersRecues(withItems);
@@ -147,14 +161,13 @@ export function CommandesPage() {
     fetchRecues();
   }, [profile?.id, isArtisan]);
 
-  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+  const handleSellerAdvance = async (orderId: string, newStatus: string) => {
     setUpdatingId(orderId);
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', orderId)
-        .eq('seller_id', profile?.id ?? '');
+      const { error } = await supabase.rpc('seller_advance_marketplace_order', {
+        p_order_id: orderId,
+        p_new_status: newStatus,
+      });
       if (error) throw error;
       setOrdersRecues((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
       success('Statut mis à jour.');
@@ -293,7 +306,7 @@ export function CommandesPage() {
                   const primaryItem = order.order_items?.[0];
                   const title = primaryItem?.products?.title ?? 'Commande';
                   const statusLabel = STATUS_LABELS[order.status] ?? order.status;
-                  const nextStatus = NEXT_STATUS[order.status];
+                  const nextStatus = SELLER_NEXT_STATUS[order.status];
                   return (
                     <li key={order.id}>
                       <div
@@ -336,7 +349,7 @@ export function CommandesPage() {
                             disabled={updatingId === order.id}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleUpdateStatus(order.id, nextStatus);
+                              handleSellerAdvance(order.id, nextStatus);
                             }}
                             className="mt-3 w-full rounded-xl bg-brand-500 text-white text-sm font-bold py-2.5 disabled:opacity-60"
                           >
@@ -344,11 +357,12 @@ export function CommandesPage() {
                               ? 'Mise à jour...'
                               : nextStatus === 'confirmed'
                                 ? 'Confirmer la commande'
-                                : nextStatus === 'shipped'
-                                  ? 'Marquer expédiée'
-                                  : 'Marquer livrée'}
+                                : 'Marquer expédiée'}
                           </button>
                         )}
+                        <p className="text-[11px] text-gray-500 mt-2">
+                          Ouvrez la commande pour l’adresse, le détail et la livraison.
+                        </p>
                       </div>
                     </li>
                   );
