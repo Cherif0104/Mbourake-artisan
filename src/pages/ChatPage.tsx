@@ -302,8 +302,7 @@ export function ChatPage() {
 
     setSending(true);
     try {
-      const fileName = `${auth.user.id}/${Date.now()}-${file.name}`;
-      const path = `messages/${fileName}`;
+      const path = `${auth.user.id}/messages/${Date.now()}-${file.name}`;
       const { data, error } = await supabase.storage.from('photos').upload(path, file);
       if (error) throw error;
       const mediaUrl = supabase.storage.from('photos').getPublicUrl(data.path).data.publicUrl;
