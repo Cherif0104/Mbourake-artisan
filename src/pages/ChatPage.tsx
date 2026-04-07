@@ -42,6 +42,7 @@ export function ChatPage() {
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [sending, setSending] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const isLoadingMessages = loading || auth.loading;
 
   const myName = auth.user?.user_metadata?.full_name || '';
@@ -623,12 +624,18 @@ export function ChatPage() {
                             
                             {/* Image Message */}
                             {msg.type === 'image' && msg.content && (
-                              <img 
-                                src={msg.content} 
-                                alt="Image partagée" 
-                                className="rounded-xl max-w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => window.open(msg.content!, '_blank')}
-                              />
+                              <button
+                                type="button"
+                                onClick={() => setPreviewImageUrl(msg.content!)}
+                                className="block"
+                                aria-label="Ouvrir l'image"
+                              >
+                                <img
+                                  src={msg.content}
+                                  alt="Image partagée"
+                                  className="rounded-xl max-w-full max-h-60 object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
+                                />
+                              </button>
                             )}
 
                             {msg.type === 'video' && (
@@ -730,6 +737,26 @@ export function ChatPage() {
           className="fixed inset-0 z-10" 
           onClick={() => setShowMenu(false)} 
         />
+      )}
+
+      {/* Prévisualisation image en intra-plateforme */}
+      {previewImageUrl && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+          <button
+            type="button"
+            onClick={() => setPreviewImageUrl(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
+            aria-label="Fermer l'image"
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={previewImageUrl}
+            alt="Aperçu"
+            className="max-w-full max-h-full object-contain rounded-xl"
+            onClick={() => setPreviewImageUrl(null)}
+          />
+        </div>
       )}
 
       {/* Appel entrant (audio ou vidéo) */}
