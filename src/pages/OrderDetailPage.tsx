@@ -6,6 +6,7 @@ import {
   Phone,
   User,
   MapPin,
+  MessageSquare,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Database, Json } from '@shared';
@@ -19,6 +20,7 @@ type OrderRow = Database['public']['Tables']['orders']['Row'];
 type OrderItemRow = Database['public']['Tables']['order_items']['Row'];
 
 type OrderWithDetails = OrderRow & {
+  chat_project_id?: string | null;
   order_items?: (OrderItemRow & {
     products?: { title: string; images: Json | null } | null;
   })[];
@@ -87,6 +89,7 @@ export function OrderDetailPage() {
   const [order, setOrder] = useState<OrderWithDetails | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
 
   const isBuyer = order && profile && order.buyer_id === profile.id;
   const isSeller = order && profile && order.seller_id === profile.id;
@@ -197,6 +200,29 @@ export function OrderDetailPage() {
       showError(e?.message ?? 'Impossible d\'annuler.');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleOpenOrderDiscussion = async () => {
+    if (!orderId) return;
+    if (order?.status === 'cancelled') {
+      showError('Discussion indisponible pour une commande annulée.');
+      return;
+    }
+    setOpeningChat(true);
+    try {
+      const { data, error } = await supabase.rpc('ensure_marketplace_order_chat', {
+        p_order_id: orderId,
+      });
+      if (error) throw error;
+      const chatProjectId = String(data || '');
+      if (!chatProjectId) throw new Error('Discussion introuvable.');
+      setOrder((prev) => (prev ? { ...prev, chat_project_id: chatProjectId } : prev));
+      navigate(`/chat/${chatProjectId}`);
+    } catch (e: any) {
+      showError(e?.message ?? 'Impossible d\'ouvrir la discussion.');
+    } finally {
+      setOpeningChat(false);
     }
   };
 
@@ -427,6 +453,21 @@ export function OrderDetailPage() {
                 ) : null;
               })()}
             </div>
+            {order.status !== 'cancelled' && (
+              <button
+                type="button"
+                onClick={handleOpenOrderDiscussion}
+                disabled={openingChat}
+                className="mt-3 w-full py-2.5 rounded-xl border border-brand-200 text-brand-700 bg-brand-50 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <MessageSquare size={16} />
+                {openingChat
+                  ? 'Ouverture...'
+                  : isBuyer
+                    ? 'Discuter avec l\'artisan'
+                    : 'Discuter avec le client'}
+              </button>
+            )}
           </div>
         )}
 
