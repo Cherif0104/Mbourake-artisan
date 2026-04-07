@@ -15,6 +15,25 @@ import { useGlobalLoading } from '../contexts/LoadingContext';
 import { usePWAInstall } from '../contexts/PWAInstallContext';
 import { supabase } from '../lib/supabase';
 
+const LAST_ROUTE_SESSION_KEY = 'mbourake_last_route';
+const LAST_ROUTE_BACKUP_KEY = 'mbourake_last_route_backup';
+const LAST_ROUTE_BACKUP_TTL_MS = 60 * 1000;
+
+function readSavedRoute(): string | null {
+  try {
+    const fromSession = sessionStorage.getItem(LAST_ROUTE_SESSION_KEY);
+    if (fromSession) return fromSession;
+    const raw = localStorage.getItem(LAST_ROUTE_BACKUP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { route?: string; ts?: number };
+    const fresh = typeof parsed.ts === 'number' && Date.now() - parsed.ts <= LAST_ROUTE_BACKUP_TTL_MS;
+    if (!fresh || !parsed.route) return null;
+    return parsed.route;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeForSearch(s: string): string {
   return (s || '')
     .toLowerCase()
@@ -261,7 +280,7 @@ export function LandingPage() {
   useEffect(() => {
     if (auth.loading || !auth.user || fromRecherche) return;
     try {
-      const saved = sessionStorage.getItem('mbourake_last_route');
+      const saved = readSavedRoute();
       if (
         saved &&
         saved !== '/' &&

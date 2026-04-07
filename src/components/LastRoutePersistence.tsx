@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 const STORAGE_KEY = 'mbourake_last_route';
+const BACKUP_STORAGE_KEY = 'mbourake_last_route_backup';
+const BACKUP_TTL_MS = 60 * 1000;
 
 const EXCLUDED_PATHS = [
   '/',
@@ -34,6 +36,13 @@ export function LastRoutePersistence() {
     if (isExcluded(pathname)) return;
     try {
       sessionStorage.setItem(STORAGE_KEY, full);
+      localStorage.setItem(
+        BACKUP_STORAGE_KEY,
+        JSON.stringify({
+          route: full,
+          ts: Date.now(),
+        })
+      );
     } catch {
       // ignore
     }
@@ -47,7 +56,17 @@ export function LastRoutePersistence() {
     if (hasRestoredRef.current) return;
 
     try {
-      const saved = sessionStorage.getItem(STORAGE_KEY);
+      let saved = sessionStorage.getItem(STORAGE_KEY);
+      if (!saved) {
+        const rawBackup = localStorage.getItem(BACKUP_STORAGE_KEY);
+        if (rawBackup) {
+          const parsed = JSON.parse(rawBackup) as { route?: string; ts?: number };
+          const isFresh = typeof parsed.ts === 'number' && Date.now() - parsed.ts <= BACKUP_TTL_MS;
+          if (isFresh && parsed.route) {
+            saved = parsed.route;
+          }
+        }
+      }
       if (!saved || saved === '/' || !saved.startsWith('/')) return;
       if (isExcluded(saved.split('?')[0])) return;
 

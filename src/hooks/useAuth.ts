@@ -79,8 +79,14 @@ export function useAuth() {
         }
 
         try {
-          // Ne pas rediriger si on est déjà sur /admin (évite la boucle dashboard ↔ admin)
-          if (window.location.pathname === '/admin') return;
+          // Ne pas rediriger si on est déjà dans l'app (évite de perdre un formulaire en cours).
+          // On redirige uniquement depuis les points d'entrée auth/landing.
+          const currentPath = window.location.pathname;
+          if (currentPath === '/admin' || currentPath.startsWith('/admin/')) return;
+          const isAuthEntryPath =
+            currentPath === '/' ||
+            currentPath === '/onboard' ||
+            currentPath.startsWith('/invite/');
 
           const search = new URLSearchParams(window.location.search);
           let mode = search.get('mode');
@@ -95,6 +101,14 @@ export function useAuth() {
             role = localStorage.getItem('mbourake_pending_role') || undefined;
           }
 
+          // Si l'utilisateur n'arrive pas d'un flux d'auth, ne pas forcer de navigation.
+          const hasAuthIntent =
+            isAuthEntryPath ||
+            Boolean(mode) ||
+            Boolean(role) ||
+            Boolean(localStorage.getItem('mbourake_pending_redirect'));
+          if (!hasAuthIntent) return;
+
           // Redirection après login : passer par le dashboard avec mode/role pour créer le profil si besoin,
           // et transmettre un éventuel redirect en query pour que le dashboard envoie ensuite vers la page cible
           const pendingRedirect = typeof window !== 'undefined' ? localStorage.getItem('mbourake_pending_redirect') : null;
@@ -108,7 +122,7 @@ export function useAuth() {
             params.set('redirect', pendingRedirect);
           }
           const targetUrl = `/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
-          if (window.location.pathname !== '/dashboard') {
+          if (window.location.pathname !== '/dashboard' || window.location.search !== `?${params.toString()}`) {
             console.log('[useAuth] SIGNED_IN → redirection vers', targetUrl);
             window.location.replace(targetUrl);
           }
