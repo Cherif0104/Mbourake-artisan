@@ -13,7 +13,6 @@ import {
   clearCart,
   CART_UPDATED_EVENT,
 } from '../lib/cart';
-import { notifyArtisanNewOrder } from '../lib/notificationService';
 import {
   MarketplaceShippingFields,
   emptyMarketplaceShipping,
@@ -54,11 +53,6 @@ export function PanierCheckoutPage() {
   }, [profile?.phone]);
 
   const total = getCartTotal(cartItems);
-  const buyerName =
-    profile?.full_name ||
-    (user?.user_metadata?.full_name as string) ||
-    user?.email ||
-    'Un client';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,26 +87,6 @@ export function PanierCheckoutPage() {
 
       if (user?.id) {
         await persistBuyerPhone(user.id, shipping.phone, profile?.phone).catch(() => {});
-      }
-
-      // Notifier chaque artisan (seller_id = artisan)
-      for (const orderId of ids) {
-        const { data: order } = await supabase
-          .from('orders')
-          .select(`
-            seller_id,
-            order_items (
-              products ( title )
-            )
-          `)
-          .eq('id', orderId)
-          .single();
-        const o = order as { seller_id?: string; order_items?: { products?: { title?: string } | null }[] } | null;
-        if (o?.seller_id) {
-          const firstItem = o.order_items?.[0];
-          const productTitle = firstItem?.products?.title ?? 'Produit';
-          notifyArtisanNewOrder(orderId, o.seller_id, productTitle, buyerName).catch(() => {});
-        }
       }
 
       clearCart();

@@ -8,7 +8,6 @@ import { HomeButton } from '../components/HomeButton';
 import { useToastContext } from '../contexts/ToastContext';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
-import { notifyArtisanNewOrder } from '../lib/notificationService';
 import {
   MarketplaceShippingFields,
   emptyMarketplaceShipping,
@@ -105,11 +104,6 @@ export function MarketplaceCheckoutPage() {
       const orderId = data as string;
       if (user?.id) {
         await persistBuyerPhone(user.id, shipping.phone, profile?.phone).catch(() => {});
-      }
-      const artisanId = product.artisan_id;
-      const buyerName = profile?.full_name || user?.user_metadata?.full_name || user?.email || 'Un client';
-      if (artisanId) {
-        notifyArtisanNewOrder(orderId, artisanId, product.title ?? 'Produit', buyerName).catch(() => {});
       }
       success('Commande enregistrée. Paiement à la livraison. Consultez Mes achats.');
       navigate('/commandes', { state: { orderId } });
