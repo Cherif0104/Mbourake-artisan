@@ -160,7 +160,6 @@ export function MarketplacePage() {
         }
       } finally {
         setLoading(false);
-        setSearching(false);
       }
     };
 
