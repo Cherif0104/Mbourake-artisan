@@ -29,7 +29,25 @@ export function ConversationsPage() {
   const auth = useAuth();
   const { profile } = useProfile();
   const { notifications } = useNotifications();
-  const [conversations, setConversations] = useState<any[]>([]);
+  type ProjectRow = {
+    id: string;
+    title: string | null;
+    status: string;
+    client_id: string;
+    target_artisan_id: string | null;
+    updated_at: string;
+    categories?: { name: string } | null;
+  };
+  type LastMsg = { created_at: string; content: string | null; type: string };
+  type ConversationItem = {
+    project: ProjectRow;
+    participant: { id: string; full_name: string | null; avatar_url: string | null } | null;
+    lastMessageAt: string;
+    lastMessagePreviewText: string;
+    orderId?: string;
+  };
+  const [projectConversations, setProjectConversations] = useState<ConversationItem[]>([]);
+  const [orderConversations, setOrderConversations] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   type MessageSection = 'projet' | 'commande' | 'divers';
@@ -41,21 +59,6 @@ export function ConversationsPage() {
     const fetchConversations = async () => {
       setLoading(true);
       try {
-        type ProjectRow = {
-          id: string;
-          title: string | null;
-          status: string;
-          client_id: string;
-          target_artisan_id: string | null;
-          updated_at: string;
-          categories?: { name: string } | null;
-        };
-
-        let projects: ProjectRow[] = [];
-        const byId = new Map<string, ProjectRow>();
-
-        // Base de vérité : derniers messages visibles pour l'utilisateur connecté.
-        // Permet d'afficher l'historique même si le projet n'est plus "en cours".
         const { data: latestMessages, error: latestMessagesError } = await supabase
           .from('messages')
           .select('project_id, created_at, content, type')
@@ -63,16 +66,136 @@ export function ConversationsPage() {
           .limit(800);
         if (latestMessagesError) throw latestMessagesError;
 
+        const lastMessageByProject = new Map<string, LastMsg>();
+        (latestMessages as { project_id: string; created_at: string; content: string | null; type: string }[] | null)?.forEach((row) => {
+          if (!lastMessageByProject.has(row.project_id)) {
+            lastMessageByProject.set(row.project_id, {
+              created_at: row.created_at,
+              content: row.content,
+              type: row.type || 'text',
+            });
+          }
+        });
+
+        const { data: rawOrders } = await supabase
+          .from('orders')
+          .select(`
+            id,
+            buyer_id,
+            seller_id,
+            created_at,
+            updated_at,
+            chat_project_id,
+            buyer:profiles!orders_buyer_id_fkey(id, full_name, avatar_url),
+            seller:profiles!orders_seller_id_fkey(id, full_name, avatar_url)
+          `)
+          .or(`buyer_id.eq.${auth.user.id},seller_id.eq.${auth.user.id}`)
+          .not('chat_project_id', 'is', null)
+          .order('updated_at', { ascending: false });
+
+        const orders = (rawOrders as {
+          id: string;
+          buyer_id: string;
+          seller_id: string;
+          created_at: string;
+          updated_at: string;
+          chat_project_id: string | null;
+          buyer?: { id: string; full_name: string | null; avatar_url: string | null } | null;
+          seller?: { id: string; full_name: string | null; avatar_url: string | null } | null;
+        }[] | null) || [];
+
+        const orderProjectIds = Array.from(new Set(orders.map((o) => o.chat_project_id).filter(Boolean))) as string[];
+        const orderProjectIdSet = new Set(orderProjectIds);
+
+        const orderProjectMeta = new Map<string, ProjectRow>();
+        if (orderProjectIds.length > 0) {
+          const { data: orderProjects } = await supabase
+            .from('projects')
+            .select('id, title, status, client_id, target_artisan_id, updated_at, categories(name)')
+            .in('id', orderProjectIds);
+          (orderProjects as ProjectRow[] | null)?.forEach((p) => {
+            if (p?.id) orderProjectMeta.set(p.id, p);
+          });
+        }
+
+        const { data: fallbackOrderProjects } = await supabase
+          .from('projects')
+          .select('id, title, status, client_id, target_artisan_id, updated_at, categories(name)')
+          .or(`client_id.eq.${auth.user.id},target_artisan_id.eq.${auth.user.id}`)
+          .ilike('title', 'Commande:%');
+        (fallbackOrderProjects as ProjectRow[] | null)?.forEach((p) => {
+          if (p?.id) orderProjectMeta.set(p.id, p);
+        });
+        const allOrderProjectIdSet = new Set<string>([
+          ...Array.from(orderProjectIdSet),
+          ...Array.from(orderProjectMeta.keys()),
+        ]);
+
+        const builtOrderConversations: ConversationItem[] = orders
+          .map((o) => {
+            const pid = o.chat_project_id;
+            if (!pid) return null;
+            const project = orderProjectMeta.get(pid);
+            if (!project) return null;
+            const participant = o.buyer_id === auth.user.id ? (o.seller ?? null) : (o.buyer ?? null);
+            const lastMsg = lastMessageByProject.get(pid);
+            return {
+              project,
+              participant,
+              lastMessageAt: lastMsg?.created_at || project.updated_at || o.updated_at || o.created_at,
+              lastMessagePreviewText: lastMessagePreview(lastMsg) || 'Appuyez pour démarrer la discussion de commande.',
+              orderId: o.id,
+            } as ConversationItem;
+          })
+          .filter(Boolean) as ConversationItem[];
+
+        const coveredOrderProjectIds = new Set(builtOrderConversations.map((c) => c.project.id));
+        const fallbackOrderConversations = await Promise.all(
+          Array.from(orderProjectMeta.values())
+            .filter((p) => !coveredOrderProjectIds.has(p.id))
+            .map(async (project) => {
+              let participantId: string | null = null;
+              if (project.client_id === auth.user.id) {
+                participantId = project.target_artisan_id || null;
+              } else {
+                participantId = project.client_id;
+              }
+
+              let participant: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
+              if (participantId) {
+                const { data: participantData } = await supabase
+                  .from('profiles')
+                  .select('id, full_name, avatar_url')
+                  .eq('id', participantId)
+                  .maybeSingle();
+                participant = (participantData as typeof participant) ?? null;
+              }
+
+              const lastMsg = lastMessageByProject.get(project.id);
+              return {
+                project,
+                participant,
+                lastMessageAt: lastMsg?.created_at || project.updated_at,
+                lastMessagePreviewText: lastMessagePreview(lastMsg) || 'Appuyez pour démarrer la discussion de commande.',
+              } as ConversationItem;
+            })
+        );
+        builtOrderConversations.push(...fallbackOrderConversations);
+
+        builtOrderConversations.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+        setOrderConversations(builtOrderConversations);
+
+        const byId = new Map<string, ProjectRow>();
+
         if (profile.role === 'client') {
           const { data, error } = await supabase
             .from('projects')
             .select('id, title, status, client_id, target_artisan_id, updated_at, categories(name)')
             .eq('client_id', auth.user.id)
-            .not('status', 'in', '("cancelled","expired")')
             .order('updated_at', { ascending: false });
           if (error) throw error;
           ((data as ProjectRow[]) || []).forEach((p) => {
-            if (p?.id) byId.set(p.id, p);
+            if (p?.id && !allOrderProjectIdSet.has(p.id)) byId.set(p.id, p);
           });
         } else {
           // Artisan : tous les projets où j'ai eu un devis (quel que soit le statut)
@@ -81,22 +204,21 @@ export function ConversationsPage() {
             .from('quotes')
             .select(`
               project_id,
-              projects (id, title, status, client_id, target_artisan_id, updated_at, categories(name))
+              projects!quotes_project_id_fkey (id, title, status, client_id, target_artisan_id, updated_at, categories(name))
             `)
             .eq('artisan_id', auth.user.id);
           if (quotesError) throw quotesError;
           (quotesData as { project_id: string; projects: ProjectRow }[] | null)?.forEach((q) => {
             const p = q.projects;
-            if (p && p.id && !['cancelled', 'expired'].includes(p.status)) byId.set(p.id, p);
+            if (p && p.id && !allOrderProjectIdSet.has(p.id)) byId.set(p.id, p);
           });
           const { data: targetedProjects, error: targetedError } = await supabase
             .from('projects')
             .select('id, title, status, client_id, target_artisan_id, updated_at, categories(name)')
-            .eq('target_artisan_id', auth.user.id)
-            .not('status', 'in', '("cancelled","expired")');
+            .eq('target_artisan_id', auth.user.id);
           if (targetedError) throw targetedError;
           (targetedProjects as ProjectRow[] | null)?.forEach((p) => {
-            if (p && p.id) byId.set(p.id, p);
+            if (p && p.id && !allOrderProjectIdSet.has(p.id)) byId.set(p.id, p);
           });
         }
 
@@ -115,74 +237,66 @@ export function ConversationsPage() {
             .in('id', messageProjectIds);
           if (messageProjectsError) throw messageProjectsError;
           (messageProjects as ProjectRow[] | null)?.forEach((p) => {
-            if (p?.id) byId.set(p.id, p);
+            if (p?.id && !allOrderProjectIdSet.has(p.id)) byId.set(p.id, p);
           });
         }
 
-        projects = Array.from(byId.values());
+        const projects = Array.from(byId.values());
 
         if (projects.length === 0) {
-          setConversations([]);
-          setLoading(false);
-          return;
-        }
-
-        type LastMsg = { created_at: string; content: string | null; type: string };
-        const lastMessageByProject = new Map<string, LastMsg>();
-        (latestMessages as { project_id: string; created_at: string; content: string | null; type: string }[] | null)?.forEach((row) => {
-          if (!lastMessageByProject.has(row.project_id)) {
-            lastMessageByProject.set(row.project_id, { created_at: row.created_at, content: row.content, type: row.type || 'text' });
-          }
-        });
-
-        const conversationsList = await Promise.all(
-          projects.map(async (project) => {
-            let participantId: string | null = null;
-            if (profile.role === 'client') {
-              const { data: acceptedQuote } = await supabase
-                .from('quotes')
-                .select('artisan_id')
-                .eq('project_id', project.id)
-                .eq('status', 'accepted')
-                .maybeSingle();
-              participantId = (acceptedQuote as { artisan_id: string } | null)?.artisan_id ?? null;
-              if (!participantId) {
-                const { data: anyQuoteList } = await supabase
+          setProjectConversations([]);
+        } else {
+          const conversationsList = await Promise.all(
+            projects.map(async (project) => {
+              let participantId: string | null = null;
+              if (profile.role === 'client') {
+                const { data: acceptedQuote } = await supabase
                   .from('quotes')
                   .select('artisan_id')
                   .eq('project_id', project.id)
-                  .in('status', ['pending', 'viewed'])
-                  .order('created_at', { ascending: false })
-                  .limit(1);
-                const anyQuote = (anyQuoteList as { artisan_id: string }[] | null)?.[0];
-                participantId = anyQuote?.artisan_id ?? null;
+                  .eq('status', 'accepted')
+                  .maybeSingle();
+                participantId = (acceptedQuote as { artisan_id: string } | null)?.artisan_id ?? null;
+                if (!participantId) {
+                  const { data: anyQuoteList } = await supabase
+                    .from('quotes')
+                    .select('artisan_id')
+                    .eq('project_id', project.id)
+                    .in('status', ['pending', 'viewed'])
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                  const anyQuote = (anyQuoteList as { artisan_id: string }[] | null)?.[0];
+                  participantId = anyQuote?.artisan_id ?? null;
+                }
+                if (!participantId && project.target_artisan_id) {
+                  participantId = project.target_artisan_id;
+                }
+              } else {
+                participantId = project.client_id;
               }
-              if (!participantId && project.target_artisan_id) {
-                participantId = project.target_artisan_id;
+              const lastMsg = lastMessageByProject.get(project.id);
+              const lastMessageAt = lastMsg?.created_at || project.updated_at;
+              const lastMessagePreviewText = lastMessagePreview(lastMsg);
+              let participant: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
+              if (participantId) {
+                const { data: participantData } = await supabase
+                  .from('profiles')
+                  .select('id, full_name, avatar_url')
+                  .eq('id', participantId)
+                  .single();
+                participant = participantData as typeof participant;
               }
-            } else {
-              participantId = project.client_id;
-            }
-            const lastMsg = lastMessageByProject.get(project.id);
-            const lastMessageAt = lastMsg?.created_at || project.updated_at;
-            const lastMessagePreviewText = lastMessagePreview(lastMsg);
-            let participant: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
-            if (participantId) {
-              const { data: participantData } = await supabase
-                .from('profiles')
-                .select('id, full_name, avatar_url')
-                .eq('id', participantId)
-                .single();
-              participant = participantData as typeof participant;
-            }
-            return { project, participant, lastMessageAt, lastMessagePreviewText };
-          })
-        );
+              return { project, participant, lastMessageAt, lastMessagePreviewText } as ConversationItem;
+            })
+          );
 
-        conversationsList.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
-        setConversations(conversationsList);
+          conversationsList.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+          setProjectConversations(conversationsList);
+        }
       } catch (error) {
         console.error('Error fetching conversations:', error);
+        setProjectConversations([]);
+        setOrderConversations([]);
       } finally {
         setLoading(false);
       }
@@ -191,17 +305,29 @@ export function ConversationsPage() {
     fetchConversations();
   }, [auth.user, profile]);
 
-  const filteredConversations = useMemo(() => {
+  const filteredProjectConversations = useMemo(() => {
     const q = normalizeForSearch(searchQuery).trim();
-    if (!q) return conversations;
-    return conversations.filter((conv) => {
+    if (!q) return projectConversations;
+    return projectConversations.filter((conv) => {
       const name = normalizeForSearch(conv.participant?.full_name || '');
       const title = normalizeForSearch(conv.project?.title || '');
       const preview = normalizeForSearch(conv.lastMessagePreviewText || '');
       const category = normalizeForSearch(conv.project?.categories?.name || '');
       return name.includes(q) || title.includes(q) || preview.includes(q) || category.includes(q);
     });
-  }, [conversations, searchQuery]);
+  }, [projectConversations, searchQuery]);
+
+  const filteredOrderConversations = useMemo(() => {
+    const q = normalizeForSearch(searchQuery).trim();
+    if (!q) return orderConversations;
+    return orderConversations.filter((conv) => {
+      const name = normalizeForSearch(conv.participant?.full_name || '');
+      const title = normalizeForSearch(conv.project?.title || '');
+      const preview = normalizeForSearch(conv.lastMessagePreviewText || '');
+      const orderTag = normalizeForSearch(conv.orderId ? `commande ${conv.orderId}` : '');
+      return name.includes(q) || title.includes(q) || preview.includes(q) || orderTag.includes(q);
+    });
+  }, [orderConversations, searchQuery]);
 
   if (loading) {
     return <LoadingOverlay />;
@@ -250,13 +376,6 @@ export function ConversationsPage() {
 
       {/* Content */}
       <main className="max-w-lg mx-auto px-5 py-6">
-        {messageSection === 'commande' && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center mb-6">
-            <ShoppingBag size={40} className="mx-auto mb-3 text-gray-300" />
-            <p className="font-medium text-gray-700 mb-1">Messages commandes</p>
-            <p className="text-sm text-gray-500">Les échanges liés à vos commandes marketplace apparaîtront ici.</p>
-          </div>
-        )}
         {messageSection === 'divers' && (
           <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center mb-6">
             <Inbox size={40} className="mx-auto mb-3 text-gray-300" />
@@ -264,7 +383,9 @@ export function ConversationsPage() {
             <p className="text-sm text-gray-500">Autres conversations et notifications.</p>
           </div>
         )}
-        {messageSection === 'projet' && conversations.length > 0 && (
+        {(messageSection === 'projet' || messageSection === 'commande') &&
+          ((messageSection === 'projet' && projectConversations.length > 0) ||
+            (messageSection === 'commande' && orderConversations.length > 0)) && (
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -272,7 +393,11 @@ export function ConversationsPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher une discussion (nom, projet, message…)"
+                placeholder={
+                  messageSection === 'commande'
+                    ? 'Rechercher une discussion de commande...'
+                    : 'Rechercher une discussion (nom, projet, message...)'
+                }
                 className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-transparent"
                 aria-label="Rechercher dans les discussions"
               />
@@ -281,7 +406,7 @@ export function ConversationsPage() {
         )}
 
         {messageSection === 'projet' && (
-          conversations.length === 0 ? (
+          projectConversations.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
             <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <MessageSquare size={28} className="text-gray-300" />
@@ -289,7 +414,7 @@ export function ConversationsPage() {
             <p className="text-gray-500 font-medium">Aucune discussion pour le moment</p>
             <p className="text-sm text-gray-400 mt-1">Vos conversations de projet apparaîtront ici dès le premier échange</p>
           </div>
-        ) : filteredConversations.length === 0 ? (
+        ) : filteredProjectConversations.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
             <Search size={32} className="mx-auto text-gray-200 mb-4" />
             <p className="text-gray-500 font-medium">Aucune discussion trouvée</p>
@@ -297,7 +422,7 @@ export function ConversationsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredConversations.map((conv, index) => {
+            {filteredProjectConversations.map((conv, index) => {
               const hasUnread = notifications.some(
                 n => !n.is_read && n.type === 'new_message' && n.data?.project_id === conv.project.id
               );
@@ -353,6 +478,81 @@ export function ConversationsPage() {
             })}
           </div>
         )
+        )}
+
+        {messageSection === 'commande' && (
+          orderConversations.length === 0 ? (
+            <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+              <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <ShoppingBag size={28} className="text-gray-300" />
+              </div>
+              <p className="text-gray-500 font-medium">Aucune discussion de commande</p>
+              <p className="text-sm text-gray-400 mt-1">Vos échanges client-artisan liés aux commandes apparaîtront ici.</p>
+            </div>
+          ) : filteredOrderConversations.length === 0 ? (
+            <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+              <Search size={32} className="mx-auto text-gray-200 mb-4" />
+              <p className="text-gray-500 font-medium">Aucune discussion trouvée</p>
+              <p className="text-sm text-gray-400 mt-1">Essayez avec un autre mot-clé.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredOrderConversations.map((conv, index) => {
+                const hasUnread = notifications.some(
+                  n => !n.is_read && n.type === 'new_message' && n.data?.project_id === conv.project.id
+                );
+                return (
+                  <button
+                    key={conv.project.id}
+                    onClick={() => navigate(`/chat/${conv.project.id}`)}
+                    className={`w-full bg-white rounded-2xl p-4 border text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:border-brand-100 transition-all duration-200 active:scale-[0.99] animate-in fade-in slide-in-from-bottom-2 duration-300 ${
+                      hasUnread ? 'border-brand-200 bg-brand-50/40' : 'border-gray-100'
+                    }`}
+                    style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' } as React.CSSProperties}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-12 h-12 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
+                        {conv.participant?.avatar_url ? (
+                          <img
+                            src={conv.participant.avatar_url}
+                            alt={conv.participant.full_name || 'Utilisateur'}
+                            className="w-full h-full rounded-xl object-cover"
+                          />
+                        ) : (
+                          <ShoppingBag size={20} className="text-brand-600" />
+                        )}
+                        {hasUnread && (
+                          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-brand-500 rounded-full border-2 border-white" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-bold truncate text-gray-900">
+                            {conv.participant?.full_name || 'Utilisateur'}
+                          </p>
+                          <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0 ml-2">
+                            <Clock size={12} />
+                            {new Date(conv.lastMessageAt).toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 truncate">
+                          {conv.lastMessagePreviewText || (conv.project.title || 'Commande')}
+                        </p>
+                        {conv.orderId && (
+                          <span className="inline-block mt-1 px-3 py-1 bg-brand-50 text-brand-700 text-xs font-bold rounded-full border border-brand-100">
+                            Commande
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )
         )}
       </main>
     </div>

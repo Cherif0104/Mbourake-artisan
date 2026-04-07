@@ -122,19 +122,6 @@ export function MarketplaceProductPage() {
     setGalleryIndex(0);
   }, [product?.id]);
 
-  const handleContactArtisan = () => {
-    const artisanId = product?.profiles?.id;
-    if (!artisanId) return;
-    if (!user) {
-      const redirect = `/artisans/${artisanId}`;
-      navigate(
-        `/onboard?mode=login&role=client&redirect=${encodeURIComponent(redirect)}`
-      );
-      return;
-    }
-    navigate(`/artisans/${artisanId}`);
-  };
-
   if (loading) {
     return <LoadingOverlay message="Chargement du produit..." />;
   }
@@ -396,13 +383,6 @@ export function MarketplaceProductPage() {
                     Voir toute la boutique
                   </span>
                 </div>
-              </button>
-              <button
-                type="button"
-                onClick={handleContactArtisan}
-                className="px-5 py-2.5 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 whitespace-nowrap"
-              >
-                Contacter l&apos;artisan
               </button>
             </div>
           </div>

@@ -55,7 +55,7 @@ export function useMessages(projectId?: string, userId?: string) {
     sender_id: string;
     content?: string;
     audio_url?: string;
-    type: 'text' | 'audio' | 'image' | 'video';
+    type: 'text' | 'audio' | 'image';
   }) => {
     const { data: inserted, error } = await supabase
       .from('messages')

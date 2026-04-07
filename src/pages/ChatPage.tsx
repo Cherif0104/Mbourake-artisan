@@ -11,6 +11,7 @@ import { useCall } from '../hooks/useCall';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { supabase } from '../lib/supabase';
 import { notifyNewMessage } from '../lib/notificationService';
+import { useToastContext } from '../contexts/ToastContext';
 
 interface ProjectInfo {
   id: string;
@@ -32,6 +33,7 @@ export function ChatPage() {
   const auth = useAuth();
   const { messages, sendMessage, loading } = useMessages(projectId, auth.user?.id);
   const { markAsReadForProject } = useNotifications();
+  const { error: showError } = useToastContext();
 
   const [inputText, setInputText] = useState('');
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
@@ -293,23 +295,24 @@ export function ChatPage() {
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !projectId || !auth.user) return;
-    const isVideo = file.type.startsWith('video/');
-    const messageType = isVideo ? 'video' : 'image';
+    if (!file.type.startsWith('image/')) {
+      showError('Seules les images sont autorisées dans la discussion.');
+      return;
+    }
 
     setSending(true);
     try {
       const fileName = `${auth.user.id}/${Date.now()}-${file.name}`;
-      const bucket = isVideo ? 'videos' : 'photos';
-      const path = isVideo ? fileName : `messages/${fileName}`;
-      const { data, error } = await supabase.storage.from(bucket).upload(path, file, isVideo ? { contentType: file.type || 'video/mp4' } : {});
+      const path = `messages/${fileName}`;
+      const { data, error } = await supabase.storage.from('photos').upload(path, file);
       if (error) throw error;
-      const mediaUrl = supabase.storage.from(bucket).getPublicUrl(data.path).data.publicUrl;
+      const mediaUrl = supabase.storage.from('photos').getPublicUrl(data.path).data.publicUrl;
 
       await sendMessage({
         project_id: projectId,
         sender_id: auth.user.id,
         content: mediaUrl,
-        type: messageType
+        type: 'image'
       });
 
       if (participant) {
@@ -317,6 +320,7 @@ export function ChatPage() {
       }
     } catch (err) {
       console.error('Error sending media:', err);
+      showError('Impossible d\'envoyer la photo.');
     } finally {
       setSending(false);
       if (fileInputRef.current) {
@@ -628,15 +632,8 @@ export function ChatPage() {
                               />
                             )}
 
-                            {/* Video Message */}
-                            {msg.type === 'video' && msg.content && (
-                              <video
-                                src={msg.content}
-                                controls
-                                className="rounded-xl max-w-full max-h-64 w-full object-contain bg-black"
-                                preload="metadata"
-                                playsInline
-                              />
+                            {msg.type === 'video' && (
+                              <p className="text-xs italic opacity-80">Message vidéo non pris en charge.</p>
                             )}
                           </div>
                           
@@ -675,11 +672,11 @@ export function ChatPage() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            {/* Image & Video Upload */}
+            {/* Image Upload */}
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,video/*"
+              accept="image/*"
               onChange={handleMediaUpload}
               className="hidden"
             />
@@ -687,7 +684,7 @@ export function ChatPage() {
               onClick={() => fileInputRef.current?.click()}
               disabled={sending}
               className="w-12 h-12 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-all duration-200 active:scale-95 disabled:opacity-50"
-              title="Photo ou vidéo"
+              title="Photo"
             >
               <ImageIcon size={20} />
             </button>
